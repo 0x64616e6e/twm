@@ -122,6 +122,11 @@ void view_update_frame(struct twm_view *view) {
 	if (view->frame) {
 		frame_update(view->frame);
 	}
+	/* A hidden tab is drawn in its group's row (title, urgency, marker). */
+	if (view->group && view->group->active && view->group->active != view &&
+			view->group->active->frame) {
+		frame_update(view->group->active->frame);
+	}
 	ui_changed(view->server);
 }
 

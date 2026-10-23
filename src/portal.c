@@ -276,19 +276,13 @@ static int method_access_dialog(sd_bus_message *m, void *data, sd_bus_error *err
 		goto fail;
 	}
 	while ((r = sd_bus_message_enter_container(m, 'e', "sv")) > 0) {
-		const char *key, *s;
+		const char *key;
 		if ((r = sd_bus_message_read(m, "s", &key)) < 0) {
 			goto fail;
 		}
-		if (strcmp(key, "deny_label") == 0 || strcmp(key, "grant_label") == 0) {
-			if ((r = sd_bus_message_read(m, "v", "s", &s)) < 0) {
-				goto fail;
-			}
-			if (s[0]) {
-				bool deny = key[0] == 'd';
-				copy(deny ? spec.deny : spec.grant, sizeof(spec.deny), s);
-			}
-		} else if (strcmp(key, "choices") == 0) {
+		/* deny_label and grant_label are ignored on purpose: the buttons
+		 * say twm's words, or an app could label Allow "Deny" (TRU-6). */
+		if (strcmp(key, "choices") == 0) {
 			if ((r = sd_bus_message_enter_container(m, 'v', "a(ssa(ss)s)")) < 0 ||
 					(r = read_choices(m, req, &spec)) < 0 ||
 					(r = sd_bus_message_exit_container(m)) < 0) {

@@ -57,6 +57,16 @@ static struct tc_window *place(struct tc *tc, int x, int y, struct tc_window_opt
 	return win;
 }
 
+static void drag(struct tc *tc, uint32_t button, int x0, int y0, int x1, int y1) {
+	tc_pointer_move(tc, x0, y0);
+	tc_pointer_button(tc, button, true);
+	for (int i = 1; i <= 6; i++) {
+		tc_pointer_move(tc, x0 + (x1 - x0) * i / 6, y0 + (y1 - y0) * i / 6);
+	}
+	tc_pointer_button(tc, button, false);
+	tc_wait(tc, 60);
+}
+
 static void shot(struct tc *tc, struct tc_image *img) {
 	tc_image_free(img);
 	tc_screenshot(tc, img);
@@ -521,11 +531,33 @@ int main(int argc, char *argv[]) {
 	tc_image_write_png(&img, path);
 	int marked = count_box(&img, 300, 650, 800, 650 + TH, ALERT, 30);
 	tc_expect("CAP-1", marked > 20, "obs captures: SCREEN in its tab (%d alert px)", marked);
+	tc_expect("CAP-1", count_box(&img, 1660, 100, 1896, 180, ALERT, 30) > 10,
+		"and on its Icon Manager row");
+
+	/* CAP-2: in a tab group the marker stays, in the row and on the group's
+	 * Icon Manager row. */
+	drag(tc, TC_BTN_MIDDLE, 380, 663, 500, 160);
+	tc_wait(tc, 100);
+	shot(tc, &img);
+	snprintf(path, sizeof(path), "%.*s-capture-group.png", (int)strlen(out) - 4, out);
+	tc_image_write_png(&img, path);
+	marked = count_box(&img, 100, 150, 1000, 150 + TH, ALERT, 30);
+	tc_expect("CAP-2", marked > 20, "grouped with build: SCREEN in obs's tab (%d)", marked);
+	tc_expect("CAP-2", count_box(&img, 1660, 100, 1896, 180, ALERT, 30) > 10,
+		"the group's Icon Manager row says SCREEN");
+	tc_pointer_move(tc, 100 + 27 + 20, 163);
+	tc_pointer_click(tc, TC_BTN_LEFT); /* build's tab to the front */
+	tc_wait(tc, 60);
+	shot(tc, &img);
+	marked = count_box(&img, 100, 150, 1000, 150 + TH, ALERT, 30);
+	tc_expect("CAP-2", marked > 20, "with build in front, still there (%d)", marked);
+
 	helper_do(tc, &h, 's');
 	tc_wait(tc, 2800);
 	shot(tc, &img);
-	marked = count_box(&img, 300, 650, 800, 650 + TH, ALERT, 30);
-	tc_expect("CAP-1", marked == 0, "stopped: the marker goes (%d)", marked);
+	marked = count_box(&img, 100, 150, 1000, 150 + TH, ALERT, 30) +
+		count_box(&img, 1660, 100, 1896, 180, ALERT, 30);
+	tc_expect("CAP-1", marked == 0, "stopped: the markers go (%d)", marked);
 	helper_quit(tc, &h);
 
 	/* CAP-3: capturing without a window: a root line while it lasts. */

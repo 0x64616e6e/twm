@@ -179,6 +179,9 @@ static void draw_group_tab(struct twm_frame *frame, enum frame_state state, floa
 			colors_for(t, st);
 		struct twm_font *f = title_font(server, colors[i].weight, scale);
 		in.text_width[i] = (int)ceilf(text_width(f, view_title(members[i]), 0) / scale);
+		if (members[i]->capturing) {
+			in.text_width[i] += marker_width(server, scale); /* CAP-1 in a row too */
+		}
 	}
 	struct tab_group_layout *l = &frame->glayout;
 	tab_group_layout_compute(&m, &in, l);
@@ -230,8 +233,14 @@ static void draw_group_tab(struct twm_frame *frame, enum frame_state state, floa
 		if (c->has_outline) {
 			draw_box(img, c->outline, X(s->x), 0, X(s->x + s->width) - X(s->x), dh, stroke);
 		}
+		/* CAP-1: the marker keeps its width; the title gives way. */
+		int mw = members[s->index]->capturing ? marker_width(server, scale) : 0;
+		mw = mw < s->text_w ? mw : s->text_w;
 		text_draw(img, f, view_title(members[s->index]), X(s->text_x),
-			text_baseline_centered(f, 0, dh), c->fg, 0, X(s->text_w));
+			text_baseline_centered(f, 0, dh), c->fg, 0, X(s->text_w - mw));
+		if (mw > 0) {
+			draw_marker_segment(img, server, s->text_x + s->text_w - mw, mw, scale);
+		}
 		if (s->hatch_w) {
 			int inset = t->hatch_inset;
 			draw_hatch(img, X(s->hatch_x), X(inset), X(s->hatch_w), X(t->title_height - inset) - X(inset),
@@ -448,8 +457,8 @@ void frame_update(struct twm_frame *frame) {
 		struct twm_view *mbr;
 		wl_list_for_each(mbr, &view->group->members, group_link) {
 			if (o < sizeof(sig)) {
-				o += (size_t)snprintf(sig + o, sizeof(sig) - o, "\x1d%s%d%d",
-					view_title(mbr), mbr == view, mbr->urgent);
+				o += (size_t)snprintf(sig + o, sizeof(sig) - o, "\x1d%s%d%d%d",
+					view_title(mbr), mbr == view, mbr->urgent, mbr->capturing);
 			}
 		}
 	}

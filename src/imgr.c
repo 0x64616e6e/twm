@@ -383,6 +383,16 @@ static const char *row_title(struct twm_view *v, char *buf, size_t len) {
 
 static void right_label(struct twm_view *v, char *buf, size_t len) {
 	buf[0] = '\0';
+	/* CAP-1: a group row says SCREEN when any of its tabs captures. */
+	if (v->group && group_size(v->group) > 1) {
+		struct twm_view *mbr;
+		wl_list_for_each(mbr, &v->group->members, group_link) {
+			if (mbr->capturing) {
+				snprintf(buf, len, "SCREEN");
+				return;
+			}
+		}
+	}
 	if (v->group && group_size(v->group) > 1 && !v->urgent) {
 		snprintf(buf, len, "tabs");
 		return;
@@ -506,7 +516,8 @@ static void draw_rest(struct imgr *im, pixman_image_t *img, float scale) {
 			text_draw(img, font, row_title(v, rt, sizeof(rt)), tx, base, argb(fg), 0,
 				S(IM_W - ROW_PAD) - tx - (rw ? rw + S(ROW_GAP) : 0));
 			if (*right) {
-				uint32_t rc = v->capturing ? t->alert : v->urgent ? t->accent : t->dim;
+				uint32_t rc = strcmp(right, "SCREEN") == 0 ? t->alert :
+					v->urgent ? t->accent : t->dim;
 				text_draw(img, font, right, S(IM_W - ROW_PAD) - rw, base, argb(rc), 0, 0);
 			}
 			add_hit(im, 0, y, IM_W, y + ROW_H, IM_HIT_WINDOW, 0, v->id);

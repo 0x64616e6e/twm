@@ -111,6 +111,11 @@ void layers_pressed(struct twm_server *server, struct wlr_surface *surface) {
 static void handle_map(struct wl_listener *listener, void *data) {
 	struct twm_layer_surface *s = wl_container_of(listener, s, map);
 	s->mapped = true;
+	/* Exclusive zones only count once mapped (wlroots), so arrange again. */
+	struct twm_output *o = output_of(s);
+	if (o) {
+		layers_arrange(o);
+	}
 	if (s->ls->current.keyboard_interactive ==
 			ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE) {
 		give_keyboard(s->server, s->ls->surface); /* a launcher or locker */
@@ -121,6 +126,10 @@ static void handle_map(struct wl_listener *listener, void *data) {
 static void handle_unmap(struct wl_listener *listener, void *data) {
 	struct twm_layer_surface *s = wl_container_of(listener, s, unmap);
 	s->mapped = false;
+	struct twm_output *o = output_of(s);
+	if (o) {
+		layers_arrange(o);
+	}
 	if (s->server->seat->keyboard_state.focused_surface == s->ls->surface) {
 		return_keyboard(s->server);
 	}

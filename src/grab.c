@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -349,7 +350,9 @@ void grab_motion(struct twm_server *server) {
 	struct twm_grab *g = &server->grab;
 	double dx = server->cursor->x - g->cx;
 	double dy = server->cursor->y - g->cy;
-	int ix = (int)dx + g->key_dx, iy = (int)dy + g->key_dy;
+	/* Round, don't truncate: an absolute pointer gives 999.9999 for 1000,
+	 * and (int) of -99.9999 is -99. */
+	int ix = (int)lround(dx) + g->key_dx, iy = (int)lround(dy) + g->key_dy;
 	switch (g->mode) {
 	case TWM_GRAB_NONE:
 		return;
@@ -374,13 +377,13 @@ void grab_motion(struct twm_server *server) {
 		break;
 	case TWM_GRAB_PLACE:
 		/* B0: the outline's top-left hangs from the pointer. */
-		g->box.x = (int)server->cursor->x + g->key_dx;
-		g->box.y = (int)server->cursor->y + g->key_dy;
+		g->box.x = (int)lround(server->cursor->x) + g->key_dx;
+		g->box.y = (int)lround(server->cursor->y) + g->key_dy;
 		break;
 	case TWM_GRAB_PLACE_SIZE:
 		g->box = geo_resize(g->start, GEO_EDGE_RIGHT | GEO_EDGE_BOTTOM,
-			(int)(server->cursor->x - (g->start.x + g->start.w)),
-			(int)(server->cursor->y - (g->start.y + g->start.h)),
+			(int)lround(server->cursor->x - (g->start.x + g->start.w)),
+			(int)lround(server->cursor->y - (g->start.y + g->start.h)),
 			frame_limits(g->view));
 		break;
 	}

@@ -16,6 +16,13 @@
 
 /* evdev key codes (virtual keyboard). */
 #define TC_KEY_ESC 1
+#define TC_KEY_1 2
+#define TC_KEY_2 3
+#define TC_KEY_3 4
+#define TC_KEY_TAB 15
+#define TC_KEY_I 23
+#define TC_KEY_P 25
+#define TC_KEY_N 49
 #define TC_KEY_R 19
 #define TC_KEY_ENTER 28
 #define TC_KEY_H 35
@@ -56,6 +63,12 @@ bool tc_window_activated(struct tc_window *win);
 void tc_window_size(struct tc_window *win, int *w, int *h);
 /* Ask to be activated without a token (URG-2 in M1). */
 void tc_window_request_activation(struct tc_window *win);
+
+/* A layer-shell surface on the top layer, anchored to the top edge, full
+ * width, `height` tall with an exclusive zone of `exclusive` (GEN-2). */
+struct tc_layer;
+struct tc_layer *tc_layer_bar(struct tc *tc, int height, int exclusive, uint32_t color);
+void tc_layer_destroy(struct tc_layer *layer);
 
 /* Virtual pointer, layout coordinates of the single output. */
 void tc_pointer_move(struct tc *tc, double x, double y);

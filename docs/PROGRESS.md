@@ -2,6 +2,70 @@
 
 Newest milestone first. Requirement IDs refer to [DESIGN.md](DESIGN.md).
 
+## M4 — Icon Manager, root menu, desktops, Panner (2026-10-24)
+
+**Done**
+
+- Desktops (DSK-1, DSK-2, DSK-6): windows belong to a desktop; `M-1`…`M-9`
+  switch instantly, `M-S-1`…`M-S-9` send; focus follows the most recent window.
+- Iconify (FRM-13) with root icons (ROOT-9, ROOT-10): B1 on the icon
+  deiconifies, B2 drags it; squeeze (FRM-14) shades a window to its tab.
+  Iconify, deiconify, squeeze and send are recorded and undoable (HIS-1, HIS-2).
+- Icon Manager (IMG-1…12): B0's rest state (desktop row, focused / normal /
+  urgent / placing rows, divider, iconified rows) and B5's filter: typing at
+  it lists WINDOWS (every desktop, iconified too), then RUN (menu entries,
+  `$PATH` executables in `Terminal`); Return raises, `M-Return` brings here,
+  Tab completes, Esc clears.
+- Panner (DSK-3…5): desktop miniatures bottom-right; B1 switches, B2 drags a
+  window to another desktop.
+- Root menu (MNU-1…7): B1 on the root or `M-m`; press-drag-release or click
+  and click; submenus; keys; shortcuts generated from the bindings; window
+  functions pick their target with a crosshair click.
+- Log window (ROOT-8, `M-n`).
+- wlr-layer-shell (GEN-2), with exclusive zones honoured by placement, fit,
+  snapping and twm's own windows.
+- Internal views (twm-drawn windows) take buttons, keys and blur, so the
+  Icon Manager and Panner are ordinary windows.
+
+**Screenshot tests** `shot-m4_imgr` (58 checks) and `shot-m4_menu` (24):
+the Icon Manager at rest and filtering, Return and `M-Return` from the
+filter, desktop switching from keys and from the Icon Manager, sending and
+the Panner's miniatures, iconify from the iconify box, the root icon and the
+Icon Manager's iconified row, deiconify from both, dragging an icon, squeeze
+and its undo/redo, the log window; the menu's anatomy and its B0 shortcuts,
+keys, press-drag-release into "iconify" then a crosshair click, "move" then
+click-click, the "desktops" submenu, and a 30 px bar that B3 fit stays under.
+All 16 suites stable over repeated runs and under load.
+
+![The root menu, as in B0](shots/m4-menu.png)
+
+![Typing "zp" at the Icon Manager, as in B5](shots/m4-filter.png)
+
+![A desktop with the Icon Manager and Panner](shots/m4-desktop.png)
+
+**Decided along the way** (recorded in DESIGN.md): IMG-11 (the filter sees
+keys first, so `M-Return` can mean bring-here), IMG-12 (RUN details,
+`Terminal "… %s"`), MNU-3 (title buttons before keys), MNU-5 (menu-started
+moves end on a click), DSK-6 (desktop focus rules), root icons per desktop
+(FRM-13), the layer-shell stacking (GEN-2), log window details (ROOT-8).
+
+**Found along the way**
+- Grab deltas were truncated with `(int)`, so an absolute pointer
+  (999.9999) could land a window one pixel short; they're rounded now.
+- wlroots counts a layer surface's exclusive zone only once it's mapped;
+  twm re-arranges on map and unmap.
+- Applying a config focused a window when nothing had focus, against FOC-9
+  (caught by the M2 test when desktops arrived).
+
+**Not done yet / not verified**
+- Quiet desktops (URG-3: B3 on a desktop button, the held-urgency rows) are
+  M6; B3 says so.
+- Root icons use the app id's first letter; real app icons would need an
+  icon-theme loader (a dependency question).
+- The Panner's miniatures assume the first output; more outputs untested.
+- Layer-shell exclusive keyboard grabs and popups are implemented but only
+  the bar's exclusive zone is tested.
+
 ## M3 — Outlines that think (2026-10-24)
 
 **Done**

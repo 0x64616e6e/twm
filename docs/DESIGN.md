@@ -224,8 +224,8 @@ accent can change:
   title → `f.raise`; B1 drag on title past 4 px → `f.move`.
 - **FRM-13** `[M4 · B0 B1]` Iconify unmaps the window from the desktop and
   lists it in the Icon Manager's iconified section and as an icon on the root
-  (ROOT-9). Until M4 the iconify box is drawn and the binding logs that the
-  function is not available yet.
+  (ROOT-9). *Decided (M4):* root icons show for the current desktop only, like
+  the windows they stand for; deiconifying puts the window back on it.
 - **FRM-14** `[M4 · B0]` *Decided:* `f.squeeze` on a single window shades it
   (client hidden, frame reduced to its tab; again restores), as in ctwm's
   `f.squeeze`. On a tab group it folds the tabs instead (GRP-6). The client
@@ -394,7 +394,8 @@ accent can change:
   *Decided (M3):* the newest eight entries show; undone ones are dim with the
   age `undone`; twm's own windows aren't recorded. It opens at the top-right,
   24 px in, until moved (then its position is remembered like any window's;
-  the Icon Manager will want that corner in M4).
+  the Icon Manager will want that corner in M4). *M4:* it now opens left of
+  the Icon Manager's column.
 - **HIS-4** `[M3]` History keeps the last 100 operations for the session and is
   not saved.
 - **HIS-5** `[M7 · B8]` A write from the Settings window is undoable with
@@ -425,12 +426,15 @@ accent can change:
   is removed at once, which is within that limit.
 - **ROOT-7** `[M2 · P-4]` Messages never appear as toasts or pop-ups.
 - **ROOT-8** `[M4 · B7]` `M-n` toggles a utility frame `log` with the last 200
-  root-line messages.
+  root-line messages. *Decided (M4):* it shows the newest 20, oldest at the
+  top, and opens at the top-left.
 - **ROOT-9** `[M4 · B0]` Root icons: each iconified window gets an icon,
   laid out left to right from (72, H − 140) in 72 px slots 20 px apart. Box
   56 × 56, `surface`, 1 px `hairline`; glyph 28 px in `ink-2` (the app icon in
   one color if available, else the app id's first letter in Plex Mono 600 at
-  20 px); label below in 11 px `ink-2` on `ground` with 4 px padding. Urgent:
+  20 px; *M4: always the letter — app icons need an icon-theme loader, a
+  dependency question for later*); label below in 11 px `ink-2` on `ground`
+  with 4 px padding. Urgent:
   border, glyph and label in `accent`, label suffix ` · urgent`. *Decided:* a
   count like `(4)` at the start or end of the title becomes the suffix ` · 4`.
 - **ROOT-10** `[M4]` B1 on an icon deiconifies and focuses; B2 drags the icon.
@@ -530,6 +534,15 @@ accent can change:
   `in <terminal>` (B5 "in foot"). `Terminal` defaults to `foot`.
 - **IMG-10** `[M4 · B5]` The Icon Manager is the only switcher: there is no
   Alt-Tab overlay.
+- **IMG-11** `[M4]` *Decided:* while a filter is active the Icon Manager sees
+  keys before the key bindings, so `M-Return` is "bring here" there (B5) and
+  the terminal everywhere else (KEY). With an empty filter the bindings come
+  first and only plain typing starts a filter. Leaving the Icon Manager (its
+  focus moves elsewhere) clears the filter.
+- **IMG-12** `[M4]` *Decided:* `RUN` menu entries carry the meta `menu
+  <name>`; executables show as `name …` (B5) and list by prefix. A `%s` in
+  `Terminal` stands for the command (`"xterm -e %s"`); without one the
+  command is appended (`"foot"` → `foot htop`).
 
 ### MNU — root menu
 
@@ -544,13 +557,16 @@ accent can change:
   pointer or keyboard is `accent` with `on-accent` 600 label and shortcut.
   Submenus show `▸`.
 - **MNU-3** `[M4 · B0]` The shortcut column is generated from the bindings
-  for the same function; menus never hard-code shortcut text.
+  for the same function; menus never hard-code shortcut text. *Decided (M4):*
+  a plain title-bar button binding wins over a key (B0 shows `B2` for move,
+  `B3` for squeeze), and `Return`/`space` read `↵`/`␣`.
 - **MNU-4** `[M4 · B0]` Default `main` menu: xterm · browser · files |
   move · resize · squeeze · iconify · raise / lower | desktops ▸ ·
   reload .twmrc · exit.
 - **MNU-5** `[M4]` Window functions run from a menu ask for a target: the
   cursor becomes a crosshair, the next B1 on a window applies, `Esc` cancels
-  (twm).
+  (twm). *Decided (M4):* a move or resize started this way (or from the
+  keyboard) has its outline follow the pointer and ends on the next click.
 - **MNU-6** `[M4 · P-8]` Arrow keys, `Return` and `Esc` drive the menu;
   `M-m` (decided) opens `main` at the pointer.
 - **MNU-7** `[M4]` Menus are defined in `.twmrc` with `Menu "name" { … }`;
@@ -570,6 +586,12 @@ accent can change:
 - **DSK-4** `[M4]` *Decided:* B1 on a cell switches desktop; B2 dragging a
   miniature to another cell sends that window (vtwm/ctwm).
 - **DSK-5** `[M4]` The Icon Manager's desktop row and the Panner always agree.
+- **DSK-6** `[M4]` *Decided:* new windows open on the current desktop
+  (transients on their parent's); twm's own windows are on every desktop. On
+  a switch, focus goes to the window most recently focused there; when the
+  focused window leaves the screen (sent, iconified) the same rule applies,
+  but nothing that had no focus gains it (FOC-9). Sending is recorded in the
+  history and undoable.
 
 ### GRP — tab groups
 
@@ -702,7 +724,11 @@ accent can change:
   only value (accepted because B0's sample config uses it).
 - **GEN-2** `[all · P-4]` twm draws no panel, dock or tray. *Decided:*
   wlr-layer-shell is supported `[M4]` so screen lockers, launchers and on-screen
-  displays work; twm itself never draws a bar.
+  displays work; twm itself never draws a bar. *Decided (M4):* the background
+  layer sits above the weave and below the root text, so a wallpaper never
+  hides the root line or icons; exclusive zones shrink the usable area that
+  placement, B3 fit, snapping and twm's own windows use; an exclusive
+  keyboard grab (launcher, locker) keeps focus until it unmaps.
 - **GEN-3** `[M1 · B1]` Fractional scale per output (`Scale auto`, or
   `Output "DP-1" { scale 1.25 }`). Tokens are logical pixels. Text is
   rasterized at the output's scale. 1 px lines snap to the device grid and

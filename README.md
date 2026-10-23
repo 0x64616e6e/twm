@@ -40,7 +40,13 @@ The UI font is IBM Plex Mono.
 | `M-S-m`, `M-r` | move / resize the focused window with the arrow keys |
 | `Esc`, `Return` | cancel / commit an outline |
 | `M-space` | raise or lower |
-| `M-z`, `M-S-z` | undo / redo the focused window's last move, resize |
+| B1 on the bare desktop, `M-m` | the root menu |
+| type at the Icon Manager | find a window (or a command); Return goes there, `M-Return` brings it here |
+| `M-1`…`M-9`, `M-S-1`…`M-S-9` | switch desktop / send the focused window |
+| `M-i`, the iconify box | iconify (B1 on its icon brings it back) |
+| B3 on a title | squeeze to the tab and back |
+| `M-n` | recent messages |
+| `M-z`, `M-S-z` | undo / redo the focused window's last move, resize, iconify, squeeze, send |
 | `M-S-h` | the history view |
 | hold `M` while dragging | move freely; otherwise outlines snap to edges and thirds |
 | B3 while placing | fit the new window into the empty space around the pointer |

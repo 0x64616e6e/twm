@@ -14,6 +14,7 @@
 #include "wlr-screencopy-unstable-v1-client-protocol.h"
 #include "wlr-virtual-pointer-unstable-v1-client-protocol.h"
 #include "virtual-keyboard-unstable-v1-client-protocol.h"
+#include "wlr-layer-shell-unstable-v1-client-protocol.h"
 #include <xkbcommon/xkbcommon.h>
 #include "xdg-activation-v1-client-protocol.h"
 #include "xdg-decoration-unstable-v1-client-protocol.h"
@@ -33,6 +34,7 @@ struct tc {
 	struct xdg_activation_v1 *activation;
 	struct zxdg_decoration_manager_v1 *decoration;
 	struct zwp_virtual_keyboard_manager_v1 *vkbd_mgr;
+	struct zwlr_layer_shell_v1 *layer_shell;
 	struct zwp_virtual_keyboard_v1 *vkbd;
 	struct xkb_keymap *keymap;
 	struct xkb_state *xkb; /* wlroots takes modifiers from us, not from keys */
@@ -173,6 +175,8 @@ static void registry_global(void *data, struct wl_registry *reg, uint32_t name,
 			&zwlr_virtual_pointer_manager_v1_interface, 1);
 	} else if (strcmp(iface, xdg_activation_v1_interface.name) == 0) {
 		tc->activation = wl_registry_bind(reg, name, &xdg_activation_v1_interface, 1);
+	} else if (strcmp(iface, zwlr_layer_shell_v1_interface.name) == 0) {
+		tc->layer_shell = wl_registry_bind(reg, name, &zwlr_layer_shell_v1_interface, 1);
 	} else if (strcmp(iface, zwp_virtual_keyboard_manager_v1_interface.name) == 0) {
 		tc->vkbd_mgr = wl_registry_bind(reg, name,
 			&zwp_virtual_keyboard_manager_v1_interface, 1);
@@ -386,6 +390,71 @@ void tc_window_request_activation(struct tc_window *win) {
 		free(str);
 	}
 	wl_display_roundtrip(tc->display);
+}
+
+/* --- layer shell --- */
+
+struct tc_layer {
+	struct tc *tc;
+	struct wl_surface *surface;
+	struct zwlr_layer_surface_v1 *ls;
+	struct wl_buffer *buffer;
+	uint32_t color;
+	bool configured;
+};
+
+static void layer_configure(void *data, struct zwlr_layer_surface_v1 *ls, uint32_t serial,
+		uint32_t w, uint32_t h) {
+	struct tc_layer *l = data;
+	zwlr_layer_surface_v1_ack_configure(ls, serial);
+	if (l->buffer) {
+		wl_buffer_destroy(l->buffer);
+	}
+	l->buffer = solid_buffer(l->tc, (int)w, (int)h, l->color);
+	wl_surface_attach(l->surface, l->buffer, 0, 0);
+	wl_surface_damage_buffer(l->surface, 0, 0, (int)w, (int)h);
+	wl_surface_commit(l->surface);
+	l->configured = true;
+}
+
+static void layer_closed(void *data, struct zwlr_layer_surface_v1 *ls) {
+}
+
+static const struct zwlr_layer_surface_v1_listener layer_listener = {
+	.configure = layer_configure,
+	.closed = layer_closed,
+};
+
+struct tc_layer *tc_layer_bar(struct tc *tc, int height, int exclusive, uint32_t color) {
+	if (!tc->layer_shell) {
+		fprintf(stderr, "tc: no layer shell\n");
+		exit(2);
+	}
+	struct tc_layer *l = calloc(1, sizeof(*l));
+	l->tc = tc;
+	l->color = color;
+	l->surface = wl_compositor_create_surface(tc->compositor);
+	l->ls = zwlr_layer_shell_v1_get_layer_surface(tc->layer_shell, l->surface, tc->output,
+		ZWLR_LAYER_SHELL_V1_LAYER_TOP, "tc-bar");
+	zwlr_layer_surface_v1_add_listener(l->ls, &layer_listener, l);
+	zwlr_layer_surface_v1_set_size(l->ls, 0, (uint32_t)height);
+	zwlr_layer_surface_v1_set_anchor(l->ls, ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+		ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
+	zwlr_layer_surface_v1_set_exclusive_zone(l->ls, exclusive);
+	wl_surface_commit(l->surface);
+	wl_display_roundtrip(tc->display);
+	wl_display_roundtrip(tc->display);
+	return l;
+}
+
+void tc_layer_destroy(struct tc_layer *l) {
+	zwlr_layer_surface_v1_destroy(l->ls);
+	wl_surface_destroy(l->surface);
+	if (l->buffer) {
+		wl_buffer_destroy(l->buffer);
+	}
+	wl_display_roundtrip(l->tc->display);
+	free(l);
 }
 
 /* --- input --- */

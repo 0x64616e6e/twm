@@ -269,7 +269,10 @@ accent can change:
 - **FOC-9** `[M1]` *Decided:* a new window gets focus through the click that
   places it (OUT-12), which is user intent. With non-interactive placement a
   new window takes focus only if it presents a valid xdg-activation token;
-  otherwise it maps unfocused. Reason: a slow-starting app must not grab
+  otherwise it maps unfocused. *Decided (M2):* programs twm starts from a
+  binding or menu get a token in `XDG_ACTIVATION_TOKEN` (and
+  `DESKTOP_STARTUP_ID`), so a window the user just asked for may take focus;
+  a window restored from memory (OUT-16) is not focused otherwise. Reason: a slow-starting app must not grab
   keystrokes meant for another window (B7 "never steals focus").
 - **FOC-10** `[M1]` When the focused window goes away, focus goes to the
   window under the pointer, else the most recently focused window on the
@@ -334,7 +337,10 @@ accent can change:
   user's attention already is.
 - **OUT-16** `[M2 · B7]` With `RememberGeometry on` (default), a window whose
   app id has a remembered geometry maps straight there without placement, and
-  the root line says so: `restore  firefox → 1120×900+40+60, from its last session`.
+  the root line says so: `restore  firefox → 1120×900+40+60, from its last session`
+  (*decided:* `from earlier` when the geometry was recorded in this session).
+  Windows without an app id, transients and windows whose remembered output
+  is gone are placed as usual.
 
 ### SNP — outlines that think
 
@@ -400,7 +406,8 @@ accent can change:
   and aligned with it. Colors: errors `accent`; the newest line `ink-2`; older
   lines `dim`.
 - **ROOT-6** `[M2 · B7]` A line disappears `RootLineTimeout` seconds after it
-  was written (default 60). The fade lasts at most 80 ms.
+  was written (default 60). The fade lasts at most 80 ms. *Decided (M2):* it
+  is removed at once, which is within that limit.
 - **ROOT-7** `[M2 · P-4]` Messages never appear as toasts or pop-ups.
 - **ROOT-8** `[M4 · B7]` `M-n` toggles a utility frame `log` with the last 200
   root-line messages.
@@ -435,6 +442,8 @@ accent can change:
   stays, and the root line says, in accent:
   `.twmrc   line 14: unknown key SqueezTitle · previous config kept`.
   A successful reload writes `.twmrc   reloaded · 0 warnings` in normal color.
+  When there are several errors the line adds `(+N more)`; `twm --check` and
+  `twm --reload` list them all.
 - **CFG-7** `[M2]` Reload is atomic: parse and validate completely, then swap.
 - **CFG-8** `[M2 · B8]` The parser keeps a lossless syntax tree (comments,
   order, whitespace) so single values can be rewritten in place (SET-7).
@@ -449,6 +458,18 @@ accent can change:
 - **CFG-12** `[M2 · B0]` `twm --reload` reaches the running compositor over a
   UNIX socket (`$XDG_RUNTIME_DIR/twm.$WAYLAND_DISPLAY.sock`) and prints its
   answer, e.g. `config ok · 0 warnings · reloaded in 0.8 ms`.
+- **CFG-13** `[M2]` *Decided:* a config with errors at startup leaves the
+  built-in defaults running, with the first error on the root line
+  (`… · built-in defaults used`). Reason: there is no previous config to keep,
+  and a desktop must come up.
+- **CFG-14** `[M2]` *Decided:* the built-in defaults are `.twmrc` text
+  compiled into twm and read through the same parser. A user file's bindings
+  replace the built-in ones for the same key or button, `f.nop` unbinds one,
+  and `NoDefaultBindings` drops all built-in bindings (classic twm's
+  `NoDefaults`). Reason: B0's sample binds four things; it shouldn't lose the
+  other KEY bindings by doing so.
+- **CFG-15** `[M2]` *Decided:* a key set twice in one file is a warning (the
+  later one wins), as is a binding repeated for the same trigger.
 
 ### IMG — Icon Manager
 
@@ -796,10 +817,43 @@ each milestone; CFG-3 says an unlisted key is an error.
 | `IconsOnRoot` | `on` | on/off | ROOT-9 |
 | `Panner` | `{ desktops 4 }` | desktops N, on/off | DSK-1 |
 | `Quiet` | `{ }` | desktop numbers | URG-3 |
-| `XWayland` | `on` | on/off | GEN-6 |
+| `XWayland` | `on` | on/off (takes effect at the next start) | GEN-6 |
+| `NoDefaultBindings` | — | no value | CFG-14 |
 | `ButtonN = context : function` | see KEY | contexts: root, title, iconify, resize, window, icon, iconmgr | FRM-12 |
 | `"key" : function` | see KEY | | KEY |
 | `Menu` | `"main"` per MNU-4 | | MNU-7 |
+
+### 5.1 Syntax
+
+One file, read top to bottom. Blank lines and comments are free.
+
+- **Comments** start with `#` and run to the end of the line. Exception, so
+  that B0's `Accent #FFB000` reads: `#` followed by exactly six hex digits
+  and then a space, a tab, the end of the line or `}` is a color.
+- **Values**: bare words (`sloppy`, `top-right`, `f.move`), quoted strings
+  (`"IBM Plex Mono"`, with `\"` `\\` `\n` escapes), numbers (`26`, `1.25`),
+  colors (`#7FD1AE`), `!"command"` (shorthand for `f.exec "command"`), and
+  blocks `{ … }`, which may span lines; inside a block each line is a row.
+- **Settings**: `Key value…` on one line. Every key is in the §5 registry.
+- **Button bindings**: `ButtonN = [modifiers :] context : function`.
+  `N` is 1–5. Contexts: `root`, `title`, `iconify`, `resize`, `window`,
+  `border`, `icon`, `iconmgr`. Modifiers are letters, optionally joined by
+  `-`: `M` (the `Modifier` key), `S` Shift, `C` Control, `A` Alt, `L` logo.
+- **Key bindings**: `"keyspec" : function`. A key spec is modifier letters
+  with `-`, then the unshifted key: an xkb name (`Return`, `space`, `Tab`)
+  or one character (`;`, `1`, `b`): `"M-S-1"`, `"M-;"`. Caps Lock and Num
+  Lock are ignored when matching.
+- **Menus**: `Menu "name" { "label" function … }`, one item per line;
+  `"" f.separator` draws a rule.
+- **Functions**: `f.nop`, `f.exec "cmd"`, `f.terminal`, `f.menu "name"`,
+  `f.move`, `f.resize`, `f.raisemove`, `f.squeeze`, `f.iconify`, `f.raise`,
+  `f.lower`, `f.raiselower`, `f.focus`, `f.delete`, `f.reload`, `f.quit`,
+  `f.hints`, `f.undo`, `f.redo`, `f.urgent`, `f.log`, `f.nexttab`,
+  `f.history`, `f.desktop N`, `f.send N`, `f.separator`. Functions whose
+  machinery belongs to a later milestone say so on the root line.
+
+The built-in defaults are themselves written in this syntax
+(`config_default_twmrc` in `src/settings.c`).
 
 ---
 

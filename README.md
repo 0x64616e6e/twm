@@ -43,7 +43,35 @@ The UI font is IBM Plex Mono.
 | `M-Return` | `foot` |
 | `M-S-q` | quit |
 
-Focus follows the pointer once it rests on a window for 80 ms.
+Focus follows the pointer once it rests on a window for 80 ms. All of this is
+configurable.
+
+## Configure
+
+Everything lives in `~/.twmrc` (or `$TWMRC`, or `twm -f file`); the syntax and
+every key are in [DESIGN.md §5](docs/DESIGN.md#5-twmrc-key-registry). A small
+example:
+
+```
+Accent        #7FD1AE
+FocusPolicy   sloppy
+SqueezeTitle  { "xclock" right  "*" left }
+"M-Return"    : !"foot"
+Button3 = title : f.squeeze
+```
+
+Save the file and twm reloads it. A file with errors is never applied: the
+old config keeps running and the error appears on the desktop.
+
+```sh
+twm --check ~/.twmrc
+```
+
+```sh
+twm --reload
+```
+
+Window positions are remembered per app id in `$XDG_STATE_HOME/twm/geometry`.
 
 ## Test
 

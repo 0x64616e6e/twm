@@ -2,6 +2,79 @@
 
 Newest milestone first. Requirement IDs refer to [DESIGN.md](DESIGN.md).
 
+## M2 — Config (2026-10-24)
+
+**Done**
+
+- `.twmrc` parser (CFG-2, CFG-8): settings, `ButtonN = …`, key bindings,
+  menus, blocks, `!"cmd"`. Lossless: nodes keep byte spans into the kept
+  source, ready for Settings (M7) to rewrite one value. Syntax in
+  DESIGN §5.1. Fuzzed with 200,000 mutated inputs under ASan/UBSan.
+- Settings registry (CFG-3, CFG-10): every key in DESIGN §5, typed and
+  range-checked, with plain error messages. The built-in defaults are
+  `.twmrc` text read by the same code; user bindings replace built-in ones,
+  `f.nop` unbinds, `NoDefaultBindings` drops them (CFG-14). B0's sample
+  passes with 0 warnings, B8's keys are valid, and B7's misspelling gives
+  B7's error at its line (CFG-9).
+- `twm --check [file]` (CFG-4), `-f file` / `$TWMRC` / `~/.twmrc` (CFG-1).
+- Hot reload (CFG-5…7): the file's directory is watched (inotify; kqueue on
+  the BSDs), saves are debounced and ignored when the text didn't change;
+  `M-S-r`, `f.reload` and `twm --reload` force it. A config with errors is
+  never applied: the old one keeps running and the root line says why.
+  `twm --reload` talks to a UNIX socket and prints the same text as `--check`
+  (CFG-12).
+- Applying a config live: accent, font, title height, border width, hatch,
+  weave, wordmark, squeeze justification, `NoTitle`, focus delay and policy
+  (FOC-7), `OpaqueMove` (OUT-11), `Placement cascade`, `Modifier`,
+  `RaiseOnClick`, `Scale` and `Output` rules.
+- Keys and buttons now come from the config (KEY, FRM-12); functions from
+  later milestones answer on the root line ("f.iconify arrives in M4").
+- Root line (ROOT-5…7): `HH:MM  source   message`, three lines at most above
+  the status line, errors in accent, gone after `RootLineTimeout`.
+- Geometry per app id (CFG-11, OUT-16): `$XDG_STATE_HOME/twm/geometry`,
+  saved at most once a second by atomic rename; a known window opens where it
+  was (sized at its first configure, so it doesn't jump), unfocused, with a
+  `restore` line.
+- Programs launched from bindings get an activation token, so the window the
+  user asked for may take focus (FOC-9).
+
+**Screenshot test** `shot-m2_config`: 27 checks. twm starts with no config;
+the test writes one and the watcher applies it (mint accent, 30 px tab, 2 px
+border); a broken file is refused with the old look kept and the error on
+the root line in accent; `twm --reload` and `twm --check` give the expected
+text and exit codes; a fixed file applies; an opaque B2 move moves the
+window itself; the window comes back at its remembered spot, unfocused, after
+being closed; click focus ignores hovering. Unit tests: `unit-twmrc`,
+`unit-settings` (57 checks), `unit-geomem`. All suites stable over repeated
+runs and under CPU load.
+
+![Root line after a broken save](shots/m2-rootline.png)
+
+**Decided along the way** (recorded in DESIGN.md): CFG-13 (startup errors
+fall back to defaults), CFG-14 (defaults as text; override per trigger),
+CFG-15 (duplicates warn), §5.1 (`#RRGGBB` vs comments, unshifted key names),
+ROOT-6 (lines are removed at once), FOC-9 (launch tokens), OUT-16 (`from
+earlier`).
+
+**Fixed along the way**: the status line said `SLOPPY FOCUS` regardless of
+`FocusPolicy`; a parse error inside an unclosed block leaked memory.
+
+**Not done yet / not verified**
+
+- ROOT-8, the log window behind `M-n`, is M4 (the root line keeps 200
+  messages for it).
+- The key-binding input path (unshifted keysyms, modifiers) is unit-tested
+  through the matcher, but the screenshot tests still have no virtual
+  keyboard, so `M-S-r` and friends aren't driven end to end.
+- The kqueue watcher is written but untested (no FreeBSD machine here; CI
+  would cover it once the repository has a remote).
+- `Output` mode and position, and `Scale`, are applied but untested: the
+  headless output has no mode list and only scale 1 is exercised.
+- Changing `XWayland` takes effect at the next start (the root line says
+  so).
+- App notifications on the root line (B7's `mutt` line) need a D-Bus
+  notification service: an M6 dependency question.
+
 ## M1 — Frames (2026-10-23)
 
 **Done**

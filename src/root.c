@@ -7,6 +7,7 @@
 #include "draw.h"
 #include "pixbuf.h"
 #include "server.h"
+#include "settings.h"
 #include "text.h"
 
 /* ROOT-2 / ROOT-3 metrics (B0). */
@@ -106,8 +107,10 @@ static void status_text(struct twm_server *server, char *buf, size_t len) {
 		}
 	}
 	int outputs = wl_list_length(&server->outputs);
-	snprintf(buf, len, "%s \xc2\xb7 %s \xc2\xb7 %d\xc3\x97 OUTPUT%s \xc2\xb7 SLOPPY FOCUS",
-		host, display, outputs, outputs == 1 ? "" : "S");
+	const char *policy = server->config &&
+		server->config->focus_policy == TWM_FOCUS_CLICK ? "CLICK" : "SLOPPY";
+	snprintf(buf, len, "%s \xc2\xb7 %s \xc2\xb7 %d\xc3\x97 OUTPUT%s \xc2\xb7 %s FOCUS",
+		host, display, outputs, outputs == 1 ? "" : "S", policy);
 	for (char *p = buf; *p; p++) {
 		*p = (char)toupper((unsigned char)*p);
 	}

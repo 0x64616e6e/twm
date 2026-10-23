@@ -32,6 +32,7 @@
 #include "logview.h"
 #include "menu.h"
 #include "panner.h"
+#include "portal.h"
 #include "prompt.h"
 #include "ui.h"
 #include "outline.h"
@@ -109,6 +110,10 @@ static struct wlr_backend *create_backend(struct twm_server *server) {
 
 bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	server->opts = *opts;
+	/* Nested in another session (or headless), twm must not speak for the
+	 * session: no activation-environment updates (portal.c). */
+	server->opts.session = !opts->headless_width && !getenv("WAYLAND_DISPLAY") &&
+		!getenv("DISPLAY") && !getenv("WAYLAND_SOCKET");
 	theme_init_defaults(&server->theme);
 	wl_list_init(&server->views);
 	server->desktop = 1;
@@ -202,6 +207,7 @@ bool server_start(struct twm_server *server) {
 	}
 	setenv("WAYLAND_DISPLAY", server->socket, true);
 	ipc_init(server);
+	portal_init(server);
 	wlr_log(WLR_INFO, "twm running on WAYLAND_DISPLAY=%s", server->socket);
 	if (server->opts.startup_cmd) {
 		server->startup_pid = spawn(server->opts.startup_cmd, NULL);
@@ -216,6 +222,7 @@ void server_run(struct twm_server *server) {
 void server_finish(struct twm_server *server) {
 	server->shutting_down = true;
 	prompt_finish(server);
+	portal_finish(server);
 	if (server->startup_pid > 0) {
 		kill(server->startup_pid, SIGTERM);
 	}

@@ -75,6 +75,7 @@ struct twm_options {
 	bool xwayland;
 	int headless_width, headless_height; /* 0 = autocreate a backend */
 	bool test_mode; /* --test: the startup command is a trusted test harness */
+	bool session;   /* not nested, not headless: twm is the desktop session */
 };
 
 struct twm_server {
@@ -147,6 +148,7 @@ struct twm_server {
 	struct twm_prompt *prompt;
 	struct wl_list prompt_queue;
 	struct wlr_scene_rect *prompt_dim;
+	struct portal *portal; /* portal.c: D-Bus, when there is a session bus */
 
 	/* CAP-*: who is capturing the screen */
 	struct wlr_screencopy_manager_v1 *screencopy;

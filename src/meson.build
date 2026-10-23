@@ -52,11 +52,16 @@ twm_src = twm_core_src + files(
 if have_xwayland
   twm_src += files('xwayland.c')
 endif
+twm_deps = [wlroots, wayland_server, server_protos, xkbcommon, pixman, fcft, math]
+if have_portal
+  twm_src += files('portal.c')
+  twm_deps += sdbus
+endif
 
 twm_exe = executable(
   'twm',
   twm_src,
-  dependencies: [wlroots, wayland_server, server_protos, xkbcommon, pixman, fcft, math],
+  dependencies: twm_deps,
   include_directories: config_inc,
   install: true,
 )

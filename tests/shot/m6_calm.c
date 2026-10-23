@@ -14,12 +14,16 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include "client.h"
+#include "config.h"
+#if HAVE_PORTAL
+#include SDBUS_HEADER
+#endif
 
 #define GROUND 0x0D0E0B
 #define SURFACE 0x121310
 #define GRAPHITE 0x23251F
 #define ACCENT 0xFFB000
-#define ALERT 0xE5484D
+#define ALERT 0xFF8A65
 #define TH 26
 #define KEY_U 22
 
@@ -260,6 +264,164 @@ static bool find_prompt(const struct tc_image *img, int *x0, int *y0, int *x1, i
 	return *y0 >= 0;
 }
 
+#if HAVE_PORTAL
+/* --- D-Bus: the Access portal backend and notifications --- */
+
+struct reply {
+	bool done;
+	uint32_t response;
+	char results[256]; /* "id=value;…" */
+};
+
+static int on_access_reply(sd_bus_message *m, void *data, sd_bus_error *err) {
+	struct reply *r = data;
+	r->done = true;
+	if (sd_bus_message_is_method_error(m, NULL)) {
+		r->response = 99;
+		return 0;
+	}
+	sd_bus_message_read(m, "u", &r->response);
+	if (sd_bus_message_enter_container(m, 'a', "{sv}") <= 0) {
+		return 0;
+	}
+	while (sd_bus_message_enter_container(m, 'e', "sv") > 0) {
+		const char *key;
+		sd_bus_message_read(m, "s", &key);
+		if (strcmp(key, "choices") == 0 &&
+				sd_bus_message_enter_container(m, 'v', "a(ss)") > 0) {
+			const char *id, *val;
+			sd_bus_message_enter_container(m, 'a', "(ss)");
+			while (sd_bus_message_read(m, "(ss)", &id, &val) > 0) {
+				size_t n = strlen(r->results);
+				snprintf(r->results + n, sizeof(r->results) - n, "%s=%s;", id, val);
+			}
+			sd_bus_message_exit_container(m);
+			sd_bus_message_exit_container(m);
+		} else {
+			sd_bus_message_skip(m, "v");
+		}
+		sd_bus_message_exit_container(m);
+	}
+	return 0;
+}
+
+static void bus_wait(struct tc *tc, sd_bus *bus, int ms) {
+	for (int t = 0; t < ms; t += 10) {
+		while (sd_bus_process(bus, NULL) > 0) {
+		}
+		tc_wait(tc, 10);
+	}
+}
+
+/* AccessDialog with one option choice and one boolean choice. */
+static sd_bus_slot *access_call(sd_bus *bus, const char *handle, struct reply *r) {
+	sd_bus_message *m = NULL;
+	sd_bus_slot *slot = NULL;
+	sd_bus_message_new_method_call(bus, &m, "org.freedesktop.impl.portal.desktop.twm",
+		"/org/freedesktop/portal/desktop", "org.freedesktop.impl.portal.Access",
+		"AccessDialog");
+	sd_bus_message_append(m, "osssss", handle, "org.mozilla.firefox", "",
+		"Allow Firefox to use the camera?", "meet.example.org wants to see you", "");
+	sd_bus_message_open_container(m, 'a', "{sv}");
+	sd_bus_message_append(m, "{sv}", "grant_label", "s", "Allow");
+	sd_bus_message_open_container(m, 'e', "sv");
+	sd_bus_message_append(m, "s", "choices");
+	sd_bus_message_open_container(m, 'v', "a(ssa(ss)s)");
+	sd_bus_message_open_container(m, 'a', "(ssa(ss)s)");
+	sd_bus_message_append(m, "(ssa(ss)s)", "device", "DEVICE", 2, "cam", "Built-in camera",
+		"usb", "USB camera", "cam");
+	sd_bus_message_append(m, "(ssa(ss)s)", "remember", "Remember for this site", 0, "false");
+	sd_bus_message_close_container(m);
+	sd_bus_message_close_container(m);
+	sd_bus_message_close_container(m);
+	sd_bus_message_close_container(m);
+	sd_bus_call_async(bus, &slot, m, on_access_reply, r, 0);
+	sd_bus_message_unref(m);
+	return slot;
+}
+
+static void key(struct tc *tc, uint32_t k) {
+	tc_key(tc, k, true);
+	tc_key(tc, k, false);
+	tc_wait(tc, 30);
+}
+
+static void portal_checks(struct tc *tc, const char *out, struct tc_window *a) {
+	sd_bus *bus = NULL;
+	if (sd_bus_open_user(&bus) < 0) {
+		printf("skip PORTAL   no session bus (dbus-run-session missing)\n");
+		return;
+	}
+	struct tc_image img = {0};
+	char path[4096];
+
+	/* Access: a camera prompt; Down picks the USB camera, space ticks
+	 * "remember", Return allows. */
+	struct reply r = {0};
+	sd_bus_slot *slot = access_call(bus, "/org/test/request/1", &r);
+	bus_wait(tc, bus, 300);
+	shot(tc, &img);
+	snprintf(path, sizeof(path), "%.*s-access.png", (int)strlen(out) - 4, out);
+	tc_image_write_png(&img, path);
+	int x0, y0, x1, y1;
+	tc_expect("TRU-1", find_prompt(&img, &x0, &y0, &x1, &y1) && !tc_window_activated(a),
+		"AccessDialog opens a trusted prompt");
+	key(tc, TC_KEY_DOWN);
+	key(tc, 57); /* space */
+	key(tc, TC_KEY_ENTER);
+	bus_wait(tc, bus, 200);
+	tc_expect("TRU-5", r.done && r.response == 0 &&
+		strcmp(r.results, "device=usb;remember=true;") == 0,
+		"Allow answers 0 with the choices (%u, \"%s\")", r.response, r.results);
+	sd_bus_slot_unref(slot);
+
+	/* Request.Close withdraws it: answered, and focus comes back. */
+	struct reply r2 = {0};
+	slot = access_call(bus, "/org/test/request/2", &r2);
+	bus_wait(tc, bus, 200);
+	tc_expect("TRU-4", !tc_window_activated(a), "a second prompt holds the focus");
+	sd_bus_call_method(bus, "org.freedesktop.impl.portal.desktop.twm", "/org/test/request/2",
+		"org.freedesktop.impl.portal.Request", "Close", NULL, NULL, "");
+	bus_wait(tc, bus, 200);
+	tc_expect("TRU-4", r2.done && r2.response != 0 && tc_window_activated(a),
+		"Request.Close: the prompt goes, the call is answered (%u)", r2.response);
+	sd_bus_slot_unref(slot);
+
+	/* Notifications: one root line, never a toast (ROOT-7). */
+	shot(tc, &img);
+	uint32_t before = 0;
+	for (int y = 980; y < 1040; y++) {
+		for (int x = 980; x < 1600; x++) {
+			before += near(tc_pixel(&img, x, y), 0xC9CBBF, 60);
+		}
+	}
+	sd_bus_message *reply = NULL;
+	uint32_t id = 0;
+	int ok = sd_bus_call_method(bus, "org.freedesktop.Notifications",
+		"/org/freedesktop/Notifications", "org.freedesktop.Notifications", "Notify",
+		NULL, &reply, "susssasa{sv}i", "make", 0, "", "build finished",
+		"twm compiled in 41 s", 0, 0, -1);
+	if (ok >= 0) {
+		sd_bus_message_read(reply, "u", &id);
+	}
+	sd_bus_message_unref(reply);
+	bus_wait(tc, bus, 100);
+	shot(tc, &img);
+	uint32_t after = 0;
+	for (int y = 980; y < 1040; y++) {
+		for (int x = 980; x < 1600; x++) {
+			after += near(tc_pixel(&img, x, y), 0xC9CBBF, 60);
+		}
+	}
+	snprintf(path, sizeof(path), "%.*s-notify.png", (int)strlen(out) - 4, out);
+	tc_image_write_png(&img, path);
+	tc_expect("ROOT-7", ok >= 0 && id > 0 && after > before + 100,
+		"Notify: id %u, a root line appears (%u -> %u lit px)", id, before, after);
+	tc_image_free(&img);
+	sd_bus_flush_close_unref(bus);
+}
+#endif
+
 int main(int argc, char *argv[]) {
 	const char *out = argc > 1 ? argv[1] : "m6-calm.png";
 	struct tc *tc = tc_connect();
@@ -277,6 +439,110 @@ int main(int argc, char *argv[]) {
 		.title = "foot \xe2\x80\x94 build", .app_id = "foot", .width = 818, .height = 438,
 		.color = SURFACE});
 	tc_expect("setup", tc_window_activated(a), "build placed and focused");
+
+	/* ===== URG: urgency is polite ===== */
+	struct tc_window *b = place(tc, 1000, 620, (struct tc_window_opts){
+		.title = "irc â #twm", .app_id = "irc", .width = 498, .height = 272,
+		.color = SURFACE});
+	tc_chord(tc, 3, TC_KEY_LEFTMETA, TC_KEY_LEFTSHIFT, TC_KEY_2); /* to quiet desktop 2 */
+	tc_wait(tc, 40);
+	/* and a second one there, focused later, so a visit doesn't focus irc */
+	struct tc_window *d = place(tc, 1000, 620, (struct tc_window_opts){
+		.title = "notes", .app_id = "notes", .width = 298, .height = 172, .color = SURFACE});
+	tc_chord(tc, 3, TC_KEY_LEFTMETA, TC_KEY_LEFTSHIFT, TC_KEY_2);
+	tc_wait(tc, 40);
+	struct tc_window *c = place(tc, 1100, 150, (struct tc_window_opts){
+		.title = "mail", .app_id = "mail", .width = 398, .height = 200, .color = SURFACE});
+	tc_pointer_move(tc, 500, 400);
+	tc_pointer_click(tc, TC_BTN_LEFT); /* build again */
+	tc_wait(tc, 40);
+	tc_expect("setup", tc_window_activated(a), "build focused, irc on desktop 2, mail here");
+
+	/* URG-3: on a quiet desktop, asking is held. */
+	tc_window_request_activation(b);
+	tc_wait(tc, 60);
+	shot(tc, &img);
+	snprintf(path, sizeof(path), "%.*s-quiet.png", (int)strlen(out) - 4, out);
+	tc_image_write_png(&img, path);
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, KEY_U);
+	tc_wait(tc, 60);
+	tc_expect("URG-3", tc_window_activated(a) && !tc_window_activated(b),
+		"held urgency: M-u has nowhere to go, build keeps the focus");
+
+	/* URG-1, URG-2: mail asks; it does not get the focus, its frame shows it. */
+	tc_window_request_activation(c);
+	tc_wait(tc, 60);
+	shot(tc, &img);
+	tc_expect("URG-1", tc_window_activated(a) && !tc_window_activated(c),
+		"asking does not take the focus");
+	tc_expect("URG-2", count_box(&img, 1100, 150, 1300, 151, ACCENT, 2) > 40,
+		"mail's tab is outlined in accent (urgent)");
+
+	/* URG-4: M-u goes to mail; M-u again comes back. */
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, KEY_U);
+	tc_wait(tc, 60);
+	tc_expect("URG-4", tc_window_activated(c), "M-u: mail");
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, KEY_U);
+	tc_wait(tc, 60);
+	tc_expect("URG-4", tc_window_activated(a), "M-u again: back to build");
+
+	/* URG-3: visiting desktop 2 lets irc's urgency through. */
+	tc_pointer_move(tc, 960, 1060); /* the root, nothing under the pointer */
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, TC_KEY_1 + 1);
+	tc_wait(tc, 60);
+	tc_expect("URG-3", tc_window_activated(d) && !tc_window_activated(b),
+		"desktop 2: notes has the focus, irc is urgent now");
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, TC_KEY_1);
+	tc_wait(tc, 60);
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, KEY_U);
+	tc_wait(tc, 60);
+	tc_expect("URG-3", tc_window_activated(b), "after a visit, M-u finds irc");
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, KEY_U);
+	tc_wait(tc, 60);
+	tc_window_destroy(b);
+	tc_window_destroy(c);
+	tc_window_destroy(d);
+	tc_wait(tc, 60);
+	tc_pointer_move(tc, 500, 400);
+	tc_pointer_click(tc, TC_BTN_LEFT);
+	tc_wait(tc, 40);
+
+	/* ===== CAP: capture is always visible ===== */
+	struct helper h = helper_start();
+	tc_pointer_move(tc, 300, 650);
+	helper_do(tc, &h, 'w');
+	tc_wait(tc, 60);
+	tc_pointer_click(tc, TC_BTN_LEFT); /* place obs */
+	tc_wait(tc, 60);
+	helper_do(tc, &h, 'c');
+	tc_wait(tc, 400);
+	shot(tc, &img);
+	snprintf(path, sizeof(path), "%.*s-capture.png", (int)strlen(out) - 4, out);
+	tc_image_write_png(&img, path);
+	int marked = count_box(&img, 300, 650, 800, 650 + TH, ALERT, 30);
+	tc_expect("CAP-1", marked > 20, "obs captures: SCREEN in its tab (%d alert px)", marked);
+	helper_do(tc, &h, 's');
+	tc_wait(tc, 2800);
+	shot(tc, &img);
+	marked = count_box(&img, 300, 650, 800, 650 + TH, ALERT, 30);
+	tc_expect("CAP-1", marked == 0, "stopped: the marker goes (%d)", marked);
+	helper_quit(tc, &h);
+
+	/* CAP-3: capturing without a window: a root line while it lasts. */
+	h = helper_start();
+	helper_do(tc, &h, 'c');
+	tc_wait(tc, 400);
+	shot(tc, &img);
+	int lit = count_box(&img, 980, 980, 1700, 1040, ACCENT, 20);
+	snprintf(path, sizeof(path), "%.*s-capture-root.png", (int)strlen(out) - 4, out);
+	tc_image_write_png(&img, path);
+	helper_do(tc, &h, 's');
+	tc_wait(tc, 2800);
+	shot(tc, &img);
+	int lit2 = count_box(&img, 980, 980, 1700, 1040, ACCENT, 20);
+	tc_expect("CAP-3", lit > 40 && lit2 == 0, "a root line while it captures, gone after (%d -> %d)",
+		lit, lit2);
+	helper_quit(tc, &h);
 
 	/* ===== TRU: the screen-share chooser ===== */
 	struct chooser ch = choose_start("firefox \xc2\xb7 meet.example.org",
@@ -328,6 +594,10 @@ int main(int argc, char *argv[]) {
 	tc_key(tc, TC_KEY_ESC, false);
 	st = choose_wait(tc, &ch, buf, sizeof(buf));
 	tc_expect("TRU-5", st == 1 && buf[0] == '\0', "Esc denies (%d)", st);
+
+#if HAVE_PORTAL
+	portal_checks(tc, out, a);
+#endif
 
 	tc_image_free(&img);
 	tc_window_destroy(a);

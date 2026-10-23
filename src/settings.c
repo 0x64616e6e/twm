@@ -39,6 +39,7 @@ const char config_default_twmrc[] =
 	"IconsOnRoot      on\n"
 	"Panner           { desktops 4 }\n"
 	"XWayland         on\n"
+	"Notifications    on\n"
 	"\n"
 	"Button1 = root    : f.menu \"main\"\n"
 	"Button1 = title   : f.raisemove\n"
@@ -584,6 +585,7 @@ static void k_opaque_move(struct ctx *c) { set_bool(c, &c->cfg->opaque_move); }
 static void k_remember(struct ctx *c) { set_bool(c, &c->cfg->remember_geometry); }
 static void k_icons_on_root(struct ctx *c) { set_bool(c, &c->cfg->icons_on_root); }
 static void k_xwayland(struct ctx *c) { set_bool(c, &c->cfg->xwayland); }
+static void k_notifications(struct ctx *c) { set_bool(c, &c->cfg->notifications); }
 static void k_focus_delay(struct ctx *c) { set_int(c, &c->cfg->focus_delay, 0, 1000); }
 static void k_snap_distance(struct ctx *c) { set_int(c, &c->cfg->snap_distance, 0, 64); }
 static void k_root_line_timeout(struct ctx *c) { set_int(c, &c->cfg->root_line_timeout, 1, 3600); }
@@ -934,6 +936,7 @@ static const struct {
 	{"TitleHeight", k_title_height},
 	{"TitleHighlight", k_title_highlight},
 	{"XWayland", k_xwayland},
+	{"Notifications", k_notifications},
 };
 
 /* Keys that may appear more than once (they add rather than replace). */

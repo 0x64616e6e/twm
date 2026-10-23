@@ -16,9 +16,16 @@ export XDG_RUNTIME_DIR="$rt"
 export HOME="$rt/home" XDG_STATE_HOME="$rt/state"
 mkdir -p "$HOME" "$XDG_STATE_HOME"
 unset WAYLAND_DISPLAY WAYLAND_SOCKET DISPLAY TWMRC TWM_SOCK
+# Never the developer's session bus: a private one when dbus-daemon exists
+# (portal tests), none otherwise (they skip).
+unset DBUS_SESSION_BUS_ADDRESS
+bus=""
+if command -v dbus-run-session >/dev/null 2>&1; then
+	bus="dbus-run-session --"
+fi
 export WLR_RENDERER=pixman
 # The test program finds twm itself here (for `twm --reload`, configs).
 export TWM_BIN="$twm" TWM_TEST_HOME="$HOME"
 
-"$twm" --headless 1920x1080 --no-xwayland --exit-with-startup --test \
+$bus "$twm" --headless 1920x1080 --no-xwayland --exit-with-startup --test \
 	-s "exec '$prog' '$out'"

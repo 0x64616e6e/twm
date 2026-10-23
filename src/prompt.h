@@ -23,6 +23,7 @@ struct prompt_spec {
 	char purpose[48];  /* tab: "system · <purpose>" */
 	char heading[120]; /* twm's own words, in the heading style */
 	char client[160];  /* what the client says (app, origin): ink-2, verbatim */
+	char detail[240];  /* more of the client's words, same style; may be empty */
 	char legend[32];   /* "SHARE"; empty for none */
 	char choices[PROMPT_MAX_CHOICES][96];
 	int nchoices;

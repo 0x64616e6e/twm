@@ -67,6 +67,9 @@ static void add_hit(struct twm_prompt *p, int x0, int y0, int x1, int y1, enum p
 
 static int content_height(struct twm_prompt *p) {
 	int h = 2 * PR_BAND + 2 + 2 * PR_PAD + 20 + 5 + 14;
+	if (p->spec.detail[0]) {
+		h += 4 + 14;
+	}
 	if (p->spec.nchoices) {
 		h += PR_GAP + (p->spec.legend[0] ? 18 : 0) +
 			p->spec.nchoices * PR_ROW + (p->spec.nchoices - 1) * PR_ROW_GAP;
@@ -111,6 +114,11 @@ static void render(struct twm_internal_view *iv, float scale, struct twm_pixbuf 
 	/* TRU-6: the client's words, verbatim, never as a heading. */
 	text_draw(img, sub, p->spec.client, S(x), S(y) + sub->ascent, C(t->ink_2), 0, S(w));
 	y += 14;
+	if (p->spec.detail[0]) {
+		y += 4;
+		text_draw(img, sub, p->spec.detail, S(x), S(y) + sub->ascent, C(t->ink_2), 0, S(w));
+		y += 14;
+	}
 	if (p->spec.nchoices) {
 		y += PR_GAP;
 		if (p->spec.legend[0]) {

@@ -6,6 +6,7 @@
 #include "desktop.h"
 #include "frame.h"
 #include "menu.h"
+#include "portal.h"
 #include "rc.h"
 #include "rootline.h"
 #include "server.h"
@@ -128,6 +129,7 @@ void rc_apply(struct twm_server *server, const struct twm_config *old) {
 			cfg->xwayland ? "starts" : "stops");
 	}
 	output_apply_config(server);
+	portal_config_changed(server); /* Notifications on/off */
 
 	/* Roots: weave on/off; frames: colors, sizes, squeeze, NoTitle. */
 	struct twm_output *output;

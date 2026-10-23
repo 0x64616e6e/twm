@@ -166,6 +166,7 @@ struct twm_config {
 	bool panner;
 	uint32_t quiet; /* bit n-1 = desktop n */
 	bool xwayland;
+	bool notifications; /* M6: serve org.freedesktop.Notifications if free */
 };
 
 /*

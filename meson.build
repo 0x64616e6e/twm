@@ -58,14 +58,42 @@ if get_option('xwayland').enabled() and not have_xwayland
   error('xwayland was requested but wlroots was built without it')
 endif
 
+# M6: D-Bus through the sd-bus API, from libsystemd on Linux or basu on
+# FreeBSD (same API, different header directory).
+sdbus = dependency('libsystemd', version: '>=239', required: false)
+sdbus_header = 'systemd/sd-bus.h'
+if not sdbus.found()
+  sdbus = dependency('basu', required: false)
+  sdbus_header = 'basu/sd-bus.h'
+endif
+have_portal = sdbus.found() and not get_option('portal').disabled()
+if get_option('portal').enabled() and not sdbus.found()
+  error('portal was requested but neither libsystemd nor basu was found')
+endif
+
 conf = configuration_data()
 conf.set_quoted('TWM_VERSION', meson.project_version())
 conf.set10('HAVE_XWAYLAND', have_xwayland)
+conf.set10('HAVE_PORTAL', have_portal)
+if have_portal
+  conf.set('SDBUS_HEADER', '<' + sdbus_header + '>')
+endif
 configure_file(output: 'config.h', configuration: conf)
 config_inc = include_directories('.')
 
 subdir('protocols')
 subdir('src')
+
+# Portal files: xdg-desktop-portal finds twm's backend and the per-desktop
+# preferences here; the xdpw chooser config is an example to copy.
+if have_portal
+  install_data('data/twm.portal',
+    install_dir: get_option('datadir') / 'xdg-desktop-portal' / 'portals')
+  install_data('data/twm-portals.conf',
+    install_dir: get_option('datadir') / 'xdg-desktop-portal')
+  install_data('data/xdg-desktop-portal-wlr.conf',
+    install_dir: get_option('datadir') / 'doc' / 'twm')
+endif
 
 if get_option('tests')
   subdir('tests')
@@ -74,5 +102,6 @@ endif
 summary({
   'wlroots': wlroots.version(),
   'xwayland': have_xwayland,
+  'portal': have_portal ? sdbus.name() : false,
   'tests': get_option('tests'),
 }, bool_yn: true)

@@ -46,8 +46,8 @@ jobs:
             libliftoff-dev liblcms2-dev xwayland libxcb1-dev libxcb-composite0-dev \
             libxcb-icccm4-dev libxcb-res0-dev libxcb-ewmh-dev libxcb-xfixes0-dev \
             libxcb-render0-dev libxcb-xinput-dev libxcb-errors-dev \
-            libsystemd-dev dbus-daemon
-          # The UI font, where packaged; tests fall back to monospace without it.
+            libsystemd-dev dbus-daemon fonts-dejavu-core
+          # The UI font, where packaged; without it twm falls back to monospace.
           apt-get install -y --no-install-recommends fonts-ibm-plex || true
       - uses: actions/checkout@v4
       - name: Build
@@ -71,14 +71,14 @@ jobs:
       - name: Build and test on FreeBSD
         uses: vmactions/freebsd-vm@v1
         with:
-          release: '14.3'
+          release: '15.1'
           usesh: true
           prepare: |
             pkg install -y git meson ninja pkgconf python3 wayland wayland-protocols \
-              libxkbcommon pixman fcft libdrm libinput seatd libdisplay-info hwdata \
-              mesa-libs libliftoff lcms2 xwayland evdev-proto libepoll-shim basu dbus
-            pkg install -y wlroots020 || echo "no wlroots020 package; using the subproject"
-            pkg install -y ibm-plex || echo "IBM Plex not packaged; tests use the fallback font"
+              libxkbcommon pixman fcft tllist libdrm libinput seatd libdisplay-info hwdata \
+              mesa-libs libliftoff lcms2 xwayland evdev-proto libepoll-shim basu dbus \
+              wlroots020 dejavu
+            # IBM Plex isn't packaged on FreeBSD: twm falls back to monospace.
           run: |
             meson setup build
             ninja -C build

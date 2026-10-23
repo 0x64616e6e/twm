@@ -69,6 +69,7 @@ struct twm_view {
 	uint64_t urgent_seq; /* URG-4: when it became urgent */
 	bool notitle; /* NoTitle: border only (FRM-15) */
 	bool utility; /* FRM-18: title-only tab, no buttons */
+	bool trusted; /* TRU-1: a twm prompt; only prompt.c sets it */
 	int desktop;    /* DSK-1, 1-based */
 	bool sticky;    /* on every desktop (twm's own windows) */
 	bool iconified; /* FRM-13 */

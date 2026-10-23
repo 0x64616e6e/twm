@@ -122,6 +122,13 @@ void draw_glyph(pixman_image_t *img, enum twm_glyph glyph, int x, int y,
 		draw_box(img, argb, x, y, sc(8, scale), sc(8, scale), t);
 		draw_box(img, argb, x, y, sc(4, scale), sc(4, scale), t);
 		break;
+	case TWM_GLYPH_LOCK:
+		/* Square shackle over a filled body: no curves (CAP-4). */
+		draw_box(img, argb, x + sc(3, scale), y, sc(9, scale) - sc(3, scale),
+			sc(7, scale), t);
+		draw_fill(img, argb, x + sc(1, scale), y + sc(5, scale),
+			sc(11, scale) - sc(1, scale), sc(12, scale) - sc(5, scale));
+		break;
 	}
 }
 

@@ -21,4 +21,9 @@ bool ipc_socket_path(const char *display, char *buf, size_t len);
  * stdout, return 0 if it starts with "config ok". */
 int ipc_request(const char *request);
 
+/* Client side, for `twm --choose [who]`: a dmenu-style chooser for
+ * xdg-desktop-portal-wlr. Lines from stdin go into a trusted prompt; the
+ * chosen line goes to stdout (0), Deny or Esc prints nothing (1). */
+int ipc_choose(const char *who);
+
 #endif

@@ -276,7 +276,8 @@ bool grab_place_enqueue(struct twm_server *server, struct twm_view *view) {
 }
 
 static void start_next_placement(struct twm_server *server) {
-	if (grab_active(server) || wl_list_empty(&server->place_queue)) {
+	/* TRU-4: placement waits while a trusted prompt holds the input. */
+	if (grab_active(server) || server->prompt || wl_list_empty(&server->place_queue)) {
 		return;
 	}
 	struct twm_view *view = wl_container_of(server->place_queue.next, view, place_link);
@@ -438,6 +439,22 @@ static void cancel(struct twm_server *server) {
 	}
 	set_drop_target(server, NULL, 0);
 	end_grab(server);
+}
+
+void grab_cancel(struct twm_server *server) {
+	switch (server->grab.mode) {
+	case TWM_GRAB_NONE:
+		return;
+	case TWM_GRAB_PENDING_MOVE:
+		end_grab(server);
+		return;
+	default:
+		cancel(server);
+	}
+}
+
+void grab_resume(struct twm_server *server) {
+	start_next_placement(server);
 }
 
 void grab_motion(struct twm_server *server) {

@@ -291,7 +291,8 @@ static void unmanaged_handle_map(struct wl_listener *listener, void *data) {
 		u->server->layers[TWM_LAYER_UNMANAGED], u->xsurface->surface);
 	u->tree->node.data = &u->hit;
 	wlr_scene_node_set_position(&u->tree->node, u->xsurface->x, u->xsurface->y);
-	if (wlr_xwayland_surface_override_redirect_wants_focus(u->xsurface)) {
+	if (wlr_xwayland_surface_override_redirect_wants_focus(u->xsurface) &&
+			!u->server->prompt) { /* TRU-4 */
 		struct wlr_seat *seat = u->server->seat;
 		wlr_seat_keyboard_notify_enter(seat, u->xsurface->surface, NULL, 0, NULL);
 	}

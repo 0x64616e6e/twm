@@ -32,6 +32,7 @@ void draw_box(pixman_image_t *img, uint32_t argb, int x, int y, int w, int h, in
 enum twm_glyph {
 	TWM_GLYPH_ICONIFY, /* §2.4: outline square, filled centre */
 	TWM_GLYPH_RESIZE,  /* §2.4: three nested squares from the top-left */
+	TWM_GLYPH_LOCK,    /* TRU-2: the trusted frame's tab, iconify slot */
 };
 
 /* A 12 logical px glyph with its top-left at device (x, y). */

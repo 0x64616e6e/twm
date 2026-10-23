@@ -76,7 +76,7 @@ static struct tab_colors colors_for(const struct twm_theme *t, enum frame_state 
 }
 
 enum frame_state frame_state_of(struct twm_view *view) {
-	if (view->server->focused == view) {
+	if (view->server->focused == view || view->trusted) { /* TRU-1: accent, always */
 		return FRAME_FOCUSED;
 	}
 	return view->urgent ? FRAME_URGENT : FRAME_UNFOCUSED;
@@ -266,9 +266,9 @@ static void draw_tab(struct twm_frame *frame, const char *title, enum frame_stat
 	struct tab_input in = {
 		.frame_width = frame->view->width + 2 * t->border_width,
 		.text_width = (int)ceilf(text_width(font, title, tracking) / scale),
-		.hatch = state == FRAME_FOCUSED && t->title_highlight,
+		.hatch = (state == FRAME_FOCUSED && t->title_highlight) || frame->view->trusted,
 		.iconify = !frame->view->utility,
-		.resize = !frame->view->utility && view_resizable(frame->view),
+		.resize = !frame->view->utility && !frame->view->trusted && view_resizable(frame->view),
 		.justify = config_justify(server->config, frame->view->impl->get_app_id(frame->view),
 			frame->view->impl->get_title(frame->view)), /* FRM-4 */
 		.marker_width = frame->view->capturing ? marker_width(server, scale) : 0,
@@ -291,8 +291,9 @@ static void draw_tab(struct twm_frame *frame, const char *title, enum frame_stat
 		draw_box(img, c.outline, 0, 0, dw, dh, stroke);
 	}
 	if (l->iconify.width) {
-		draw_glyph(img, TWM_GLYPH_ICONIFY, X(l->iconify.x + glyph_off), X(glyph_off),
-			scale, c.fg);
+		/* TRU-2: the lock takes the iconify slot; nothing else draws it. */
+		draw_glyph(img, frame->view->trusted ? TWM_GLYPH_LOCK : TWM_GLYPH_ICONIFY,
+			X(l->iconify.x + glyph_off), X(glyph_off), scale, c.fg);
 		draw_fill(img, c.sep, X(l->sep_left.x), 0, stroke, dh);
 	}
 	if (l->text.width > 0) {

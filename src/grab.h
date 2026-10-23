@@ -37,6 +37,11 @@ bool grab_key(struct twm_server *server, xkb_keysym_t sym, uint32_t mods);
 /* Keyboard modifiers changed (SNP-7: M pressed during a drag = free). */
 void grab_modifiers(struct twm_server *server, uint32_t mods);
 
+/* Abandon any grab as Esc would (a trusted prompt opened, TRU-4). */
+void grab_cancel(struct twm_server *server);
+/* Start a waiting placement, if any (the prompt closed). */
+void grab_resume(struct twm_server *server);
+
 /* The view unmapped or is going away. */
 void grab_view_gone(struct twm_server *server, struct twm_view *view);
 

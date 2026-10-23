@@ -301,11 +301,14 @@ void view_focus(struct twm_view *view) {
 	}
 	struct twm_server *server = view->server;
 	struct twm_view *prev = server->focused;
+	if (server->prompt && !view->trusted) {
+		return; /* TRU-4: the prompt keeps the focus until it closes */
+	}
 	view->focus_seq = ++server->focus_counter;
 	if (prev == view) {
 		return;
 	}
-	if (layers_hold_keyboard(server)) {
+	if (!view->trusted && layers_hold_keyboard(server)) {
 		return; /* a launcher or locker has the keyboard (GEN-2) */
 	}
 	server->focused = view;

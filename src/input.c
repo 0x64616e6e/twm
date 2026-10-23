@@ -13,13 +13,16 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon.h>
+#include <wayland-server-core.h>
 #include "actions.h"
+#include "capture.h"
 #include "frame.h"
 #include "grab.h"
 #include "hints.h"
 #include "internal.h"
 #include "layers.h"
 #include "menu.h"
+#include "prompt.h"
 #include "view.h"
 
 struct twm_keyboard {
@@ -29,7 +32,20 @@ struct twm_keyboard {
 	struct wl_listener modifiers;
 	struct wl_listener key;
 	struct wl_listener destroy;
+	bool synthetic; /* a virtual keyboard: never reaches a prompt (TRU-4) */
 };
+
+/* Virtual pointers carry this in wlr_input_device.data (TRU-4). */
+static char synthetic_mark;
+
+static bool synthetic_device(struct wlr_input_device *device) {
+	return device && device->data == &synthetic_mark;
+}
+
+/* D-7: only `--test`'s own program may drive prompts with virtual input. */
+static bool synthetic_client(struct twm_server *server, struct wl_resource *resource) {
+	return !capture_client_exempt(server, resource ? wl_resource_get_client(resource) : NULL);
+}
 
 /* Grabs first (OUT-6, OUT-7), then the configured key bindings (KEY). */
 static bool handle_key(struct twm_server *server, struct wlr_keyboard *kb,
@@ -105,6 +121,24 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 
 	bool handled = false;
 	uint32_t bit = event->keycode < 256 ? event->keycode : 0;
+	if (server->prompt) {
+		/* TRU-4: every key goes to the prompt, none to a client; synthetic
+		 * keys go nowhere. Presses are marked so their releases stay too. */
+		if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+			if (bit) {
+				server->consumed_keys[bit / 32] |= 1u << (bit % 32);
+			}
+			if (!kb->synthetic && kb->wlr_keyboard->xkb_state) {
+				const xkb_keysym_t *syms;
+				int n = xkb_state_key_get_syms(kb->wlr_keyboard->xkb_state,
+					event->keycode + 8, &syms);
+				if (n > 0) {
+					prompt_key(server, syms[0]);
+				}
+			}
+		}
+		return;
+	}
 	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED && kb->wlr_keyboard->xkb_state) {
 		uint32_t mods = wlr_keyboard_get_modifiers(kb->wlr_keyboard);
 		handled = handle_key(server, kb->wlr_keyboard, event->keycode + 8, mods);
@@ -142,13 +176,14 @@ static void update_capabilities(struct twm_server *server) {
 }
 
 static void add_keyboard(struct twm_server *server, struct wlr_keyboard *wlr_keyboard,
-		bool set_keymap) {
+		bool set_keymap, bool synthetic) {
 	struct twm_keyboard *kb = calloc(1, sizeof(*kb));
 	if (!kb) {
 		return;
 	}
 	kb->server = server;
 	kb->wlr_keyboard = wlr_keyboard;
+	kb->synthetic = synthetic;
 
 	if (set_keymap) {
 		/* Layout from XKB_DEFAULT_* until the config sets one (M2). */
@@ -180,7 +215,7 @@ static void handle_new_input(struct wl_listener *listener, void *data) {
 	struct wlr_input_device *device = data;
 	switch (device->type) {
 	case WLR_INPUT_DEVICE_KEYBOARD:
-		add_keyboard(server, wlr_keyboard_from_input_device(device), true);
+		add_keyboard(server, wlr_keyboard_from_input_device(device), true, false);
 		break;
 	case WLR_INPUT_DEVICE_POINTER:
 		wlr_cursor_attach_input_device(server->cursor, device);
@@ -195,6 +230,9 @@ static void handle_new_virtual_pointer(struct wl_listener *listener, void *data)
 	struct twm_server *server = wl_container_of(listener, server, new_virtual_pointer);
 	struct wlr_virtual_pointer_v1_new_pointer_event *event = data;
 	struct wlr_input_device *device = &event->new_pointer->pointer.base;
+	if (synthetic_client(server, event->new_pointer->resource)) {
+		device->data = &synthetic_mark;
+	}
 	wlr_cursor_attach_input_device(server->cursor, device);
 	if (event->suggested_output) {
 		wlr_cursor_map_input_to_output(server->cursor, device, event->suggested_output);
@@ -205,12 +243,18 @@ static void handle_new_virtual_keyboard(struct wl_listener *listener, void *data
 	struct twm_server *server = wl_container_of(listener, server, new_virtual_keyboard);
 	struct wlr_virtual_keyboard_v1 *vk = data;
 	/* The client brings its own keymap. */
-	add_keyboard(server, &vk->keyboard, false);
+	add_keyboard(server, &vk->keyboard, false, synthetic_client(server, vk->resource));
 }
 
 void input_update_pointer_focus(struct twm_server *server, uint32_t time_msec) {
 	if (grab_active(server)) {
 		return; /* FOC-8: the grab owns the pointer */
+	}
+	if (server->prompt) {
+		/* TRU-4: no client sees the pointer while a prompt is up. */
+		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "default");
+		wlr_seat_pointer_clear_focus(server->seat);
+		return;
 	}
 	double sx = 0, sy = 0;
 	struct wlr_surface *surface = NULL;
@@ -229,6 +273,9 @@ void input_update_pointer_focus(struct twm_server *server, uint32_t time_msec) {
 }
 
 static void pointer_moved(struct twm_server *server, uint32_t time_msec) {
+	if (server->prompt) {
+		return; /* TRU-4: nothing under the pointer reacts */
+	}
 	if (grab_active(server)) {
 		grab_motion(server);
 		return;
@@ -247,6 +294,9 @@ static void pointer_moved(struct twm_server *server, uint32_t time_msec) {
 static void handle_cursor_motion(struct wl_listener *listener, void *data) {
 	struct twm_server *server = wl_container_of(listener, server, cursor_motion);
 	struct wlr_pointer_motion_event *event = data;
+	if (server->prompt && synthetic_device(&event->pointer->base)) {
+		return; /* TRU-4 */
+	}
 	wlr_cursor_move(server->cursor, &event->pointer->base, event->delta_x, event->delta_y);
 	pointer_moved(server, event->time_msec);
 }
@@ -254,6 +304,9 @@ static void handle_cursor_motion(struct wl_listener *listener, void *data) {
 static void handle_cursor_motion_absolute(struct wl_listener *listener, void *data) {
 	struct twm_server *server = wl_container_of(listener, server, cursor_motion_absolute);
 	struct wlr_pointer_motion_absolute_event *event = data;
+	if (server->prompt && synthetic_device(&event->pointer->base)) {
+		return; /* TRU-4 */
+	}
 	wlr_cursor_warp_absolute(server->cursor, &event->pointer->base, event->x, event->y);
 	pointer_moved(server, event->time_msec);
 }
@@ -348,6 +401,18 @@ static void handle_cursor_button(struct wl_listener *listener, void *data) {
 	uint32_t bit = button_bit(event->button);
 
 	bool consumed;
+	if (server->prompt) {
+		/* TRU-4: buttons reach the prompt or nothing; synthetic ones never. */
+		if (pressed) {
+			server->consumed_buttons |= bit;
+		} else {
+			server->consumed_buttons &= ~bit;
+		}
+		if (!synthetic_device(&event->pointer->base)) {
+			prompt_pointer_button(server, event->button, pressed);
+		}
+		return;
+	}
 	if (pressed && hints_active(server)) {
 		hints_cancel(server); /* a click leaves hint mode and goes on */
 	}
@@ -398,7 +463,7 @@ static void handle_cursor_button(struct wl_listener *listener, void *data) {
 static void handle_cursor_axis(struct wl_listener *listener, void *data) {
 	struct twm_server *server = wl_container_of(listener, server, cursor_axis);
 	struct wlr_pointer_axis_event *event = data;
-	if (grab_active(server)) {
+	if (grab_active(server) || server->prompt) {
 		return;
 	}
 	wlr_seat_pointer_notify_axis(server->seat, event->time_msec, event->orientation,

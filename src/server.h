@@ -25,6 +25,7 @@ struct twm_watch;
 struct twm_internal_view;
 struct twm_menu_ui;
 struct twm_hints;
+struct twm_prompt;
 struct twm_func;
 
 /* Scene layers, back to front (D-4). */
@@ -141,6 +142,11 @@ struct twm_server {
 	struct twm_func *select_func;
 	struct twm_internal_view *button_target; /* got the press; gets the release */
 	struct twm_hints *hints; /* HNT-*: non-NULL while hint mode is on */
+
+	/* TRU-*: the trusted prompt on screen, the ones waiting, the dim */
+	struct twm_prompt *prompt;
+	struct wl_list prompt_queue;
+	struct wlr_scene_rect *prompt_dim;
 
 	/* CAP-*: who is capturing the screen */
 	struct wlr_screencopy_manager_v1 *screencopy;

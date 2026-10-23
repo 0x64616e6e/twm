@@ -104,7 +104,7 @@ void remember_finish(struct twm_server *server) {
 }
 
 static bool rememberable(struct twm_server *server, struct twm_view *view) {
-	if (!server->config->remember_geometry) {
+	if (!server->config->remember_geometry || view->trusted) {
 		return false;
 	}
 	const char *app_id = view->impl->get_app_id(view);

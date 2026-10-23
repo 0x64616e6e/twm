@@ -238,9 +238,11 @@ accent can change:
   windows are unframed. Transients are framed.
 - **FRM-17** `[M1]` Title source: xdg `title` / `_NET_WM_NAME` / `WM_NAME`;
   if empty, the app id / `WM_CLASS`; if empty, `untitled`.
-- **FRM-18** `[M4 · B0]` Utility frames (Icon Manager, Panner, history, log)
+- **FRM-18** `[M3 · B0]` Utility frames (Icon Manager, Panner, history, log)
   have a title-only tab with 12 padding and no buttons; the same state colors
-  apply.
+  apply. *Decided (M3):* they are drawn by twm but are ordinary windows:
+  focus, stacking, moves, bindings and remembered geometry work as for any
+  client.
 - **FRM-19** `[M1 · P-2]` Frames are axis-aligned and pixel-snapped, opaque,
   with no shadow, radius or blur.
 
@@ -328,7 +330,9 @@ accent can change:
   Manager lists the window as `placing` meanwhile (IMG-3).
 - **OUT-13** `[M3 · B0]` *Decided:* B3 "fit" during placement grows the
   outline to the largest empty rectangle around the pointer that overlaps no
-  other frame and stays on the output.
+  other frame and stays on the output, and places the window there at once.
+  Within the client's maximum size; with the pointer over another window
+  there is no room, and B3 places as B1 does.
 - **OUT-14** `[M1]` Several windows waiting for placement queue up and are
   placed one at a time, oldest first.
 - **OUT-15** `[M1]` *Decided:* transients with a parent skip placement and
@@ -354,6 +358,10 @@ accent can change:
   `accent` line across the whole output at the snapped coordinate, with an
   11 px label tracked 1 px in `accent` at its start: `EDGE · ZPOOL` (the
   neighbour's name, uppercase), `⅓ HEIGHT`, `⅔ WIDTH`, `CENTRE`.
+  *Decided (M3):* a neighbour's name is the first word of its title (B3:
+  "zpool status" → ZPOOL); an output edge reads `OUTPUT EDGE`. Only
+  neighbours level with the outline on the other axis (within
+  `SnapDistance`) count. Guides lie beneath the outline.
 - **SNP-4** `[M3 · B3]` While an outline operation runs with thirds enabled,
   faint thirds guides (1 px dashed `guide-faint`) cross the output.
 - **SNP-5** `[M3 · B3]` The readout hint names what snapped:
@@ -375,11 +383,18 @@ accent can change:
   focused window (or its group); `M-S-z` redoes it. *Decided:* "per window"
   (B3 footer) means undo is scoped to the focused window while the history
   view lists everything. A new operation clears that window's redo.
+  *Decided (M3):* placing a window is recorded but can't be undone: there is
+  no earlier position to return to. When there's nothing to undo or redo,
+  the root line says so.
 - **HIS-3** `[M3 · B3]` `f.history` (default `M-S-h`, decided) toggles a
   utility frame `history`: rows of operation (ink-2), target (ink) and age
   (dim, `2m`). An outline operation in progress shows on top as `pending`:
   operation in `accent`, `accent-wash-soft` background, 3 px inset `accent`
   bar on the left. Footer: `M-z undo · M-S-z redo · per window`.
+  *Decided (M3):* the newest eight entries show; undone ones are dim with the
+  age `undone`; twm's own windows aren't recorded. It opens at the top-right,
+  24 px in, until moved (then its position is remembered like any window's;
+  the Icon Manager will want that corner in M4).
 - **HIS-4** `[M3]` History keeps the last 100 operations for the session and is
   not saved.
 - **HIS-5** `[M7 · B8]` A write from the Settings window is undoable with

@@ -40,6 +40,10 @@ The UI font is IBM Plex Mono.
 | `M-S-m`, `M-r` | move / resize the focused window with the arrow keys |
 | `Esc`, `Return` | cancel / commit an outline |
 | `M-space` | raise or lower |
+| `M-z`, `M-S-z` | undo / redo the focused window's last move, resize |
+| `M-S-h` | the history view |
+| hold `M` while dragging | move freely; otherwise outlines snap to edges and thirds |
+| B3 while placing | fit the new window into the empty space around the pointer |
 | `M-Return` | `foot` |
 | `M-S-q` | quit |
 

@@ -2,6 +2,65 @@
 
 Newest milestone first. Requirement IDs refer to [DESIGN.md](DESIGN.md).
 
+## M3 — Outlines that think (2026-10-24)
+
+**Done**
+
+- Snapping (SNP-1, SNP-2) during move, resize, placement and keyboard
+  moves: neighbour frame edges (abutting and aligned), output edges, thirds,
+  and the centre when `Snap { … center }`; within `SnapDistance`, nearest
+  wins, frame edges beat thirds on a tie.
+- Guides (SNP-3, SNP-4, SNP-6): a dashed accent line across the output for
+  each snapped axis, labelled `EDGE · ZPOOL` / `⅓ HEIGHT`; faint thirds while
+  dragging; `HEADLESS-1 · 1920×1080 · scale 1` in the corner. The readout's
+  second line explains the snap: `left → zpool · top → ⅓` (SNP-5).
+- M held = free (SNP-7): pressing the modifier during a drag stops snapping
+  until it's released; the M of `M-B1` doesn't count.
+- B3 fit while placing (OUT-13): the largest empty rectangle around the
+  pointer, then placed.
+- History (HIS-1, HIS-2, HIS-4): move, resize and place are recorded when
+  they commit; `M-z` / `M-S-z` undo and redo per window; 100 entries.
+- History view (HIS-3, `M-S-h`): the first window twm draws itself, built on
+  a new internal-view module (FRM-18) that the Icon Manager and Panner will
+  reuse in M4.
+- Test client: a virtual keyboard, so keyboard bindings and outline keys now
+  run end to end.
+
+**Screenshot test** `shot-m3_snap`: 32 checks. B3 fit lands at exactly
+1220×600+700+0 between two windows; `M-S-m` + arrows + Return moves by
+(+3, +10) and Esc cancels; a B2 drag 4 px off zpool's edge and 3 px off the
+⅓ line snaps to both, with both guides, both labels, faint thirds, the output
+label and the hint on screen; the same drag with M pressed doesn't snap;
+`M-z` ×4 walks back through three moves and stops at placing, `M-S-z` redoes;
+the history view opens top-right with a title-only tab and shows a pending
+row during a drag; Esc mid-drag leaves the window put. Unit tests:
+`unit-snap` (B3's exact scene), `unit-history`. All suites stable over
+repeated runs and under load.
+
+![B3 recreated: a snapped move with guides](shots/m3-snap.png)
+
+![The history view during a drag, 2×](shots/m3-history.png)
+
+**Decided along the way** (recorded in DESIGN.md): placing isn't undoable
+(HIS-2); neighbour names are the title's first word, `OUTPUT EDGE` for
+output edges (SNP-3); B3 fit places at once (OUT-13); history view details
+(HIS-3); utility windows are ordinary views (FRM-18, moved to M3).
+
+**Found along the way**: wlroots doesn't derive modifier state from a
+virtual keyboard's keys, so the test client tracks it and sends it; two of
+my position checks were loose enough to pass for a window that hadn't moved,
+and now probe the frame's exact corner. The M1 and M2 screenshot tests place
+windows at exact spots, so they run with `Snap off`.
+
+**Not done yet / not verified**
+
+- Undo covers move, resize and place; iconify, squeeze, group, send and
+  config writes join as they arrive (M4, M5, M7).
+- The history view sits where the Icon Manager will go (top-right); M4
+  decides how the two share that corner.
+- Snapping uses the output under the pointer; outlines spanning two outputs
+  only snap to that one. Untested with more than one output.
+
 ## M2 — Config (2026-10-24)
 
 **Done**

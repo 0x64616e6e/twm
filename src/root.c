@@ -70,7 +70,7 @@ static bool set_text(struct twm_server *server, struct wlr_scene_buffer **node,
 		*node = wlr_scene_buffer_create(server->layers[TWM_LAYER_ROOT_TEXT], NULL);
 		(*node)->node.data = &server->root_hit;
 	}
-	if (!font) {
+	if (!font || !font->fcft) { /* no such face: skip it (§2.2) */
 		wlr_scene_node_set_enabled(&(*node)->node, false);
 		return false;
 	}

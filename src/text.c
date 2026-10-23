@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wlr/util/log.h>
 #include "text.h"
 
 #define FONT_CACHE_MAX 32
@@ -20,7 +21,9 @@ bool text_init(void) {
 
 void text_finish(void) {
 	for (int i = 0; i < cache_len; i++) {
-		fcft_destroy(cache[i].fcft);
+		if (cache[i].fcft) {
+			fcft_destroy(cache[i].fcft);
+		}
 	}
 	cache_len = 0;
 	if (initialized) {
@@ -47,26 +50,27 @@ struct twm_font *font_get(const char *family, int size, int weight, float scale)
 			return f;
 		}
 	}
-	if (!text_init()) {
-		return NULL;
-	}
 	if (cache_len == FONT_CACHE_MAX) {
 		/* Drop the oldest; labels re-request what they need. */
-		fcft_destroy(cache[0].fcft);
+		if (cache[0].fcft) {
+			fcft_destroy(cache[0].fcft);
+		}
 		memmove(&cache[0], &cache[1], sizeof(cache[0]) * (FONT_CACHE_MAX - 1));
 		cache_len--;
 	}
 
 	/* Primary face first, then generic fallbacks for missing glyphs. */
 	char primary[192];
-	snprintf(primary, sizeof(primary), "%s:weight=%s", family, weight_name(weight));
+	/* A bare family falls back to monospace (§2.2), not fontconfig's
+	 * default sans: without IBM Plex, titles stay monospaced and every
+	 * weight keeps the same advance. A family list is taken as given. */
+	bool bare = !strchr(family, ',') && !strchr(family, ':');
+	snprintf(primary, sizeof(primary), "%s%s:weight=%s", family, bare ? ",monospace" : "",
+		weight_name(weight));
 	const char *names[] = {primary, "monospace", "emoji"};
 	char attrs[64];
 	snprintf(attrs, sizeof(attrs), "pixelsize=%.2f", size * scale);
-	struct fcft_font *ff = fcft_from_name(3, names, attrs);
-	if (!ff) {
-		return NULL;
-	}
+	struct fcft_font *ff = text_init() ? fcft_from_name(3, names, attrs) : NULL;
 	struct twm_font *f = &cache[cache_len++];
 	memset(f, 0, sizeof(*f));
 	f->fcft = ff;
@@ -74,9 +78,23 @@ struct twm_font *font_get(const char *family, int size, int weight, float scale)
 	f->size = size;
 	f->weight = weight;
 	f->scale = scale;
-	f->ascent = ff->ascent;
-	f->descent = ff->descent;
-	f->height = ff->height;
+	if (ff) {
+		f->ascent = ff->ascent;
+		f->descent = ff->descent;
+		f->height = ff->height;
+	} else {
+		/* No font at all (no fontconfig fonts installed): keep the layout
+		 * with plausible metrics and draw no text, rather than fail. */
+		static bool warned;
+		if (!warned) {
+			wlr_log(WLR_ERROR, "no font for \"%s\" (nor monospace): text is not drawn; "
+				"install a font, e.g. IBM Plex Mono or DejaVu", family);
+			warned = true;
+		}
+		f->ascent = (int)lroundf(size * scale * 0.8f);
+		f->descent = (int)lroundf(size * scale * 0.2f);
+		f->height = (int)lroundf(size * scale * 1.2f);
+	}
 	return f;
 }
 
@@ -149,7 +167,7 @@ static void layout(struct twm_font *font, const uint32_t *cps, size_t n,
 }
 
 int text_width(struct twm_font *font, const char *utf8, float tracking) {
-	if (!font || !utf8) {
+	if (!font || !font->fcft || !utf8) {
 		return 0;
 	}
 	uint32_t *cps;
@@ -180,7 +198,7 @@ static void draw_glyph(pixman_image_t *dst, pixman_image_t *src,
 
 int text_draw(pixman_image_t *dst, struct twm_font *font, const char *utf8,
 		int x, int baseline, uint32_t argb, float tracking, int max_width) {
-	if (!font || !utf8) {
+	if (!font || !font->fcft || !utf8) {
 		return 0;
 	}
 	uint32_t *cps;

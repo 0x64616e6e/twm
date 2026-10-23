@@ -100,7 +100,10 @@ accent can change:
 ### 2.2 Type
 
 - UI face: **IBM Plex Mono**, weights 400 / 500 / 600 (Regular, Medium,
-  SemiBold). Fallback: fontconfig `monospace`.
+  SemiBold). Fallback: fontconfig `monospace` (asked for as a family list,
+  `IBM Plex Mono,monospace`, so a missing Plex never lands on the default
+  proportional sans). With no font at all twm still runs: text is not
+  drawn and the log says so once.
 - Display face: **Instrument Serif Italic**, used only for the root wordmark.
   Fallback: `serif:italic`; if neither resolves the wordmark is skipped.
 - Tracking (letter-spacing) is applied by the text module from glyph advances.

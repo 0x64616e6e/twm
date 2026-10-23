@@ -30,8 +30,10 @@ enum twm_weight {
 bool text_init(void);
 void text_finish(void);
 
-/* Cached; never free the result. `family` may be a fontconfig family list
- * ("Instrument Serif,serif") and may carry ":style=Italic". */
+/* Cached; never free the result, never NULL: without any font it has
+ * metrics but no glyphs (fcft NULL), and text draws as nothing. `family` may
+ * be a fontconfig family list ("Instrument Serif,serif") and may carry
+ * ":style=Italic". */
 struct twm_font *font_get(const char *family, int size, int weight, float scale);
 
 /* Advance width in device px, with `tracking` device px after each glyph. */

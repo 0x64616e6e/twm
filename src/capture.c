@@ -1,3 +1,7 @@
+#if defined(__FreeBSD__)
+/* kinfo_proc (sys/user.h) needs the BSD types that _POSIX_C_SOURCE hides. */
+#undef _POSIX_C_SOURCE
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

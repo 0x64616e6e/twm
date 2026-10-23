@@ -724,6 +724,9 @@ static bool write_chunk(FILE *f, const char *type, const uint8_t *data, size_t l
 }
 
 bool tc_image_write_png(const struct tc_image *img, const char *path) {
+	if (!img->pixels || img->width <= 0 || img->height <= 0) {
+		return tc_expect("D-7", false, "no screenshot to write to %s", path);
+	}
 	crc_init();
 	size_t row_len = (size_t)img->width * 3 + 1;
 	size_t raw_len = row_len * (size_t)img->height;

@@ -50,7 +50,7 @@ wayland_server = dependency('wayland-server', version: '>=1.24')
 wayland_client = dependency('wayland-client', version: '>=1.24')
 wayland_protos = dependency('wayland-protocols', version: '>=1.41')
 xkbcommon = dependency('xkbcommon')
-fcft = dependency('fcft', version: ['>=3.0.0', '<4.0.0'])
+fcft = dependency('fcft', version: ['>=3.0.0', '<4.0.0'], include_type: 'system')
 math = cc.find_library('m', required: false)
 
 have_xwayland = wlroots.get_variable(pkgconfig: 'have_xwayland', internal: 'have_xwayland') == 'true'

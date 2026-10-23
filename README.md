@@ -45,6 +45,9 @@ The UI font is IBM Plex Mono.
 | `M-1`…`M-9`, `M-S-1`…`M-S-9` | switch desktop / send the focused window |
 | `M-i`, the iconify box | iconify (B1 on its icon brings it back) |
 | B3 on a title | squeeze to the tab and back |
+| B2-drag a window onto another's title | group them as tabs; B1 on a tab brings it up, `M-Tab` cycles, B3 folds |
+| B2-drag a tab off its row | it stands alone again |
+| `M-;` then a letter | hint mode: jump to the window with that letter |
 | `M-n` | recent messages |
 | `M-z`, `M-S-z` | undo / redo the focused window's last move, resize, iconify, squeeze, send |
 | `M-S-h` | the history view |

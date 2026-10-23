@@ -343,6 +343,9 @@ accent can change:
   app id has a remembered geometry maps straight there without placement, and
   the root line says so: `restore  firefox → 1120×900+40+60, from its last session`
   (*decided:* `from earlier` when the geometry was recorded in this session).
+  *Decided (M5):* only for the first window of an app: if another window with
+  that app id is open, the new one is placed as usual instead of landing on
+  top of it.
   Windows without an app id, transients and windows whose remembered output
   is gone are placed as usual.
 
@@ -596,7 +599,10 @@ accent can change:
 ### GRP — tab groups
 
 - **GRP-1** `[M5 · B2]` B2-dragging a window's tab and releasing it on another
-  frame's tab row or top edge joins the two in one frame.
+  frame's tab row or top edge joins the two in one frame. *Decided (M5):* the
+  drop zone is the target's title band across its whole width; the dropped
+  tab becomes the active one and takes focus; a group joins others one tab at
+  a time (dragging a whole group onto another doesn't merge them).
 - **GRP-2** `[M5 · B2]` Over a valid target the outline gives way to a
   floating tab (`graphite`, `ink` text, 1 px inset `accent`) under the
   pointer; the target row opens a dashed `accent` slot the width of the
@@ -611,11 +617,20 @@ accent can change:
 - **GRP-4** `[M5 · B2]` B1 on an inactive tab activates it. `M-Tab` cycles
   the active tab within the focused group only.
 - **GRP-5** `[M5 · B2]` B2-dragging a tab off the row splits it out; it is
-  placed by outline like a new window (OUT-12).
+  placed by outline like a new window (OUT-12). *Decided (M5):* in a group,
+  B2 on a tab drags that tab (the outline hangs from the pointer once it
+  leaves the row; released, it stands there alone; released on its own row,
+  nothing happens); the whole group moves with B1-drag, `M-B1` or `M-S-m`.
 - **GRP-6** `[M5 · B2]` B3 on a group's tab row folds every tab into the
-  active one; B3 again fans them out.
+  active one; B3 again fans them out. (On a group, B3 folds instead of
+  squeezing; FRM-14.)
 - **GRP-7** `[M5]` Move, resize and iconify act on the whole group. The Icon
   Manager shows one row (IMG-3).
+- **GRP-8** `[M5]` *Decided:* joining and leaving are recorded (HIS-1);
+  undoing a detach puts the tab back, undoing a join takes it out again.
+  The filter (IMG-7) still finds each tab; choosing one brings its group up
+  with that tab in front. A group's tab row is cut to fit like a single tab
+  (FRM-5): the longest titles give way first.
 
 ### HNT — hint mode
 
@@ -625,15 +640,20 @@ accent can change:
 - **HNT-2** `[M5 · B4]` Letters come from `HintKeys` (default `asdfjklgh`,
   home row first). *Decided:* "nearest first" means distance from the
   pointer to the frame; ties go to the higher window in the stack. More
-  windows than letters → two-letter codes.
+  windows than letters → two-letter codes. *Decided (M5):* twm's own windows
+  (title-only tabs, FRM-18) and `NoTitle` windows get no hint; a group gets
+  one.
 - **HNT-3** `[M5 · B4]` Typing a window's letter marks it selected for one
   frame (letter box `ground` with `accent` letter and a 2 px inset `accent`
   border; tab 1 px inset `accent`, `ink` text; frame `accent`), then the
-  window raises and takes focus and hint mode ends.
+  window raises and takes focus and hint mode ends. *Decided (M5):* "one
+  frame" is 60 ms (within P-3's 80 ms); with two-letter codes the first
+  letter narrows the hints to those starting with it.
 - **HNT-4** `[M5 · B4]` `Esc`, or any key that is not a hint, leaves hint mode
   with nothing changed.
 - **HNT-5** `[M5]` Hint mode holds the keyboard; no client gets keys until it
-  ends.
+  ends. *Decided (M5):* modifier keys alone don't end it; a click ends it and
+  then does what it would have done.
 
 ### URG — polite urgency
 

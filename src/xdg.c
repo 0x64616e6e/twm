@@ -115,7 +115,7 @@ static void handle_commit(struct wl_listener *listener, void *data) {
 	if (base->initial_commit) {
 		/* The size it had last time (OUT-16), else the client's choice. */
 		int w = 0, h = 0;
-		remember_initial_size(xv->view.server, xv->toplevel->app_id, &w, &h);
+		remember_initial_size(xv->view.server, &xv->view, xv->toplevel->app_id, &w, &h);
 		wlr_xdg_toplevel_set_size(xv->toplevel, w, h);
 		if (xv->decoration) {
 			wlr_xdg_toplevel_decoration_v1_set_mode(xv->decoration,

@@ -132,9 +132,17 @@ void remember_record(struct twm_server *server, struct twm_view *view) {
 	wl_event_source_timer_update(server->geomem_timer, SAVE_DELAY_MS);
 }
 
-bool remember_initial_size(struct twm_server *server, const char *app_id, int *w, int *h) {
+bool remember_initial_size(struct twm_server *server, struct twm_view *view,
+		const char *app_id, int *w, int *h) {
 	if (!server->config->remember_geometry || !app_id || !*app_id) {
 		return false;
+	}
+	struct twm_view *other; /* as in remember_restore: not for a second window */
+	wl_list_for_each(other, &server->views, link) {
+		const char *oid = other->impl->get_app_id(other);
+		if (other != view && oid && strcmp(oid, app_id) == 0) {
+			return false;
+		}
 	}
 	const struct geomem_entry *e = geomem_find(&server->geomem, app_id);
 	if (!e) {
@@ -163,6 +171,15 @@ bool remember_restore(struct twm_server *server, struct twm_view *view) {
 	const struct geomem_entry *e = geomem_find(&server->geomem, app_id);
 	if (!e) {
 		return false;
+	}
+	/* A second window of an app that's already open would land right on top
+	 * of the first: place that one by hand instead (OUT-16). */
+	struct twm_view *other;
+	wl_list_for_each(other, &server->views, link) {
+		const char *oid = other->impl->get_app_id(other);
+		if (other != view && oid && strcmp(oid, app_id) == 0) {
+			return false;
+		}
 	}
 	struct twm_output *output = output_named(server, e->output);
 	if (!output) {

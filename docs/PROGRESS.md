@@ -2,6 +2,56 @@
 
 Newest milestone first. Requirement IDs refer to [DESIGN.md](DESIGN.md).
 
+## M5 — Tab groups and hint mode (2026-10-24)
+
+**Done**
+
+- Tab groups (GRP-1…8): B2-drag a window onto another frame's top edge and
+  they share one frame. While dragging over a target, B2's preview replaces
+  the outline: a floating tab under the pointer, a dashed slot opening in the
+  target row at the insertion point, `DROP → GROUP OF N`. The row (B2):
+  squeezed tabs, a 38 px hatch inside the active tab, separators, buttons in
+  their neighbour tab's colors. B1 on a tab brings it to the front, `M-Tab`
+  cycles, B3 folds and fans out; B2 drags a tab off to stand alone. Move,
+  resize, send and iconify act on the group; joining and leaving are undoable.
+- The Icon Manager shows a group as one row, `foot ×3` / `tabs`; the filter
+  still finds each tab. The Panner shows the active tab.
+- Hint mode (HNT-1…5): `M-;` letters every visible tab, nearest the pointer
+  first (two letters past the home row); typing one raises and focuses it;
+  Esc or another key leaves; it holds the keyboard.
+- Pure modules with unit tests: the group tab-row layout and hint codes
+  (`unit-group`).
+
+**Screenshot test** `shot-m5_groups` (32 checks): the drop preview (slot,
+floating tab, label) for a group of 2 and of 3; the joining window takes the
+group's size, its tab comes to the front with the hatch; B1 on a tab and
+`M-Tab`; fold and fan out; `M-B1` moves the group and another tab shows it at
+the new place; the Icon Manager row; dragging a tab off places it at its
+outline, and undo puts it back; hint letters on the group and a window, `s`
+focusing the group, Esc and a non-hint key changing nothing. All 18 suites
+stable over repeated runs and under load.
+
+![A group of three, as in B2](shots/m5-row.png)
+
+![Hint mode, as in B4](shots/m5-hints.png)
+
+**Decided along the way** (recorded in DESIGN.md): GRP-1 (drop zone, dropped
+tab in front, one tab at a time), GRP-5 (B2 drags a tab, other moves move the
+group), GRP-8 (undo of grouping), HNT-2/3/5 details.
+
+**Found along the way**: two windows with the same app id (two `foot`s)
+were both restored to the remembered spot, the second on top of the first.
+Remembered geometry now applies only to an app's first window (OUT-16). The
+M5 test caught it.
+
+**Not done yet / not verified**
+- Dragging a whole group onto another to merge them isn't supported (one tab
+  at a time).
+- An unfocused group draws its active tab like the others; B2 only shows a
+  focused group, so this is a guess.
+- The selected hint's 60 ms frame isn't checked by a test (it's shorter than
+  the screenshot's settle time).
+
 ## M4 — Icon Manager, root menu, desktops, Panner (2026-10-24)
 
 **Done**

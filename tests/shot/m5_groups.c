@@ -1,0 +1,251 @@
+/*
+ * M5 screenshot test: tab groups (GRP-1 … GRP-8) and hint mode
+ * (HNT-1 … HNT-5), through real pointer and keyboard input.
+ */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "client.h"
+
+#define GROUND 0x0D0E0B
+#define SURFACE 0x121310
+#define GRAPHITE 0x23251F
+#define DIM 0x85887C
+#define ACCENT 0xFFB000
+#define ON_ACCENT 0x0E0F0C
+#define TH 26
+#define KEY_S 31
+#define KEY_Q 16
+
+static int near(uint32_t a, uint32_t b, int tol) {
+	for (int s = 0; s <= 16; s += 8) {
+		int d = (int)((a >> s) & 0xff) - (int)((b >> s) & 0xff);
+		if (d < -tol || d > tol) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+static int count_box(const struct tc_image *img, int x0, int y0, int x1, int y1,
+		uint32_t c, int tol) {
+	int n = 0;
+	for (int y = y0; y < y1; y++) {
+		for (int x = x0; x < x1; x++) {
+			n += near(tc_pixel(img, x, y), c, tol);
+		}
+	}
+	return n;
+}
+
+/* Right edge of a tab row: the first root-colored pixel on its top row. */
+static int row_end(const struct tc_image *img, int x0, int y) {
+	for (int x = x0; x < img->width; x++) {
+		if (near(tc_pixel(img, x, y), GROUND, 10)) {
+			return x;
+		}
+	}
+	return img->width;
+}
+
+/* The longest run of hatch-ink on a row (the active tab's hatch). */
+static int hatch_run(const struct tc_image *img, int x0, int x1, int y) {
+	uint32_t hatch = tc_blend(ON_ACCENT, 0.55, ACCENT);
+	int best = 0, run = 0;
+	for (int x = x0; x < x1; x++) {
+		run = near(tc_pixel(img, x, y), hatch, 2) ? run + 1 : 0;
+		best = run > best ? run : best;
+	}
+	return best;
+}
+
+static struct tc_window *place(struct tc *tc, int x, int y, struct tc_window_opts opts) {
+	tc_pointer_move(tc, x, y);
+	struct tc_window *win = tc_window_create(tc, &opts);
+	tc_wait(tc, 20);
+	tc_pointer_click(tc, TC_BTN_LEFT);
+	tc_wait(tc, 40);
+	return win;
+}
+
+static void shot(struct tc *tc, struct tc_image *img) {
+	tc_image_free(img);
+	tc_screenshot(tc, img);
+}
+
+static void drag(struct tc *tc, uint32_t button, int x0, int y0, int x1, int y1, bool release) {
+	tc_pointer_move(tc, x0, y0);
+	tc_pointer_button(tc, button, true);
+	for (int i = 1; i <= 6; i++) {
+		tc_pointer_move(tc, x0 + (x1 - x0) * i / 6, y0 + (y1 - y0) * i / 6);
+	}
+	if (release) {
+		tc_pointer_button(tc, button, false);
+		tc_wait(tc, 50);
+	}
+}
+
+int main(int argc, char *argv[]) {
+	const char *out = argc > 1 ? argv[1] : "m5-groups.png";
+	struct tc *tc = tc_connect();
+	struct tc_image img = {0};
+	char path[4096];
+
+	/* Exact positions matter here, so no snapping. */
+	char rc[4096];
+	snprintf(rc, sizeof(rc), "%s/.twmrc", getenv("TWM_TEST_HOME"));
+	FILE *f = fopen(rc, "w");
+	fputs("Snap off\n", f);
+	fclose(f);
+	tc_wait(tc, 400);
+
+	struct tc_window *a = place(tc, 100, 150, (struct tc_window_opts){
+		.title = "foot \xe2\x80\x94 build", .app_id = "foot", .width = 818, .height = 438,
+		.color = SURFACE});
+	struct tc_window *b = place(tc, 1000, 650, (struct tc_window_opts){
+		.title = "foot \xe2\x80\x94 logs", .app_id = "foot", .width = 498, .height = 272,
+		.color = SURFACE});
+	struct tc_window *c = place(tc, 1100, 200, (struct tc_window_opts){
+		.title = "man twm(1)", .app_id = "man", .width = 398, .height = 200, .color = SURFACE});
+
+	/* --- GRP-1, GRP-2: drag man(1) onto foot's top edge --- */
+	drag(tc, TC_BTN_MIDDLE, 1180, 213, 500, 160, false);
+	shot(tc, &img);
+	tc_image_write_png(&img, out);
+	tc_expect("GRP-2", count_box(&img, 100, 150, 900, 152, ACCENT, 2) > 20,
+		"a dashed slot opens in the target's row");
+	tc_expect("GRP-2", count_box(&img, 380, 145, 520, 149, ACCENT, 2) > 20,
+		"a floating tab with an accent edge under the pointer");
+	tc_expect("GRP-2", count_box(&img, 540, 194, 720, 210, ACCENT, 60) > 30,
+		"DROP \xe2\x86\x92 GROUP OF 2");
+	tc_expect_pixel("GRP-2", &img, 1102, 202, ACCENT, 2); /* man(1) still put (focused) */
+	tc_pointer_button(tc, TC_BTN_MIDDLE, false);
+	tc_wait(tc, 60);
+	int w, h;
+	tc_window_size(c, &w, &h);
+	tc_expect("GRP-3", w == 818 && h == 438, "the joining window takes the group's size (%dx%d)", w, h);
+	tc_expect("GRP-1", tc_window_activated(c), "the dropped tab is active and focused");
+	shot(tc, &img);
+	tc_expect_pixel("GRP-1", &img, 1102, 202, GROUND, 8);   /* gone from its old place */
+	tc_expect_pixel("GRP-3", &img, 101, 151, GRAPHITE, 2);  /* iconify box like tab 1 */
+	int hr = hatch_run(&img, 100, 900, 150 + 6);
+	tc_expect("GRP-3", hr == 38, "the active tab carries a 38 px hatch (%d)", hr);
+	int two_tabs = row_end(&img, 100, 150);
+
+	/* GRP-2: and a third, dropped at the end of the row. */
+	drag(tc, TC_BTN_MIDDLE, 1100, 663, two_tabs + 60, 160, false);
+	shot(tc, &img);
+	tc_expect("GRP-2", count_box(&img, two_tabs + 100, 194, two_tabs + 280, 210, ACCENT, 60) > 30,
+		"DROP \xe2\x86\x92 GROUP OF 3");
+	tc_pointer_button(tc, TC_BTN_MIDDLE, false);
+	tc_wait(tc, 60);
+	tc_window_size(b, &w, &h);
+	tc_expect("GRP-3", w == 818 && h == 438 && tc_window_activated(b), "logs joined, active");
+	shot(tc, &img);
+	int three_tabs = row_end(&img, 100, 150);
+	tc_expect("GRP-3", three_tabs > two_tabs, "three tabs side by side (%d > %d)", three_tabs, two_tabs);
+	snprintf(path, sizeof(path), "%.*s-row.png", (int)strlen(out) - 4, out);
+	tc_image_write_png(&img, path);
+
+	/* --- GRP-4: B1 on the first tab activates it; M-Tab cycles --- */
+	tc_pointer_move(tc, 100 + 27 + 20, 163);
+	tc_pointer_click(tc, TC_BTN_LEFT);
+	tc_wait(tc, 40);
+	tc_expect("GRP-4", tc_window_activated(a) && !tc_window_activated(b),
+		"B1 on build's tab: build in front");
+	tc_pointer_move(tc, 1500, 120); /* the root */
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, TC_KEY_TAB);
+	tc_wait(tc, 40);
+	tc_expect("GRP-4", tc_window_activated(c), "M-Tab: the next tab (man) in front");
+
+	/* --- GRP-6: B3 folds the row into the active tab; B3 again fans out --- */
+	tc_pointer_move(tc, 100 + 27 + 20, 163);
+	tc_pointer_click(tc, TC_BTN_RIGHT);
+	tc_wait(tc, 40);
+	shot(tc, &img);
+	int folded = row_end(&img, 100, 150);
+	tc_expect("GRP-6", folded < three_tabs - 100, "folded: one tab (%d < %d)", folded, three_tabs);
+	tc_expect_pixel("GRP-6", &img, 500, 400, SURFACE, 0);   /* the body stays */
+	tc_pointer_click(tc, TC_BTN_RIGHT);
+	tc_wait(tc, 40);
+	shot(tc, &img);
+	tc_expect("GRP-6", row_end(&img, 100, 150) == three_tabs, "fanned out again");
+
+	/* --- GRP-7: M-B1 moves the whole group --- */
+	tc_key(tc, TC_KEY_LEFTMETA, true);
+	drag(tc, TC_BTN_LEFT, 500, 400, 550, 440, true);
+	tc_key(tc, TC_KEY_LEFTMETA, false);
+	tc_pointer_move(tc, 150 + 27 + 20, 203);
+	tc_pointer_click(tc, TC_BTN_LEFT);                       /* build in front */
+	tc_wait(tc, 40);
+	shot(tc, &img);
+	tc_expect("GRP-7", !near(tc_pixel(&img, 150, 190), GROUND, 8) &&
+		near(tc_pixel(&img, 120, 160), GROUND, 30) && tc_window_activated(a),
+		"another tab shows the group at its new place (150,190)");
+
+	/* IMG-3: one Icon Manager row for the group, "foot ×3" / tabs. */
+	tc_expect("GRP-7", count_box(&img, 1661 + 170, 106, 1661 + 222, 136, DIM, 40) > 15,
+		"the Icon Manager row says tabs");
+
+	/* --- GRP-5: B2 drags build's tab off; released, it stands alone --- */
+	drag(tc, TC_BTN_MIDDLE, 150 + 27 + 20, 203, 600, 750, true);
+	tc_wait(tc, 40);
+	shot(tc, &img);
+	tc_expect("GRP-5", !near(tc_pixel(&img, 600, 750), GROUND, 8) &&
+		near(tc_pixel(&img, 599, 750), GROUND, 30), "build placed at its outline (600,750)");
+	tc_expect("GRP-5", tc_window_activated(a), "and focused");
+	/* GRP-8: undo puts it back in the group. */
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, TC_KEY_Z);
+	tc_wait(tc, 60);
+	shot(tc, &img);
+	tc_expect("GRP-8", near(tc_pixel(&img, 600, 750), GROUND, 30) &&
+		row_end(&img, 150, 190) == three_tabs + 50, "undo: build back in the group");
+
+	/* --- HNT-1 … HNT-5: hint mode --- */
+	struct tc_window *d = place(tc, 1300, 650, (struct tc_window_opts){
+		.title = "notes", .app_id = "notes", .width = 300, .height = 200, .color = SURFACE});
+	tc_pointer_move(tc, 1350, 760); /* inside notes: it's nearest, so 'a' */
+	tc_wait(tc, 150);
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, 39 /* KEY_SEMICOLON */);
+	tc_wait(tc, 40);
+	shot(tc, &img);
+	snprintf(path, sizeof(path), "%.*s-hints.png", (int)strlen(out) - 4, out);
+	tc_image_write_png(&img, path);
+	tc_expect_pixel("HNT-1", &img, 1302, 652, ACCENT, 2);   /* notes: letter box */
+	tc_expect("HNT-1", count_box(&img, 1305, 653, 1321, 673, ON_ACCENT, 30) > 10,
+		"its letter on accent");
+	tc_expect_pixel("HNT-1", &img, 152, 192, ACCENT, 2);    /* the group: letter box */
+	tc_expect_pixel("HNT-1", &img, 152 + 40, 192, GRAPHITE, 2); /* the rest of its tab unchanged */
+	/* HNT-5: keys don't reach the client meanwhile. 's' goes to the group. */
+	tc_chord(tc, 1, KEY_S);
+	tc_wait(tc, 150);
+	tc_expect("HNT-3", !tc_window_activated(d) &&
+		(tc_window_activated(a) || tc_window_activated(b) || tc_window_activated(c)),
+		"'s': the group's window raised and focused");
+	shot(tc, &img);
+	tc_expect_pixel("HNT-3", &img, 1302, 652, GRAPHITE, 2);  /* letters gone */
+	/* HNT-4: Esc, and a key that isn't a hint, leave with nothing changed. */
+	tc_pointer_move(tc, 1350, 760);
+	tc_wait(tc, 150);
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, 39);
+	tc_chord(tc, 1, TC_KEY_ESC);
+	tc_wait(tc, 40);
+	shot(tc, &img);
+	tc_expect("HNT-4", near(tc_pixel(&img, 1302, 652), ACCENT, 2) && tc_window_activated(d),
+		"Esc: no letters, focus unchanged");
+	tc_expect_pixel("HNT-4", &img, 152, 192, GRAPHITE, 2);   /* the group: no letter */
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, 39);
+	tc_chord(tc, 1, KEY_Q);
+	tc_wait(tc, 80);
+	tc_expect("HNT-4", tc_window_activated(d), "a non-hint key: focus unchanged");
+	shot(tc, &img);
+	tc_expect_pixel("HNT-4", &img, 152, 192, GRAPHITE, 2);   /* no letters left */
+	tc_image_free(&img);
+
+	tc_window_destroy(d);
+	tc_window_destroy(c);
+	tc_window_destroy(b);
+	tc_window_destroy(a);
+	tc_disconnect(tc);
+	return tc_report();
+}

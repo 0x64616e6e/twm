@@ -17,7 +17,8 @@ void remember_finish(struct twm_server *server);
 void remember_record(struct twm_server *server, struct twm_view *view);
 
 /* A client size to offer at the first configure, if the app id is known. */
-bool remember_initial_size(struct twm_server *server, const char *app_id, int *w, int *h);
+bool remember_initial_size(struct twm_server *server, struct twm_view *view,
+	const char *app_id, int *w, int *h);
 
 /* Put a new view where it was last time; true if it was restored (then it
  * is shown and the root line says so). */

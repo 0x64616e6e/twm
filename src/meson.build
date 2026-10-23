@@ -6,6 +6,7 @@ twm_core_src = files(
   'hintcode.c',
   'history.c',
   'intent.c',
+  'rcedit.c',
   'squeeze.c',
   'settings.c',
   'snap.c',

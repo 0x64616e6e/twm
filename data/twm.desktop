@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Tom's WM (Wayland)
+Comment=twm, read for Wayland: squeezed tabs, an Icon Manager, one ~/.twmrc
+Exec=twm-session
+TryExec=twm
+Type=Application
+DesktopNames=twm

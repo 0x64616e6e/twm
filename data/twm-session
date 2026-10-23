@@ -1,0 +1,17 @@
+#!/bin/sh
+# twm-session: Tom's WM as a desktop session. Started by a display manager
+# (twm.desktop in wayland-sessions) or from a text console after logging in.
+# Sets the session's environment and runs twm on the DRM backend; its log goes
+# to the journal (journalctl -t twm), since greetd and friends keep none.
+export XDG_CURRENT_DESKTOP=twm
+export XDG_SESSION_DESKTOP=twm
+export XDG_SESSION_TYPE=wayland
+export MOZ_ENABLE_WAYLAND=1
+export QT_QPA_PLATFORM="wayland;xcb"
+export GDK_BACKEND="wayland,x11"
+export SDL_VIDEODRIVER=wayland
+export _JAVA_AWT_WM_NONREPARENTING=1
+if command -v systemd-cat >/dev/null 2>&1; then
+	exec systemd-cat --identifier=twm twm "$@"
+fi
+exec twm "$@"

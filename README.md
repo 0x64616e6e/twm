@@ -45,6 +45,10 @@ FreeBSD; `-Dportal=disabled` to build without). The UI font is IBM Plex Mono.
 
 ## Run
 
+- As your desktop: `sudo meson install -C build --skip-subprojects` puts `twm`,
+  `twm-session` and a `wayland-sessions` entry ("Tom's WM") in `/usr/local`;
+  pick it in your display manager, or log in on a text console and run
+  `twm-session`. Logs: `journalctl -t twm`.
 - Nested: run `./build/src/twm` inside a Wayland or X11 session.
 - On a TTY: run it from a virtual console (needs seatd or logind).
 - Headless: `./build/src/twm --headless 1920x1080` (used by the tests).

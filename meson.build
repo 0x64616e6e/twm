@@ -84,6 +84,11 @@ config_inc = include_directories('.')
 subdir('protocols')
 subdir('src')
 
+# The session: a wrapper that sets the environment, and an entry display
+# managers list (wayland-sessions).
+install_data('data/twm-session', install_dir: get_option('bindir'), install_mode: 'rwxr-xr-x')
+install_data('data/twm.desktop', install_dir: get_option('datadir') / 'wayland-sessions')
+
 # Portal files: xdg-desktop-portal finds twm's backend and the per-desktop
 # preferences here; the xdpw chooser config is an example to copy.
 if have_portal

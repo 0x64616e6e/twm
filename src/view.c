@@ -318,6 +318,7 @@ void view_focus(struct twm_view *view) {
 		}
 	}
 	view->urgent = false; /* URG-5 */
+	view->urgent_held = false;
 	view->impl->set_activated(view, true);
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(server->seat);
 	if (!view->surface) {
@@ -335,13 +336,29 @@ void view_focus(struct twm_view *view) {
 }
 
 void view_set_urgent(struct twm_view *view, bool urgent) {
-	if (urgent && view->server->focused == view) {
+	struct twm_server *server = view->server;
+	if (urgent && server->focused == view) {
 		return;
 	}
-	if (view->urgent != urgent) {
-		view->urgent = urgent;
-		view_update_frame(view);
+	if (!urgent) {
+		if (view->urgent || view->urgent_held) {
+			view->urgent = view->urgent_held = false;
+			view_update_frame(view);
+		}
+		return;
 	}
+	if (view->urgent || view->urgent_held) {
+		return;
+	}
+	view->urgent_seq = ++server->urgent_counter;
+	/* URG-3: a quiet desktop holds its windows' urgency until visited. */
+	if (!view->sticky && view->desktop != server->desktop &&
+			(server->quiet & (1u << (view->desktop - 1)))) {
+		view->urgent_held = true;
+	} else {
+		view->urgent = true;
+	}
+	view_update_frame(view);
 }
 
 struct twm_view *view_from_surface(struct twm_server *server,

@@ -1,6 +1,7 @@
 #include <wlr/types/wlr_seat.h>
 #include "desktop.h"
 #include "grab.h"
+#include "rootline.h"
 #include "group.h"
 #include "histview.h"
 #include "icons.h"
@@ -17,6 +18,55 @@ void view_update_visibility(struct twm_view *view) {
 	if (view->content) {
 		wlr_scene_node_set_enabled(&view->content->node, !view->squeezed);
 	}
+}
+
+void desktop_toggle_quiet(struct twm_server *server, int desktop) {
+	if (desktop < 1 || desktop > desktop_count(server)) {
+		return;
+	}
+	uint32_t bit = 1u << (desktop - 1);
+	server->quiet ^= bit;
+	if (!(server->quiet & bit)) {
+		struct twm_view *v;
+		wl_list_for_each(v, &server->views, link) {
+			if (v->urgent_held && v->desktop == desktop) {
+				v->urgent_held = false;
+				v->urgent = true;
+				view_update_frame(v);
+			}
+		}
+	}
+	ui_changed(server);
+}
+
+void urgent_jump(struct twm_server *server) {
+	struct twm_view *focused = server->focused;
+	/* URG-4: M-u again, focus unmoved: back where it came from. */
+	if (focused && focused->id == server->urgent_jumped_to && server->urgent_return) {
+		uint64_t back = server->urgent_return;
+		server->urgent_return = server->urgent_jumped_to = 0;
+		struct twm_view *v;
+		wl_list_for_each(v, &server->views, link) {
+			if (v->id == back) {
+				view_present(v);
+				return;
+			}
+		}
+		return;
+	}
+	struct twm_view *oldest = NULL, *v;
+	wl_list_for_each(v, &server->views, link) {
+		if (v->urgent && (!oldest || v->urgent_seq < oldest->urgent_seq)) {
+			oldest = v;
+		}
+	}
+	if (!oldest) {
+		rootline_post(server, ROOTLINE_INFO, "twm", "nothing is urgent");
+		return;
+	}
+	server->urgent_return = focused ? focused->id : 0;
+	server->urgent_jumped_to = oldest->id;
+	view_present(oldest);
 }
 
 int desktop_count(struct twm_server *server) {
@@ -72,6 +122,12 @@ void desktop_switch(struct twm_server *server, int desktop) {
 	struct twm_view *v;
 	wl_list_for_each(v, &server->views, link) {
 		view_update_visibility(v);
+		if (v->urgent_held && v->desktop == desktop) {
+			/* URG-3: visiting a quiet desktop lets its urgency show. */
+			v->urgent_held = false;
+			v->urgent = true;
+			view_update_frame(v);
+		}
 	}
 	refocus_pick(server, true);
 	input_update_pointer_focus(server, 0);

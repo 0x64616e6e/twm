@@ -136,3 +136,12 @@ void draw_hatch(pixman_image_t *img, int x, int y, int w, int h, float scale,
 		draw_fill(img, argb, x, y + ly, w, t < h - ly ? t : h - ly);
 	}
 }
+
+void draw_dot(pixman_image_t *img, uint32_t argb, int cx, int cy, int d) {
+	float r = d / 2.0f;
+	for (int dy = 0; dy < d; dy++) {
+		float yy = dy + 0.5f - r;
+		int half = (int)lroundf(sqrtf(r * r - yy * yy));
+		draw_fill(img, argb, cx - half, cy - d / 2 + dy, 2 * half, 1);
+	}
+}

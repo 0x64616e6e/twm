@@ -20,5 +20,5 @@ export WLR_RENDERER=pixman
 # The test program finds twm itself here (for `twm --reload`, configs).
 export TWM_BIN="$twm" TWM_TEST_HOME="$HOME"
 
-"$twm" --headless 1920x1080 --no-xwayland --exit-with-startup \
+"$twm" --headless 1920x1080 --no-xwayland --exit-with-startup --test \
 	-s "exec '$prog' '$out'"

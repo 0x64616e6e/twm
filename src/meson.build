@@ -15,6 +15,7 @@ twm_core_src = files(
 
 twm_src = twm_core_src + files(
   'actions.c',
+  'capture.c',
   'decoration.c',
   'desktop.c',
   'focus.c',

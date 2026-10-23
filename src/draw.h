@@ -20,6 +20,9 @@ void draw_fill(pixman_image_t *img, uint32_t argb, int x, int y, int w, int h);
 void draw_weave(pixman_image_t *img, float scale, int pitch,
 	int phase_x, int phase_y, uint32_t dot_argb);
 
+/* A filled round dot of diameter `d` (device px) centred at (cx, cy). */
+void draw_dot(pixman_image_t *img, uint32_t argb, int cx, int cy, int d);
+
 /* Device stroke for a 1 logical px line at `scale` (GEN-3). */
 int draw_stroke(float scale);
 

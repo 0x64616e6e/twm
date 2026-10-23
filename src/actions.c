@@ -14,13 +14,6 @@
 #include "rootline.h"
 #include "view.h"
 
-/* Functions whose machinery arrives in a later milestone say so once on the
- * root line instead of failing silently. */
-static void not_yet(struct twm_server *server, enum twm_func_kind kind, const char *milestone) {
-	rootline_post(server, ROOTLINE_INFO, "twm", "%s arrives in %s",
-		config_func_name(kind), milestone);
-}
-
 void action_run_in_terminal(struct twm_server *server, const char *cmd) {
 	const char *term = server->config->terminal;
 	char line[2048];
@@ -158,8 +151,8 @@ void action_run(struct twm_server *server, const struct twm_func *func,
 	case TWM_F_HINTS: /* HNT-1 */
 		hints_begin(server);
 		return;
-	case TWM_F_URGENT:
-		not_yet(server, func->kind, "M6");
+	case TWM_F_URGENT: /* URG-4 */
+		urgent_jump(server);
 		return;
 	}
 }

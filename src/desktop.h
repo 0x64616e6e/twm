@@ -18,6 +18,10 @@ bool view_visible(struct twm_view *view);
 void view_update_visibility(struct twm_view *view);
 
 void desktop_switch(struct twm_server *server, int desktop);
+/* URG-3: B3 on a desktop button (until the next reload). */
+void desktop_toggle_quiet(struct twm_server *server, int desktop);
+/* URG-4: M-u, to the oldest urgent window and back. */
+void urgent_jump(struct twm_server *server);
 void desktop_send(struct twm_server *server, struct twm_view *view, int desktop);
 /* Number of desktops (Panner { desktops N }). */
 int desktop_count(struct twm_server *server);

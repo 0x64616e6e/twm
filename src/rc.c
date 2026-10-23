@@ -121,6 +121,7 @@ void rc_apply(struct twm_server *server, const struct twm_config *old) {
 	menu_close_all(server); /* open menus point into the old config */
 	theme_from_config(&server->theme, cfg);
 	server->theme_gen++;
+	server->quiet = cfg->quiet; /* URG-3: the file decides again */
 
 	if (old && old->xwayland != cfg->xwayland) {
 		rootline_post(server, ROOTLINE_INFO, ".twmrc", "XWayland %s after a restart",

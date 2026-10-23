@@ -390,8 +390,12 @@ static void right_label(struct twm_view *v, char *buf, size_t len) {
 	char label[64];
 	icon_label(v->impl->get_title(v), NULL, false, label, sizeof(label));
 	const char *dot = strstr(label, " \xc2\xb7 ");
-	if (v->urgent) {
+	if (v->capturing) {
+		snprintf(buf, len, "SCREEN"); /* CAP-1 */
+	} else if (v->urgent) {
 		snprintf(buf, len, "!");
+	} else if (v->urgent_held) {
+		snprintf(buf, len, "quiet"); /* URG-3 */
 	} else if (v->placing) {
 		snprintf(buf, len, "placing");
 	} else if (dot) {
@@ -423,7 +427,7 @@ static int draw_desktops(struct imgr *im, pixman_image_t *img, int y, float scal
 		int x = DESK_PAD + (i % 4) * (bw + DESK_GAP);
 		int by = y + DESK_PAD + (i / 4) * (DESK_H + DESK_GAP);
 		bool current = i + 1 == server->desktop;
-		bool quiet = server->config->quiet & (1u << i);
+		bool quiet = server->quiet & (1u << i);
 		bool empty = desktop_window_count(server, i + 1) == 0;
 		uint32_t fg = current ? t->on_accent : empty ? t->dim : t->ink_2;
 		if (current) {
@@ -502,7 +506,7 @@ static void draw_rest(struct imgr *im, pixman_image_t *img, float scale) {
 			text_draw(img, font, row_title(v, rt, sizeof(rt)), tx, base, argb(fg), 0,
 				S(IM_W - ROW_PAD) - tx - (rw ? rw + S(ROW_GAP) : 0));
 			if (*right) {
-				uint32_t rc = v->urgent ? t->accent : t->dim;
+				uint32_t rc = v->capturing ? t->alert : v->urgent ? t->accent : t->dim;
 				text_draw(img, font, right, S(IM_W - ROW_PAD) - rw, base, argb(rc), 0, 0);
 			}
 			add_hit(im, 0, y, IM_W, y + ROW_H, IM_HIT_WINDOW, 0, v->id);
@@ -724,7 +728,7 @@ static bool on_button(struct twm_internal_view *iv, uint32_t button, bool presse
 			if (button == TWM_BTN_LEFT) {
 				desktop_switch(server, h->index); /* IMG-2 */
 			} else if (button == TWM_BTN_RIGHT) {
-				rootline_post(server, ROOTLINE_INFO, "twm", "quiet desktops arrive in M6");
+				desktop_toggle_quiet(server, h->index); /* URG-3 */
 			}
 			return true;
 		case IM_HIT_WINDOW: {

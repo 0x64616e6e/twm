@@ -24,6 +24,7 @@ struct rootline_msg {
 	uint64_t expires_ms; /* monotonic; 0 = until replaced (CAP-3) */
 	char source[16];
 	char text[200];
+	uint64_t key; /* sticky messages (CAP-3): removed by key, not by time */
 };
 
 struct twm_rootline {
@@ -37,6 +38,10 @@ void rootline_init(struct twm_server *server);
 void rootline_finish(struct twm_server *server);
 void rootline_post(struct twm_server *server, enum rootline_kind kind,
 	const char *source, const char *fmt, ...) __attribute__((format(printf, 4, 5)));
+/* A message that stays until rootline_unstick(key) (CAP-3). */
+void rootline_stick(struct twm_server *server, uint64_t key, enum rootline_kind kind,
+	const char *source, const char *text);
+void rootline_unstick(struct twm_server *server, uint64_t key);
 /* Redraw after an output, theme or timeout change. */
 void rootline_update(struct twm_server *server);
 

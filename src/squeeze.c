@@ -21,7 +21,7 @@ int tab_min_width(const struct tab_metrics *m, bool iconify, bool resize) {
 void tab_layout_compute(const struct tab_metrics *m, const struct tab_input *in,
 		struct tab_layout *out) {
 	*out = (struct tab_layout){0};
-	int fixed = fixed_width(m, in->iconify, in->resize);
+	int fixed = fixed_width(m, in->iconify, in->resize) + in->marker_width;
 	int hatch = in->hatch ? m->hatch_width + m->hatch_gap : 0;
 	int text = in->text_width;
 
@@ -64,6 +64,10 @@ void tab_layout_compute(const struct tab_metrics *m, const struct tab_input *in,
 	}
 	out->text = (struct tab_span){x + m->pad, text};
 	x += m->pad + text + m->pad;
+	if (in->marker_width) {
+		out->marker = (struct tab_span){x, in->marker_width};
+		x += in->marker_width;
+	}
 	if (hatch > 0) {
 		out->hatch = (struct tab_span){x, hatch - m->hatch_gap};
 		x += hatch;

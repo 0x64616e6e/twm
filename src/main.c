@@ -22,6 +22,9 @@ static const char usage[] =
 	"      --exit-with-startup  Exit when the startup command exits, with its status.\n"
 	"      --headless <W>x<H>   Run on the headless backend with one output.\n"
 	"      --no-xwayland        Don't offer XWayland to X11 clients.\n"
+	"      --test               Test harness mode: trust the startup command\n"
+	"                           (its captures go unmarked, its synthetic input\n"
+	"                           may answer prompts). For automated tests only.\n"
 	"  -d, --debug              Verbose logging.\n";
 
 enum {
@@ -29,6 +32,7 @@ enum {
 	OPT_HEADLESS,
 	OPT_NO_XWAYLAND,
 	OPT_CHECK,
+	OPT_TEST,
 	OPT_RELOAD,
 };
 
@@ -58,6 +62,7 @@ int main(int argc, char *argv[]) {
 		{"no-xwayland", no_argument, NULL, OPT_NO_XWAYLAND},
 		{"config", required_argument, NULL, 'f'},
 		{"check", no_argument, NULL, OPT_CHECK},
+		{"test", no_argument, NULL, OPT_TEST},
 		{"reload", no_argument, NULL, OPT_RELOAD},
 		{0},
 	};
@@ -96,6 +101,9 @@ int main(int argc, char *argv[]) {
 			break;
 		case OPT_CHECK:
 			check = true;
+			break;
+		case OPT_TEST:
+			opts.test_mode = true;
 			break;
 		case OPT_RELOAD:
 			reload = true;

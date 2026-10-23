@@ -73,6 +73,7 @@ struct twm_options {
 	bool exit_with_startup;
 	bool xwayland;
 	int headless_width, headless_height; /* 0 = autocreate a backend */
+	bool test_mode; /* --test: the startup command is a trusted test harness */
 };
 
 struct twm_server {
@@ -124,6 +125,10 @@ struct twm_server {
 	uint64_t view_counter;
 	uint64_t icon_counter;
 	int desktop; /* current, 1-based (DSK-1) */
+	uint32_t quiet; /* URG-3: quiet desktops, bit n-1 = desktop n */
+	uint64_t urgent_counter;
+	uint64_t urgent_return;    /* URG-4: where M-u came from (view id) */
+	uint64_t urgent_jumped_to; /* and where it went */
 	struct wl_event_source *ui_idle;
 	bool shutting_down;
 
@@ -136,6 +141,14 @@ struct twm_server {
 	struct twm_func *select_func;
 	struct twm_internal_view *button_target; /* got the press; gets the release */
 	struct twm_hints *hints; /* HNT-*: non-NULL while hint mode is on */
+
+	/* CAP-*: who is capturing the screen */
+	struct wlr_screencopy_manager_v1 *screencopy;
+	struct wlr_ext_image_copy_capture_manager_v1 *ext_capture;
+	struct wl_listener new_capture_session;
+	struct wl_event_source *capture_timer;
+	struct wl_list capturers;
+	uint64_t sticky_counter;
 
 	/* HIS-*: the operation history and its window */
 	struct history history;

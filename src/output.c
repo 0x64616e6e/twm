@@ -6,6 +6,7 @@
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_scene.h>
 #include <wlr/util/log.h>
+#include "capture.h"
 #include "layers.h"
 #include "rootline.h"
 #include "server.h"
@@ -77,6 +78,7 @@ static void output_handle_frame(struct wl_listener *listener, void *data) {
 	if (!scene_output) {
 		return;
 	}
+	capture_output_frame(output); /* CAP-1: before the copy happens */
 	wlr_scene_output_commit(scene_output, NULL);
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);

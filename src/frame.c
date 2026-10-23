@@ -9,6 +9,32 @@
 #include "text.h"
 #include "view.h"
 
+/* CAP-1 (B6): "SCREEN" after the title: hairline, 12, a 7 px dot, 6, the
+ * word (11 px, tracked 1, 600, alert), 12. */
+#define MARKER_TEXT "SCREEN"
+#define MARKER_SIZE 11
+
+static int marker_width(struct twm_server *server, float scale) {
+	const struct twm_theme *t = &server->theme;
+	struct twm_font *f = font_get(t->ui_font, MARKER_SIZE, TWM_WEIGHT_SEMIBOLD, scale);
+	return 1 + 12 + 7 + 6 + (int)ceilf(text_width(f, MARKER_TEXT, 1.0f * scale) / scale) + 12;
+}
+
+static void draw_marker_segment(pixman_image_t *img, struct twm_server *server, int x, int w,
+		float scale) {
+	const struct twm_theme *t = &server->theme;
+#define X(v) ((int)lroundf((float)(v) * scale))
+	int dh = X(t->title_height);
+	uint32_t alert = rgba_argb32(rgba_hex(t->alert, 1));
+	draw_fill(img, rgba_argb32(rgba_hex(t->graphite, 1)), X(x), 0, X(x + w) - X(x), dh);
+	draw_fill(img, rgba_argb32(rgba_hex(t->hairline, 1)), X(x), 0, draw_stroke(scale), dh);
+	draw_dot(img, alert, X(x + 1 + 12) + X(7) / 2, dh / 2, X(7));
+	struct twm_font *f = font_get(t->ui_font, MARKER_SIZE, TWM_WEIGHT_SEMIBOLD, scale);
+	text_draw(img, f, MARKER_TEXT, X(x + 1 + 12 + 7 + 6), text_baseline_centered(f, 0, dh),
+		alert, 1.0f * scale, 0);
+#undef X
+}
+
 /* §2.2: no tracking on titles, so the text doesn't shift on focus (FRM-11). */
 #define TITLE_TRACKING_FOCUSED 0.0f
 
@@ -245,6 +271,7 @@ static void draw_tab(struct twm_frame *frame, const char *title, enum frame_stat
 		.resize = !frame->view->utility && view_resizable(frame->view),
 		.justify = config_justify(server->config, frame->view->impl->get_app_id(frame->view),
 			frame->view->impl->get_title(frame->view)), /* FRM-4 */
+		.marker_width = frame->view->capturing ? marker_width(server, scale) : 0,
 	};
 	struct tab_layout *l = &frame->layout;
 	tab_layout_compute(&m, &in, l);
@@ -283,6 +310,9 @@ static void draw_tab(struct twm_frame *frame, const char *title, enum frame_stat
 		draw_fill(img, c.sep, X(l->sep_right.x), 0, stroke, dh);
 		draw_glyph(img, TWM_GLYPH_RESIZE, X(l->resize.x + glyph_off), X(glyph_off),
 			scale, c.fg);
+	}
+	if (l->marker.width) {
+		draw_marker_segment(img, server, l->marker.x, l->marker.width, scale);
 	}
 	if (frame->view->hint[0] && l->iconify.width) {
 		draw_hint_box(img, frame->view, l->iconify.x, scale);
@@ -408,8 +438,8 @@ void frame_update(struct twm_frame *frame) {
 
 	/* Everything the tab shows, so it redraws only when that changes. */
 	char sig[2048];
-	size_t o = (size_t)snprintf(sig, sizeof(sig), "%s\x1f%s%d%d", title, view->hint,
-		view->hint_selected, frame->slot_index * 10000 + frame->slot_width);
+	size_t o = (size_t)snprintf(sig, sizeof(sig), "%s\x1f%s%d%d%d", title, view->hint,
+		view->hint_selected, frame->slot_index * 10000 + frame->slot_width, view->capturing);
 	bool group = view->group && group_size(view->group) > 1 && view->group->active == view;
 	group = group || frame->slot_index >= 0;
 	if (group && view->group) {

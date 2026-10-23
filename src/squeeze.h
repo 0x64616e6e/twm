@@ -31,6 +31,7 @@ struct tab_input {
 	bool iconify;     /* utility frames have no buttons (FRM-18) */
 	bool resize;      /* false for fixed-size clients (FRM-6) */
 	enum twm_justify justify;
+	int marker_width; /* CAP-1: the capture marker segment, 0 = none */
 };
 
 struct tab_span {
@@ -40,7 +41,7 @@ struct tab_span {
 struct tab_layout {
 	int x;        /* tab left edge, relative to the frame */
 	int width;
-	struct tab_span iconify, sep_left, text, hatch, sep_right, resize;
+	struct tab_span iconify, sep_left, text, marker, hatch, sep_right, resize;
 	bool truncated; /* title cut to fit (FRM-5) */
 };
 

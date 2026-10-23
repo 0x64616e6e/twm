@@ -25,6 +25,7 @@
 #include <wlr/util/log.h>
 #include "histview.h"
 #include "imgr.h"
+#include "capture.h"
 #include "hints.h"
 #include "ipc.h"
 #include "layers.h"
@@ -153,7 +154,6 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	wlr_presentation_create(server->display, server->backend, 2);
 	wlr_fractional_scale_manager_v1_create(server->display, 1);
 	wlr_single_pixel_buffer_manager_v1_create(server->display);
-	wlr_screencopy_manager_v1_create(server->display);
 
 	server->scene = wlr_scene_create();
 	for (int i = 0; i < TWM_LAYER_COUNT; i++) {
@@ -173,6 +173,7 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	decoration_init(server);
 	input_init(server);
 	focus_init(server);
+	capture_init(server);
 	outline_init(server);
 	histview_init(server);
 	imgr_init(server);
@@ -222,6 +223,7 @@ void server_finish(struct twm_server *server) {
 	xwayland_finish(server);
 #endif
 	ipc_finish(server);
+	capture_finish(server);
 	hints_finish(server);
 	menu_close_all(server);
 	select_cancel(server);

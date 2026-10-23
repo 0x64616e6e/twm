@@ -64,6 +64,9 @@ struct twm_view {
 	bool shown;   /* placed and on screen */
 	bool placing; /* waiting for click-to-place (OUT-12) */
 	bool urgent;  /* FRM-9, URG-* */
+	bool urgent_held;    /* URG-3: urgent on a quiet desktop, not shown yet */
+	bool capturing;      /* CAP-1: its client is capturing the screen */
+	uint64_t urgent_seq; /* URG-4: when it became urgent */
 	bool notitle; /* NoTitle: border only (FRM-15) */
 	bool utility; /* FRM-18: title-only tab, no buttons */
 	int desktop;    /* DSK-1, 1-based */

@@ -61,7 +61,7 @@ void rootline_update(struct twm_server *server) {
 	for (size_t i = 0; i < rl->count && nshown < ROOTLINE_VISIBLE; i++) {
 		const struct rootline_msg *m = nth_newest(rl, i);
 		if (m->expires_ms && m->expires_ms <= now) {
-			break; /* everything older has expired too */
+			continue; /* expired; a sticky one may be older */
 		}
 		shown[nshown++] = m;
 		if (m->expires_ms && (!next_expiry || m->expires_ms < next_expiry)) {
@@ -149,6 +149,32 @@ void rootline_post(struct twm_server *server, enum rootline_kind kind,
 	snprintf(m->text, sizeof(m->text), "%s", text);
 	rootline_update(server);
 	ui_changed(server); /* the log window (ROOT-8) */
+}
+
+void rootline_stick(struct twm_server *server, uint64_t key, enum rootline_kind kind,
+		const char *source, const char *text) {
+	rootline_post(server, kind, source, "%s", text);
+	struct twm_rootline *rl = server->rootline;
+	if (rl && rl->count) {
+		struct rootline_msg *m = &rl->msgs[(rl->head + ROOTLINE_KEEP - 1) % ROOTLINE_KEEP];
+		m->expires_ms = 0;
+		m->key = key;
+		rootline_update(server);
+	}
+}
+
+void rootline_unstick(struct twm_server *server, uint64_t key) {
+	struct twm_rootline *rl = server->rootline;
+	if (!rl || !key) {
+		return;
+	}
+	for (size_t i = 0; i < ROOTLINE_KEEP; i++) {
+		if (rl->msgs[i].key == key) {
+			rl->msgs[i].key = 0;
+			rl->msgs[i].expires_ms = 1; /* long past */
+		}
+	}
+	rootline_update(server);
 }
 
 void rootline_init(struct twm_server *server) {

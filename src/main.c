@@ -4,6 +4,8 @@
 #include <string.h>
 #include <wlr/util/log.h>
 #include "config.h"
+#include "ipc.h"
+#include "rc.h"
 #include "server.h"
 
 static const char usage[] =
@@ -13,6 +15,9 @@ static const char usage[] =
 	"\n"
 	"  -h, --help               Show this help and exit.\n"
 	"  -v, --version            Show the version and exit.\n"
+	"  -f, --config <file>      Use <file> instead of $TWMRC or ~/.twmrc.\n"
+	"      --check [file]       Check a config and exit (0: ok, 1: errors).\n"
+	"      --reload             Ask the running twm to reload its config.\n"
 	"  -s, --startup <cmd>      Run <cmd> with /bin/sh once twm is up.\n"
 	"      --exit-with-startup  Exit when the startup command exits, with its status.\n"
 	"      --headless <W>x<H>   Run on the headless backend with one output.\n"
@@ -23,6 +28,8 @@ enum {
 	OPT_EXIT_WITH_STARTUP = 256,
 	OPT_HEADLESS,
 	OPT_NO_XWAYLAND,
+	OPT_CHECK,
+	OPT_RELOAD,
 };
 
 static bool parse_size(const char *s, int *w, int *h) {
@@ -49,13 +56,16 @@ int main(int argc, char *argv[]) {
 		{"exit-with-startup", no_argument, NULL, OPT_EXIT_WITH_STARTUP},
 		{"headless", required_argument, NULL, OPT_HEADLESS},
 		{"no-xwayland", no_argument, NULL, OPT_NO_XWAYLAND},
+		{"config", required_argument, NULL, 'f'},
+		{"check", no_argument, NULL, OPT_CHECK},
+		{"reload", no_argument, NULL, OPT_RELOAD},
 		{0},
 	};
 
 	struct twm_options opts = {.xwayland = true};
-	bool debug = false;
+	bool debug = false, check = false, reload = false;
 	int c;
-	while ((c = getopt_long(argc, argv, "hvs:d", long_options, NULL)) != -1) {
+	while ((c = getopt_long(argc, argv, "hvs:df:", long_options, NULL)) != -1) {
 		switch (c) {
 		case 'h':
 			fputs(usage, stdout);
@@ -81,10 +91,33 @@ int main(int argc, char *argv[]) {
 		case OPT_NO_XWAYLAND:
 			opts.xwayland = false;
 			break;
+		case 'f':
+			opts.config_path = optarg;
+			break;
+		case OPT_CHECK:
+			check = true;
+			break;
+		case OPT_RELOAD:
+			reload = true;
+			break;
 		default:
 			fputs(usage, stderr);
 			return 2;
 		}
+	}
+	if (check) {
+		/* CFG-4: twm --check [file] */
+		if (optind + 1 < argc) {
+			fputs(usage, stderr);
+			return 2;
+		}
+		char *path = rc_path(optind < argc ? argv[optind] : opts.config_path);
+		int status = rc_check(path, stdout, stderr);
+		free(path);
+		return status;
+	}
+	if (reload) {
+		return ipc_request("reload"); /* CFG-12 */
 	}
 	if (optind < argc) {
 		fputs(usage, stderr);

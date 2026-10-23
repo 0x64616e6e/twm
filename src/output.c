@@ -1,12 +1,73 @@
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include <wlr/backend.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_scene.h>
 #include <wlr/util/log.h>
+#include "rootline.h"
 #include "server.h"
+#include "settings.h"
 #include "view.h"
+
+/* GEN-3: `Scale` and `Output "name" { scale mode position }`. */
+static void configure_output(struct twm_server *server, struct wlr_output *wlr_output,
+		bool initial) {
+	const struct twm_config *cfg = server->config;
+	const struct twm_output_rule *rule = NULL;
+	for (size_t i = 0; cfg && i < cfg->noutputs; i++) {
+		if (strcmp(cfg->outputs[i].name, wlr_output->name) == 0) {
+			rule = &cfg->outputs[i];
+		}
+	}
+	struct wlr_output_state state;
+	wlr_output_state_init(&state);
+	wlr_output_state_set_enabled(&state, true);
+	if (rule && rule->width) {
+		struct wlr_output_mode *best = NULL, *m;
+		wl_list_for_each(m, &wlr_output->modes, link) {
+			if (m->width == rule->width && m->height == rule->height &&
+					(!rule->refresh_mhz || abs(m->refresh - rule->refresh_mhz) < 500)) {
+				if (!best || m->refresh > best->refresh) {
+					best = m;
+				}
+			}
+		}
+		if (best) {
+			wlr_output_state_set_mode(&state, best);
+		} else if (wl_list_empty(&wlr_output->modes)) {
+			wlr_output_state_set_custom_mode(&state, rule->width, rule->height,
+				rule->refresh_mhz);
+		}
+	} else if (initial) {
+		struct wlr_output_mode *mode = wlr_output_preferred_mode(wlr_output);
+		if (mode) {
+			wlr_output_state_set_mode(&state, mode);
+		}
+	}
+	double scale = rule && rule->scale > 0 ? rule->scale : cfg ? cfg->scale : 0;
+	if (scale > 0) {
+		wlr_output_state_set_scale(&state, (float)scale);
+	} else if (!initial) {
+		wlr_output_state_set_scale(&state, 1.0f);
+	}
+	wlr_output_commit_state(wlr_output, &state);
+	wlr_output_state_finish(&state);
+	if (rule && rule->has_position) {
+		wlr_output_layout_add(server->output_layout, wlr_output, rule->x, rule->y);
+	} else if (!initial) {
+		wlr_output_layout_add_auto(server->output_layout, wlr_output);
+	}
+}
+
+void output_apply_config(struct twm_server *server) {
+	struct twm_output *output;
+	wl_list_for_each(output, &server->outputs, link) {
+		configure_output(server, output->wlr_output, false);
+	}
+	output_arrange(server);
+}
 
 static void output_handle_frame(struct wl_listener *listener, void *data) {
 	struct twm_output *output = wl_container_of(listener, output, frame);
@@ -48,15 +109,7 @@ static void handle_new_output(struct wl_listener *listener, void *data) {
 		return;
 	}
 
-	struct wlr_output_state state;
-	wlr_output_state_init(&state);
-	wlr_output_state_set_enabled(&state, true);
-	struct wlr_output_mode *mode = wlr_output_preferred_mode(wlr_output);
-	if (mode) {
-		wlr_output_state_set_mode(&state, mode);
-	}
-	wlr_output_commit_state(wlr_output, &state);
-	wlr_output_state_finish(&state);
+	configure_output(server, wlr_output, true);
 
 	struct twm_output *output = calloc(1, sizeof(*output));
 	if (!output) {
@@ -75,7 +128,10 @@ static void handle_new_output(struct wl_listener *listener, void *data) {
 	wl_list_insert(server->outputs.prev, &output->link);
 
 	struct wlr_output_layout_output *l_output =
-		wlr_output_layout_add_auto(server->output_layout, wlr_output);
+		wlr_output_layout_get(server->output_layout, wlr_output);
+	if (!l_output) {
+		l_output = wlr_output_layout_add_auto(server->output_layout, wlr_output);
+	}
 	struct wlr_scene_output *scene_output =
 		wlr_scene_output_create(server->scene, wlr_output);
 	wlr_scene_output_layout_add_output(server->scene_layout, l_output, scene_output);
@@ -135,6 +191,7 @@ void output_arrange(struct twm_server *server) {
 		}
 	}
 	root_update_text(server);
+	rootline_update(server);
 	/* Frames are drawn at the largest output scale (GEN-3). */
 	float scale = output_max_scale(server);
 	if (scale != server->frame_scale) {

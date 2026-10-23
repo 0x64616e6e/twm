@@ -23,8 +23,12 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/util/log.h>
+#include "ipc.h"
 #include "outline.h"
+#include "rc.h"
+#include "rootline.h"
 #include "server.h"
+#include "settings.h"
 #include "text.h"
 #include "view.h"
 
@@ -53,7 +57,7 @@ static int handle_terminate(int signo, void *data) {
 	return 0;
 }
 
-static pid_t spawn(const char *cmd) {
+static pid_t spawn(const char *cmd, const char *token) {
 	pid_t pid = fork();
 	if (pid < 0) {
 		wlr_log_errno(WLR_ERROR, "fork");
@@ -66,6 +70,10 @@ static pid_t spawn(const char *cmd) {
 		sigemptyset(&set);
 		sigprocmask(SIG_SETMASK, &set, NULL);
 		setsid();
+		if (token) {
+			setenv("XDG_ACTIVATION_TOKEN", token, 1);
+			setenv("DESKTOP_STARTUP_ID", token, 1);
+		}
 		execl("/bin/sh", "/bin/sh", "-c", cmd, (char *)NULL);
 		_exit(127);
 	}
@@ -73,7 +81,7 @@ static pid_t spawn(const char *cmd) {
 }
 
 void server_spawn(struct twm_server *server, const char *cmd) {
-	spawn(cmd);
+	spawn(cmd, focus_launch_token(server));
 }
 
 static struct wlr_backend *create_backend(struct twm_server *server) {
@@ -145,7 +153,9 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	if (!text_init()) {
 		wlr_log(WLR_ERROR, "fcft failed to initialize; titles will be blank");
 	}
+	rootline_init(server);
 	output_init(server);
+	rc_init(server, opts->config_path);
 	wlr_xdg_output_manager_v1_create(server->display, server->output_layout);
 	xdg_init(server);
 	decoration_init(server);
@@ -153,7 +163,7 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	focus_init(server);
 	outline_init(server);
 #if HAVE_XWAYLAND
-	if (opts->xwayland) {
+	if (opts->xwayland && server->config->xwayland) {
 		xwayland_init(server);
 	}
 #endif
@@ -172,9 +182,10 @@ bool server_start(struct twm_server *server) {
 		return false;
 	}
 	setenv("WAYLAND_DISPLAY", server->socket, true);
+	ipc_init(server);
 	wlr_log(WLR_INFO, "twm running on WAYLAND_DISPLAY=%s", server->socket);
 	if (server->opts.startup_cmd) {
-		server->startup_pid = spawn(server->opts.startup_cmd);
+		server->startup_pid = spawn(server->opts.startup_cmd, NULL);
 	}
 	return true;
 }
@@ -193,6 +204,9 @@ void server_finish(struct twm_server *server) {
 #if HAVE_XWAYLAND
 	xwayland_finish(server);
 #endif
+	ipc_finish(server);
+	rc_finish(server);
+	rootline_finish(server);
 	xdg_finish(server);
 	decoration_finish(server);
 	focus_finish(server);

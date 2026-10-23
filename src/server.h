@@ -17,6 +17,9 @@
 
 struct twm_view;
 struct twm_outline;
+struct twm_config;
+struct twm_rootline;
+struct twm_watch;
 
 /* Scene layers, back to front (D-4). */
 enum twm_layer {
@@ -53,6 +56,7 @@ struct twm_hit {
 };
 
 struct twm_options {
+	const char *config_path; /* -f */
 	const char *startup_cmd;
 	bool exit_with_startup;
 	bool xwayland;
@@ -72,7 +76,19 @@ struct twm_server {
 	struct wlr_scene_tree *layers[TWM_LAYER_COUNT];
 
 	struct twm_theme theme;
+	uint32_t theme_gen; /* bumped on every applied config */
 	struct twm_options opts;
+
+	/* CFG-*: the running config, its file, and the text it came from */
+	struct twm_config *config;
+	char *config_path;
+	char *config_text;
+	struct twm_watch *watch;
+	struct twm_rootline *rootline;
+	int ipc_fd;
+	char *ipc_path;
+	struct wl_event_source *ipc_source;
+	int cascade; /* Placement cascade: next slot */
 	const char *socket;
 
 	struct wlr_output_layout *output_layout;
@@ -175,6 +191,7 @@ struct twm_hit server_hit_at(struct twm_server *server, double lx, double ly,
 void output_init(struct twm_server *server);
 void output_finish(struct twm_server *server);
 void output_arrange(struct twm_server *server);
+void output_apply_config(struct twm_server *server);
 struct twm_output *output_at(struct twm_server *server, double lx, double ly);
 float output_max_scale(struct twm_server *server);
 
@@ -189,6 +206,8 @@ void focus_finish(struct twm_server *server);
 void focus_pointer_moved(struct twm_server *server);
 void focus_cancel_pending(struct twm_server *server);
 void focus_changed(struct twm_server *server);
+/* An activation token for a program twm launches (FOC-9), or NULL. */
+const char *focus_launch_token(struct twm_server *server);
 
 /* decoration.c */
 void decoration_init(struct twm_server *server);

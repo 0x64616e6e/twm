@@ -32,7 +32,7 @@ struct twm_theme {
 	int dash_on, dash_off;
 
 	/* §2.2 type */
-	char ui_font[64];
+	char ui_font[96];
 	int font_size;
 	char display_font[64];
 

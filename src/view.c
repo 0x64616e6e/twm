@@ -5,6 +5,7 @@
 #include <wlr/types/wlr_seat.h>
 #include "frame.h"
 #include "grab.h"
+#include "settings.h"
 #include "view.h"
 
 void view_init(struct twm_view *view, struct twm_server *server,
@@ -48,10 +49,14 @@ void view_set_content(struct twm_view *view, struct wlr_scene_tree *content) {
 	}
 }
 
+int view_title_height(struct twm_view *view) {
+	return view->notitle ? 0 : view->server->theme.title_height;
+}
+
 void view_client_offset(struct twm_view *view, int *dx, int *dy) {
 	const struct twm_theme *t = &view->server->theme;
 	*dx = t->border_width;
-	*dy = t->title_height + t->border_width;
+	*dy = view_title_height(view) + t->border_width;
 }
 
 void view_frame_size(struct twm_server *server, int cw, int ch, int *fw, int *fh) {
@@ -61,9 +66,28 @@ void view_frame_size(struct twm_server *server, int cw, int ch, int *fw, int *fh
 }
 
 struct wlr_box view_frame_box(struct twm_view *view) {
-	struct wlr_box box = {.x = view->x, .y = view->y};
-	view_frame_size(view->server, view->width, view->height, &box.width, &box.height);
-	return box;
+	const struct twm_theme *t = &view->server->theme;
+	return (struct wlr_box){
+		.x = view->x, .y = view->y,
+		.width = view->width + 2 * t->border_width,
+		.height = view->height + 2 * t->border_width + view_title_height(view),
+	};
+}
+
+static bool update_notitle(struct twm_view *view) {
+	bool notitle = config_notitle(view->server->config,
+		view->impl->get_app_id(view), view->impl->get_title(view));
+	bool changed = notitle != view->notitle;
+	view->notitle = notitle;
+	return changed;
+}
+
+void view_relayout(struct twm_view *view) {
+	update_notitle(view);
+	position_content(view);
+	/* XWayland clients need to hear where they are now. */
+	view_move(view, view->x, view->y);
+	view_update_frame(view);
 }
 
 const char *view_title(struct twm_view *view) {
@@ -79,6 +103,9 @@ const char *view_title(struct twm_view *view) {
 }
 
 void view_update_frame(struct twm_view *view) {
+	if (view->server->config && update_notitle(view)) {
+		position_content(view);
+	}
 	if (view->frame) {
 		frame_update(view->frame);
 	}
@@ -120,7 +147,18 @@ void view_map(struct twm_view *view) {
 		return;
 	}
 	/* OUT-12: click-to-place. */
-	if (grab_place_enqueue(server, view)) {
+	if (server->config->placement == TWM_PLACE_INTERACTIVE &&
+			grab_place_enqueue(server, view)) {
+		return;
+	}
+	/* Placement cascade: down and right from the output's corner, no focus
+	 * unless the client brings an activation token (FOC-9). */
+	struct twm_output *co = output_for_new_view(server);
+	if (server->config->placement == TWM_PLACE_CASCADE && co) {
+		int step = server->theme.title_height;
+		int n = server->cascade++ % 10;
+		view_move(view, co->box.x + 40 + n * step, co->box.y + 40 + n * step);
+		view_show(view, false);
 		return;
 	}
 	/* No pointer to place with (e.g. no outputs yet): center it, and don't
@@ -213,6 +251,15 @@ void view_raise(struct twm_view *view) {
 	if (view->shown) {
 		wl_list_remove(&view->link);
 		wl_list_insert(&server->views, &view->link);
+	}
+}
+
+void view_lower(struct twm_view *view) {
+	struct twm_server *server = view->server;
+	wlr_scene_node_lower_to_bottom(&view->tree->node);
+	if (view->shown) {
+		wl_list_remove(&view->link);
+		wl_list_insert(server->views.prev, &view->link);
 	}
 }
 

@@ -60,6 +60,7 @@ struct twm_view {
 	bool shown;   /* placed and on screen */
 	bool placing; /* waiting for click-to-place (OUT-12) */
 	bool urgent;  /* FRM-9, URG-* */
+	bool notitle; /* NoTitle: border only (FRM-15) */
 	uint64_t focus_seq; /* when it last had focus (FOC-10) */
 };
 
@@ -83,6 +84,11 @@ void view_move(struct twm_view *view, int x, int y);
 /* Frame position plus a new client size (OUT-1: one configure). */
 void view_move_resize(struct twm_view *view, int x, int y, int w, int h);
 void view_raise(struct twm_view *view);
+void view_lower(struct twm_view *view);
+/* The theme or the window's title rules changed: offsets, frame, client. */
+void view_relayout(struct twm_view *view);
+/* Title-band height for this view: 0 for NoTitle windows. */
+int view_title_height(struct twm_view *view);
 void view_focus(struct twm_view *view);
 void view_set_urgent(struct twm_view *view, bool urgent);
 

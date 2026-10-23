@@ -7,6 +7,7 @@
 #include "frame.h"
 #include "grab.h"
 #include "outline.h"
+#include "settings.h"
 #include "view.h"
 
 #define DRAG_THRESHOLD 4 /* FRM-12: B1 drag on a title */
@@ -24,8 +25,8 @@ static struct geo_box frame_geo(struct twm_view *view) {
 static struct geo_limits frame_limits(struct twm_view *view) {
 	struct twm_server *server = view->server;
 	struct twm_size_limits cl = view->impl->get_size_limits(view);
-	int deco_w, deco_h;
-	view_frame_size(server, 0, 0, &deco_w, &deco_h);
+	int deco_w = 2 * server->theme.border_width;
+	int deco_h = deco_w + view_title_height(view);
 	struct geo_limits lim = {
 		.min_w = cl.min_width + deco_w,
 		.min_h = (cl.min_height > 1 ? cl.min_height : 1) + deco_h,
@@ -51,8 +52,17 @@ static const char *hint_for(struct twm_grab *g) {
 	}
 }
 
+static bool opaque(struct twm_server *server) {
+	struct twm_grab *g = &server->grab;
+	return server->config->opaque_move && g->mode == TWM_GRAB_MOVE; /* OUT-11 */
+}
+
 static void show_outline(struct twm_server *server) {
 	struct twm_grab *g = &server->grab;
+	if (opaque(server)) {
+		view_move(g->view, g->box.x, g->box.y);
+		return;
+	}
 	outline_show(server, g->box, view_title(g->view), hint_for(g));
 }
 
@@ -129,8 +139,8 @@ static void finish_placement(struct twm_server *server) {
 	wl_list_remove(&view->place_link);
 	wl_list_init(&view->place_link);
 	view->placing = false;
-	int deco_w, deco_h;
-	view_frame_size(server, 0, 0, &deco_w, &deco_h);
+	int deco_w = 2 * server->theme.border_width;
+	int deco_h = deco_w + view_title_height(view);
 	int cw = g->box.w - deco_w, ch = g->box.h - deco_h;
 	if (cw != view->width || ch != view->height) {
 		view_move_resize(view, g->box.x, g->box.y, cw, ch);
@@ -144,8 +154,8 @@ static void finish_placement(struct twm_server *server) {
 static void commit(struct twm_server *server) {
 	struct twm_grab *g = &server->grab;
 	struct twm_view *view = g->view;
-	int deco_w, deco_h;
-	view_frame_size(server, 0, 0, &deco_w, &deco_h);
+	int deco_w = 2 * server->theme.border_width;
+	int deco_h = deco_w + view_title_height(view);
 	switch (g->mode) {
 	case TWM_GRAB_MOVE:
 		view_move(view, g->box.x, g->box.y);
@@ -170,6 +180,9 @@ static void cancel(struct twm_server *server) {
 		/* OUT-12: Esc places it where the outline is. */
 		commit(server);
 		return;
+	}
+	if (opaque(server)) {
+		view_move(g->view, g->start.x, g->start.y); /* OUT-6: unchanged */
 	}
 	end_grab(server);
 }

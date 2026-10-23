@@ -12,8 +12,13 @@ rt=$(mktemp -d "${TMPDIR:-/tmp}/twm-test.XXXXXX")
 trap 'rm -rf "$rt"' EXIT INT TERM
 chmod 700 "$rt"
 export XDG_RUNTIME_DIR="$rt"
-unset WAYLAND_DISPLAY WAYLAND_SOCKET DISPLAY
+# Never read the developer's own ~/.twmrc or geometry memory.
+export HOME="$rt/home" XDG_STATE_HOME="$rt/state"
+mkdir -p "$HOME" "$XDG_STATE_HOME"
+unset WAYLAND_DISPLAY WAYLAND_SOCKET DISPLAY TWMRC TWM_SOCK
 export WLR_RENDERER=pixman
+# The test program finds twm itself here (for `twm --reload`, configs).
+export TWM_BIN="$twm" TWM_TEST_HOME="$HOME"
 
 "$twm" --headless 1920x1080 --no-xwayland --exit-with-startup \
 	-s "exec '$prog' '$out'"

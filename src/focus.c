@@ -6,6 +6,7 @@
 #include <wlr/util/log.h>
 #include "grab.h"
 #include "intent.h"
+#include "settings.h"
 #include "view.h"
 
 static uint32_t now_ms(void) {
@@ -48,8 +49,8 @@ static int handle_timer(void *data) {
 }
 
 void focus_pointer_moved(struct twm_server *server) {
-	if (grab_active(server)) {
-		return; /* FOC-8 */
+	if (grab_active(server) || server->config->focus_policy == TWM_FOCUS_CLICK) {
+		return; /* FOC-8, FOC-7 */
 	}
 	bool unmanaged;
 	struct twm_view *under = view_under_pointer(server, &unmanaged);
@@ -98,13 +99,29 @@ static void handle_request_activate(struct wl_listener *listener, void *data) {
 	struct wlr_xdg_activation_token_v1 *token = event->token;
 	struct twm_view *requester = token->surface ?
 		view_from_surface(server, token->surface) : NULL;
-	if (token->seat && requester && requester == server->focused) {
+	/* Tokens twm handed to programs it launched for the user count as the
+	 * user's own request (FOC-9). */
+	bool launched = token->data == server;
+	if (launched || (token->seat && requester && requester == server->focused)) {
 		view_raise(view);
 		view_focus(view);
 	} else {
 		wlr_log(WLR_DEBUG, "'%s' asked for focus; marked urgent", view_title(view));
 		view_set_urgent(view, true);
 	}
+}
+
+const char *focus_launch_token(struct twm_server *server) {
+	if (!server->xdg_activation) {
+		return NULL;
+	}
+	struct wlr_xdg_activation_token_v1 *token =
+		wlr_xdg_activation_token_v1_create(server->xdg_activation);
+	if (!token) {
+		return NULL;
+	}
+	token->data = server;
+	return wlr_xdg_activation_token_v1_get_name(token);
 }
 
 void focus_init(struct twm_server *server) {

@@ -4,6 +4,7 @@
 #include "draw.h"
 #include "frame.h"
 #include "pixbuf.h"
+#include "settings.h"
 #include "text.h"
 #include "view.h"
 
@@ -100,7 +101,8 @@ static void draw_tab(struct twm_frame *frame, const char *title, enum frame_stat
 		.hatch = state == FRAME_FOCUSED && t->title_highlight,
 		.iconify = true,
 		.resize = view_resizable(frame->view),
-		.justify = TWM_JUSTIFY_LEFT, /* SqueezeTitle is configurable from M2 */
+		.justify = config_justify(server->config, frame->view->impl->get_app_id(frame->view),
+			frame->view->impl->get_title(frame->view)), /* FRM-4 */
 	};
 	struct tab_layout *l = &frame->layout;
 	tab_layout_compute(&m, &in, l);
@@ -197,20 +199,23 @@ static void draw_dash_edge(struct twm_frame *frame, int edge, int w, int h, floa
 	pixbuf_drop(buf);
 	wlr_scene_buffer_set_dest_size(frame->dash[edge], e[edge].w, e[edge].h);
 	wlr_scene_node_set_position(&frame->dash[edge]->node, e[edge].x,
-		t->title_height + e[edge].y);
+		view_title_height(frame->view) + e[edge].y);
 	wlr_scene_node_set_enabled(&frame->dash[edge]->node, true);
 }
 
 static void update_border(struct twm_frame *frame, enum frame_state state, float scale) {
 	struct twm_view *view = frame->view;
 	const struct twm_theme *t = &view->server->theme;
-	int bw = t->border_width, th = t->title_height;
+	int bw = t->border_width, th = view_title_height(view);
 	int w = view->width + 2 * bw, h = view->height + 2 * bw;
 	if (frame->drawn_border.valid && frame->drawn_border.state == state &&
 			frame->drawn_border.width == w && frame->drawn_border.height == h &&
-			frame->drawn_border.scale == scale) {
+			frame->drawn_border.scale == scale && frame->drawn_border.th == th &&
+			frame->drawn_border.gen == view->server->theme_gen) {
 		return;
 	}
+	frame->drawn_border.th = th;
+	frame->drawn_border.gen = view->server->theme_gen;
 	frame->drawn_border.valid = true;
 	frame->drawn_border.state = state;
 	frame->drawn_border.width = w;
@@ -251,8 +256,10 @@ void frame_update(struct twm_frame *frame) {
 	bool resize = view_resizable(view);
 
 	update_border(frame, state, scale);
+	wlr_scene_node_set_enabled(&frame->tab->node, !view->notitle);
 
-	if (frame->drawn.valid && frame->drawn.state == state &&
+	if (frame->drawn.valid && frame->drawn.gen == server->theme_gen &&
+			frame->drawn.state == state &&
 			frame->drawn.scale == scale && frame->drawn.frame_width == fw &&
 			frame->drawn.resize == resize && frame->drawn.title &&
 			strcmp(frame->drawn.title, title) == 0) {
@@ -264,6 +271,7 @@ void frame_update(struct twm_frame *frame) {
 	frame->drawn.scale = scale;
 	frame->drawn.frame_width = fw;
 	frame->drawn.resize = resize;
+	frame->drawn.gen = server->theme_gen;
 	frame->drawn.valid = true;
 	draw_tab(frame, title, state, scale);
 }

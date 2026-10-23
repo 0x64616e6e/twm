@@ -13,6 +13,7 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon.h>
+#include "actions.h"
 #include "frame.h"
 #include "grab.h"
 #include "view.h"
@@ -26,54 +27,29 @@ struct twm_keyboard {
 	struct wl_listener destroy;
 };
 
-/* GEN-8: M is the logo key. Configurable from M2 (`Modifier`). */
-#define TWM_MOD WLR_MODIFIER_LOGO
-
-/*
- * Default key bindings that exist in M0 (KEY table). The config-driven
- * binding table replaces this in M2.
- */
-static bool handle_binding(struct twm_server *server, uint32_t mods, xkb_keysym_t sym) {
-	/* Outline operations hold the keyboard (OUT-6, OUT-7). */
-	if (grab_key(server, sym, mods)) {
-		return true;
-	}
-	sym = xkb_keysym_to_lower(sym);
-	struct twm_view *focused = server->focused;
-	if (mods == (TWM_MOD | WLR_MODIFIER_SHIFT)) {
-		switch (sym) {
-		case XKB_KEY_q:
-			wl_display_terminate(server->display);
-			return true;
-		case XKB_KEY_m: /* OUT-8: keyboard move */
-			if (focused && !grab_active(server)) {
-				grab_begin_move(server, focused, 0);
-			}
+/* Grabs first (OUT-6, OUT-7), then the configured key bindings (KEY). */
+static bool handle_key(struct twm_server *server, struct wlr_keyboard *kb,
+		uint32_t keycode, uint32_t mods) {
+	const xkb_keysym_t *syms;
+	int nsyms = xkb_state_key_get_syms(kb->xkb_state, keycode, &syms);
+	for (int i = 0; i < nsyms; i++) {
+		if (grab_key(server, syms[i], mods)) {
 			return true;
 		}
 	}
-	if (mods == TWM_MOD) {
-		switch (sym) {
-		case XKB_KEY_Return:
-			server_spawn(server, "foot");
-			return true;
-		case XKB_KEY_r: /* OUT-9: keyboard resize */
-			if (focused && !grab_active(server)) {
-				grab_begin_resize(server, focused, 0, WLR_EDGE_BOTTOM | WLR_EDGE_RIGHT);
-			}
-			return true;
-		case XKB_KEY_space: /* f.raiselower */
-			if (focused) {
-				struct twm_view *top = wl_list_empty(&server->views) ? NULL :
-					wl_container_of(server->views.next, top, link);
-				if (top == focused) {
-					wlr_scene_node_lower_to_bottom(&focused->tree->node);
-					wl_list_remove(&focused->link);
-					wl_list_insert(server->views.prev, &focused->link);
-				} else {
-					view_raise(focused);
-				}
-			}
+	/* Bindings name the unshifted key ("M-S-1", not "M-exclam"). */
+	xkb_layout_index_t layout = xkb_state_key_get_layout(kb->xkb_state, keycode);
+	nsyms = xkb_keymap_key_get_syms_by_level(kb->keymap, keycode, layout, 0, &syms);
+	for (int i = 0; i < nsyms; i++) {
+		const struct twm_key_binding *b = config_match_key(server->config, mods, syms[i]);
+		if (b) {
+			struct action_ctx ctx = {
+				.view = server->focused,
+				.context = TWM_CTX_WINDOW,
+				.lx = server->cursor->x,
+				.ly = server->cursor->y,
+			};
+			action_run(server, &b->func, &ctx);
 			return true;
 		}
 	}
@@ -94,13 +70,8 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 	bool handled = false;
 	uint32_t bit = event->keycode < 256 ? event->keycode : 0;
 	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED && kb->wlr_keyboard->xkb_state) {
-		uint32_t keycode = event->keycode + 8;
-		const xkb_keysym_t *syms;
-		int nsyms = xkb_state_key_get_syms(kb->wlr_keyboard->xkb_state, keycode, &syms);
 		uint32_t mods = wlr_keyboard_get_modifiers(kb->wlr_keyboard);
-		for (int i = 0; i < nsyms && !handled; i++) {
-			handled = handle_binding(server, mods, syms[i]);
-		}
+		handled = handle_key(server, kb->wlr_keyboard, event->keycode + 8, mods);
 		if (handled && bit) {
 			server->consumed_keys[bit / 32] |= 1u << (bit % 32);
 		}
@@ -249,14 +220,25 @@ static uint32_t button_bit(uint32_t button) {
 		1u << (button - TWM_BTN_LEFT) : 0;
 }
 
-static bool modifier_held(struct twm_server *server) {
+static uint32_t current_mods(struct twm_server *server) {
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(server->seat);
-	return kb && (wlr_keyboard_get_modifiers(kb) & TWM_MOD);
+	return kb ? wlr_keyboard_get_modifiers(kb) : 0;
+}
+
+static uint32_t button_number(uint32_t button) {
+	switch (button) {
+	case TWM_BTN_LEFT: return 1;
+	case TWM_BTN_MIDDLE: return 2;
+	case TWM_BTN_RIGHT: return 3;
+	case 0x113: return 4; /* BTN_SIDE */
+	case 0x114: return 5; /* BTN_EXTRA */
+	default: return 0;
+	}
 }
 
 /*
- * Default pointer bindings (FRM-12, OUT-8, OUT-9). Returns true when twm
- * takes the press; the client never sees it, nor its release.
+ * Pointer bindings from the config (FRM-12, OUT-8, OUT-9, ROOT-4). Returns
+ * true when twm takes the press; the client never sees it, nor its release.
  */
 static bool handle_press(struct twm_server *server, uint32_t button) {
 	double sx, sy;
@@ -267,58 +249,37 @@ static bool handle_press(struct twm_server *server, uint32_t button) {
 	if (hit.kind == TWM_HIT_TITLE && view && view->frame) {
 		hit.kind = frame_part_at(view->frame, lx, ly);
 	}
-
+	enum twm_context context;
 	switch (hit.kind) {
-	case TWM_HIT_ICONIFY:
-		if (button == TWM_BTN_LEFT) {
-			/* FRM-13: the Icon Manager and root icons arrive in M4. */
-			wlr_log(WLR_INFO, "f.iconify is not available yet (M4)");
-		}
-		return true;
-	case TWM_HIT_RESIZE:
-		if (button == TWM_BTN_LEFT || button == TWM_BTN_MIDDLE) {
-			view_focus(view);
-			grab_begin_resize(server, view, button, WLR_EDGE_BOTTOM | WLR_EDGE_RIGHT);
-		}
-		return true;
-	case TWM_HIT_TITLE:
-		if (button == TWM_BTN_LEFT) {
-			view_raise(view);
-			view_focus(view);
-			grab_begin_pending_move(server, view, button);
-		} else if (button == TWM_BTN_MIDDLE) {
-			grab_begin_move(server, view, button);
-		} else if (button == TWM_BTN_RIGHT) {
-			/* FRM-14 f.squeeze arrives in M4. */
-			wlr_log(WLR_INFO, "f.squeeze is not available yet (M4)");
-		}
-		return true;
-	case TWM_HIT_BORDER:
-		view_focus(view);
-		return true;
-	case TWM_HIT_CLIENT:
-		if (modifier_held(server) && button == TWM_BTN_LEFT) {
-			view_focus(view);
-			grab_begin_move(server, view, button);
-			return true;
-		}
-		if (modifier_held(server) && button == TWM_BTN_RIGHT) {
-			view_focus(view);
-			struct wlr_box f = view_frame_box(view);
-			uint32_t edges = geo_edges_at((struct geo_box){f.x, f.y, f.width, f.height},
-				(int)lx, (int)ly);
-			grab_begin_resize(server, view, button, edges);
-			return true;
-		}
-		view_focus(view); /* FOC-5 */
-		return false;
-	case TWM_HIT_ROOT:
-		/* ROOT-4: the root menu arrives in M4. */
-		return false;
+	case TWM_HIT_ROOT: context = TWM_CTX_ROOT; break;
+	case TWM_HIT_TITLE: context = TWM_CTX_TITLE; break;
+	case TWM_HIT_ICONIFY: context = TWM_CTX_ICONIFY; break;
+	case TWM_HIT_RESIZE: context = TWM_CTX_RESIZE; break;
+	case TWM_HIT_BORDER: context = TWM_CTX_BORDER; break;
+	case TWM_HIT_CLIENT: context = TWM_CTX_WINDOW; break;
 	case TWM_HIT_UNMANAGED:
+	default:
 		return false;
 	}
-	return false;
+	const struct twm_button_binding *b = config_match_button(server->config,
+		button_number(button), current_mods(server), context);
+	if (b) {
+		struct action_ctx ctx = {
+			.view = view, .context = context, .button = button, .lx = lx, .ly = ly,
+		};
+		action_run(server, &b->func, &ctx);
+		return true;
+	}
+	if (!view) {
+		return false;
+	}
+	/* FOC-5: a press focuses at once; FOC-6: raising is optional. */
+	view_focus(view);
+	if (server->config->raise_on_click) {
+		view_raise(view);
+	}
+	/* Unbound presses on the frame stay with twm. */
+	return context != TWM_CTX_WINDOW;
 }
 
 static void handle_cursor_button(struct wl_listener *listener, void *data) {

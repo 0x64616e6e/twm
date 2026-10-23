@@ -33,12 +33,15 @@ struct twm_frame {
 		float scale;
 		int frame_width;
 		bool resize;
+		uint32_t gen;
 		bool valid;
 	} drawn;
 	struct {
 		enum frame_state state;
 		int width, height;
 		float scale;
+		int th;
+		uint32_t gen;
 		bool valid;
 	} drawn_border;
 };

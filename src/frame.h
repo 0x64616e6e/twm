@@ -25,6 +25,12 @@ struct twm_frame {
 	struct wlr_scene_buffer *dash[4];
 	struct twm_hit tab_hit, border_hit;
 	struct tab_layout layout;
+	/* GRP-3: when the view is a group's active tab, the row it draws */
+	bool is_group;
+	struct tab_group_layout glayout;
+	/* GRP-2: a drop slot opened while a tab is dragged over this frame */
+	int slot_index; /* -1 none */
+	int slot_width;
 
 	/* What the tab was last drawn from; redraw only when it changes. */
 	struct {
@@ -60,5 +66,12 @@ enum frame_state frame_state_of(struct twm_view *view);
 
 /* Smallest frame width that keeps the tab's buttons (OUT-10). */
 int frame_min_width(struct twm_frame *frame);
+
+/* GRP-4: the group member whose tab is at layout x, or NULL. */
+struct twm_view *frame_member_at(struct twm_frame *frame, double lx);
+/* GRP-2: insertion point for a tab dropped at layout x. */
+int frame_insert_at(struct twm_frame *frame, double lx);
+/* GRP-2: open (index >= 0) or close (-1) a drop slot. */
+void frame_set_slot(struct twm_frame *frame, int index, int width);
 
 #endif

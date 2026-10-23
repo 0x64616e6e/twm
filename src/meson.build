@@ -20,6 +20,7 @@ twm_src = twm_core_src + files(
   'focus.c',
   'frame.c',
   'grab.c',
+  'group.c',
   'histview.c',
   'icons.c',
   'imgr.c',

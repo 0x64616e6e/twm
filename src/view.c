@@ -6,6 +6,7 @@
 #include "desktop.h"
 #include "frame.h"
 #include "grab.h"
+#include "group.h"
 #include "icons.h"
 #include "internal.h"
 #include "layers.h"
@@ -24,6 +25,7 @@ void view_init(struct twm_view *view, struct twm_server *server,
 	view->desktop = server->desktop > 0 ? server->desktop : 1;
 	wl_list_init(&view->link);
 	wl_list_init(&view->place_link);
+	wl_list_init(&view->group_link);
 	view->tree = wlr_scene_tree_create(server->layers[TWM_LAYER_WINDOWS]);
 	wlr_scene_node_set_enabled(&view->tree->node, false);
 	/* The frame's nodes go first, so the client draws above them. */
@@ -224,6 +226,7 @@ void view_unmap(struct twm_view *view) {
 	struct twm_server *server = view->server;
 	grab_view_gone(server, view);
 	remember_record(server, view);
+	group_leave(view);
 	icon_destroy(view);
 	view->iconified = false;
 	view->mapped = false;
@@ -246,11 +249,15 @@ void view_unmap(struct twm_view *view) {
 
 void view_update_geometry(struct twm_view *view, int gx, int gy,
 		int width, int height) {
+	bool resized = width != view->width || height != view->height;
 	view->geom_x = gx;
 	view->geom_y = gy;
 	view->width = width;
 	view->height = height;
 	position_content(view);
+	if (resized) {
+		group_sync_geometry(view, view->x, view->y, width, height); /* GRP-3 */
+	}
 	view_update_frame(view);
 }
 
@@ -265,6 +272,7 @@ void view_move_resize(struct twm_view *view, int x, int y, int w, int h) {
 	int dx, dy;
 	view_client_offset(view, &dx, &dy);
 	view->impl->configure(view, x + dx, y + dy, w, h);
+	group_sync_geometry(view, x, y, w, h); /* GRP-7 */
 }
 
 void view_raise(struct twm_view *view) {

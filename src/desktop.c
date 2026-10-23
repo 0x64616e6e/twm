@@ -1,13 +1,14 @@
 #include <wlr/types/wlr_seat.h>
 #include "desktop.h"
 #include "grab.h"
+#include "group.h"
 #include "histview.h"
 #include "icons.h"
 #include "settings.h"
 #include "ui.h"
 
 bool view_visible(struct twm_view *view) {
-	return view->shown && !view->iconified &&
+	return view->shown && !view->iconified && !view_hidden_member(view) &&
 		(view->sticky || view->desktop == view->server->desktop);
 }
 
@@ -84,6 +85,12 @@ void desktop_send(struct twm_server *server, struct twm_view *view, int desktop)
 	}
 	struct hist_state before = hist_state_of(view);
 	view->desktop = desktop;
+	if (view->group) {
+		struct twm_view *m; /* GRP-7: the whole group goes */
+		wl_list_for_each(m, &view->group->members, group_link) {
+			m->desktop = desktop;
+		}
+	}
 	view_update_visibility(view);
 	histview_record(server, HIST_SEND, view, before, hist_state_of(view));
 	refocus_pick(server, false);

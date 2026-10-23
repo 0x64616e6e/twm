@@ -3,6 +3,7 @@
 #include <string.h>
 #include "draw.h"
 #include "frame.h"
+#include "group.h"
 #include "pixbuf.h"
 #include "settings.h"
 #include "text.h"
@@ -87,11 +88,151 @@ int frame_min_width(struct twm_frame *frame) {
 	return tab_min_width(&m, !utility, !utility && view_resizable(frame->view));
 }
 
+/* HNT-3: a selected hint shows as the tab of B4's "j": graphite, ink text,
+ * a 1 px accent outline. */
+static struct tab_colors hint_selected_colors(const struct twm_theme *t) {
+	struct tab_colors c = colors_for(t, FRAME_UNFOCUSED);
+	c.fg = rgba_argb32(rgba_hex(t->ink, 1));
+	c.outline = rgba_argb32(rgba_hex(t->accent, 1));
+	c.has_outline = true;
+	return c;
+}
+
+/* HNT-1: the hint letter in place of the iconify box. */
+static void draw_hint_box(pixman_image_t *img, struct twm_view *view, int x, float scale) {
+	const struct twm_theme *t = &view->server->theme;
+#define X(v) ((int)lroundf((float)(v) * scale))
+	int box = X(t->title_height);
+	struct twm_font *f = font_get(t->ui_font, t->font_size + 1, TWM_WEIGHT_SEMIBOLD, scale);
+	uint32_t accent = rgba_argb32(rgba_hex(t->accent, 1));
+	uint32_t fg;
+	if (view->hint_selected) {
+		draw_fill(img, rgba_argb32(rgba_hex(t->on_accent, 1)), X(x), 0, box, box);
+		draw_box(img, accent, X(x), 0, box, box, 2 * draw_stroke(scale));
+		fg = accent;
+	} else {
+		draw_fill(img, accent, X(x), 0, box, box);
+		fg = rgba_argb32(rgba_hex(t->on_accent, 1));
+	}
+	int w = text_width(f, view->hint, 0);
+	text_draw(img, f, view->hint, X(x) + (box - w) / 2, text_baseline_centered(f, 0, box), fg, 0, 0);
+#undef X
+}
+
+static void draw_group_tab(struct twm_frame *frame, enum frame_state state, float scale) {
+	struct twm_view *view = frame->view;
+	struct twm_server *server = view->server;
+	const struct twm_theme *t = &server->theme;
+	/* A lone window with a drop slot open draws as a group of one. */
+	struct twm_group *g = view->group;
+	int n = g ? (int)group_size(g) : 1;
+	if (n > TAB_GROUP_MAX) {
+		n = TAB_GROUP_MAX;
+	}
+	struct twm_view *members[TAB_GROUP_MAX];
+	struct tab_colors colors[TAB_GROUP_MAX];
+	struct tab_group_input in = {
+		.frame_width = view->width + 2 * t->border_width,
+		.n = n,
+		.active = g ? group_index(view) : 0,
+		.hatch = state == FRAME_FOCUSED && t->title_highlight && !view->hint_selected,
+		.resize = view_resizable(view),
+		.folded = g && g->folded,
+		.slot_index = frame->slot_index,
+		.slot_width = frame->slot_width,
+		.justify = config_justify(server->config, view->impl->get_app_id(view),
+			view->impl->get_title(view)),
+	};
+	struct twm_font *any = title_font(server, TWM_WEIGHT_MEDIUM, scale);
+	struct tab_metrics m = metrics_for(frame, any, scale);
+	for (int i = 0; i < n; i++) {
+		members[i] = g ? group_member(g, i) : view;
+		enum frame_state st = i == in.active ? state :
+			members[i]->urgent ? FRAME_URGENT : FRAME_UNFOCUSED;
+		colors[i] = i == in.active && view->hint_selected ? hint_selected_colors(t) :
+			colors_for(t, st);
+		struct twm_font *f = title_font(server, colors[i].weight, scale);
+		in.text_width[i] = (int)ceilf(text_width(f, view_title(members[i]), 0) / scale);
+	}
+	struct tab_group_layout *l = &frame->glayout;
+	tab_group_layout_compute(&m, &in, l);
+
+#define X(v) ((int)lroundf((float)(v) * scale))
+	int dw = X(l->width), dh = X(t->title_height);
+	struct twm_pixbuf *buf = pixbuf_create(dw, dh);
+	if (!buf) {
+		return;
+	}
+	pixman_image_t *img = buf->image;
+	int stroke = draw_stroke(scale);
+	int glyph_off = (t->title_height - 12) / 2;
+	/* GRP-3: each button takes the colors of the tab beside it. */
+	int first = -1, last = -1;
+	for (int i = 0; i < l->ntabs; i++) {
+		if (l->tabs[i].index >= 0) {
+			last = l->tabs[i].index;
+			if (first < 0) {
+				first = last;
+			}
+		}
+	}
+	struct tab_colors cf = colors[first >= 0 ? first : 0];
+	struct tab_colors cl = colors[last >= 0 ? last : 0];
+	draw_fill(img, cf.bg, 0, 0, X(l->sep_left.x + 1), dh);
+	draw_glyph(img, TWM_GLYPH_ICONIFY, X(l->iconify.x + glyph_off), X(glyph_off), scale, cf.fg);
+	draw_fill(img, cf.sep, X(l->sep_left.x), 0, stroke, dh);
+	for (int k = 0; k < l->ntabs; k++) {
+		const struct tab_group_span *s = &l->tabs[k];
+		if (s->index < 0) {
+			/* GRP-2: the drop slot, a dashed accent box. */
+			uint32_t a = rgba_argb32(rgba_hex(t->accent, 1));
+			for (int i = 0; i < s->width; i += 6) {
+				int len = i + 3 <= s->width ? 3 : s->width - i;
+				draw_fill(img, a, X(s->x + i), 0, X(len), stroke);
+				draw_fill(img, a, X(s->x + i), dh - stroke, X(len), stroke);
+			}
+			for (int i = 0; i < t->title_height; i += 6) {
+				int len = i + 3 <= t->title_height ? 3 : t->title_height - i;
+				draw_fill(img, a, X(s->x), X(i), stroke, X(len));
+				draw_fill(img, a, X(s->x + s->width) - stroke, X(i), stroke, X(len));
+			}
+			continue;
+		}
+		struct tab_colors *c = &colors[s->index];
+		struct twm_font *f = title_font(server, c->weight, scale);
+		draw_fill(img, c->bg, X(s->x), 0, X(s->x + s->width) - X(s->x), dh);
+		if (c->has_outline) {
+			draw_box(img, c->outline, X(s->x), 0, X(s->x + s->width) - X(s->x), dh, stroke);
+		}
+		text_draw(img, f, view_title(members[s->index]), X(s->text_x),
+			text_baseline_centered(f, 0, dh), c->fg, 0, X(s->text_w));
+		if (s->hatch_w) {
+			int inset = t->hatch_inset;
+			draw_hatch(img, X(s->hatch_x), X(inset), X(s->hatch_w), X(t->title_height - inset) - X(inset),
+				scale, c->hatch);
+		}
+		draw_fill(img, c->sep, X(s->sep_x), 0, stroke, dh);
+	}
+	if (l->resize.width) {
+		draw_fill(img, cl.bg, X(l->resize.x), 0, X(l->resize.width), dh);
+		draw_glyph(img, TWM_GLYPH_RESIZE, X(l->resize.x + glyph_off), X(glyph_off), scale, cl.fg);
+	}
+	if (view->hint[0]) {
+		draw_hint_box(img, view, l->iconify.x, scale);
+	}
+#undef X
+	wlr_scene_buffer_set_buffer(frame->tab, &buf->base);
+	pixbuf_drop(buf);
+	wlr_scene_buffer_set_dest_size(frame->tab, l->width, t->title_height);
+	wlr_scene_node_set_position(&frame->tab->node, l->x, 0);
+}
+
 static void draw_tab(struct twm_frame *frame, const char *title, enum frame_state state,
 		float scale) {
 	struct twm_server *server = frame->view->server;
 	const struct twm_theme *t = &server->theme;
-	struct tab_colors c = colors_for(t, state);
+	struct tab_colors c = frame->view->hint_selected ? hint_selected_colors(t) :
+		colors_for(t, state);
 	struct twm_font *font = title_font(server, c.weight, scale);
 	struct tab_metrics m = metrics_for(frame, font, scale);
 	float tracking = c.tracking * scale;
@@ -142,6 +283,9 @@ static void draw_tab(struct twm_frame *frame, const char *title, enum frame_stat
 		draw_fill(img, c.sep, X(l->sep_right.x), 0, stroke, dh);
 		draw_glyph(img, TWM_GLYPH_RESIZE, X(l->resize.x + glyph_off), X(glyph_off),
 			scale, c.fg);
+	}
+	if (frame->view->hint[0] && l->iconify.width) {
+		draw_hint_box(img, frame->view, l->iconify.x, scale);
 	}
 #undef X
 
@@ -259,25 +403,46 @@ void frame_update(struct twm_frame *frame) {
 	int fw = view->width + 2 * t->border_width;
 	bool resize = view_resizable(view);
 
-	update_border(frame, state, scale);
+	update_border(frame, view->hint_selected ? FRAME_FOCUSED : state, scale);
 	wlr_scene_node_set_enabled(&frame->tab->node, !view->notitle);
 
+	/* Everything the tab shows, so it redraws only when that changes. */
+	char sig[2048];
+	size_t o = (size_t)snprintf(sig, sizeof(sig), "%s\x1f%s%d%d", title, view->hint,
+		view->hint_selected, frame->slot_index * 10000 + frame->slot_width);
+	bool group = view->group && group_size(view->group) > 1 && view->group->active == view;
+	group = group || frame->slot_index >= 0;
+	if (group && view->group) {
+		o += (size_t)snprintf(sig + o, sizeof(sig) - o, "\x1eG%d", view->group->folded);
+		struct twm_view *mbr;
+		wl_list_for_each(mbr, &view->group->members, group_link) {
+			if (o < sizeof(sig)) {
+				o += (size_t)snprintf(sig + o, sizeof(sig) - o, "\x1d%s%d%d",
+					view_title(mbr), mbr == view, mbr->urgent);
+			}
+		}
+	}
 	if (frame->drawn.valid && frame->drawn.gen == server->theme_gen &&
 			frame->drawn.state == state &&
 			frame->drawn.scale == scale && frame->drawn.frame_width == fw &&
 			frame->drawn.resize == resize && frame->drawn.title &&
-			strcmp(frame->drawn.title, title) == 0) {
+			strcmp(frame->drawn.title, sig) == 0) {
 		return;
 	}
 	free(frame->drawn.title);
-	frame->drawn.title = strdup(title);
+	frame->drawn.title = strdup(sig);
+	frame->is_group = group;
 	frame->drawn.state = state;
 	frame->drawn.scale = scale;
 	frame->drawn.frame_width = fw;
 	frame->drawn.resize = resize;
 	frame->drawn.gen = server->theme_gen;
 	frame->drawn.valid = true;
-	draw_tab(frame, title, state, scale);
+	if (group) {
+		draw_group_tab(frame, state, scale);
+	} else {
+		draw_tab(frame, title, state, scale);
+	}
 }
 
 struct twm_frame *frame_create(struct twm_view *view) {
@@ -286,6 +451,7 @@ struct twm_frame *frame_create(struct twm_view *view) {
 		return NULL;
 	}
 	frame->view = view;
+	frame->slot_index = -1;
 	frame->tree = wlr_scene_tree_create(view->tree);
 	frame->tab_hit = (struct twm_hit){.kind = TWM_HIT_TITLE, .view = view};
 	frame->border_hit = (struct twm_hit){.kind = TWM_HIT_BORDER, .view = view};
@@ -312,6 +478,17 @@ void frame_destroy(struct twm_frame *frame) {
 }
 
 enum twm_hit_kind frame_part_at(struct twm_frame *frame, double lx, double ly) {
+	if (frame->is_group) {
+		const struct tab_group_layout *g = &frame->glayout;
+		int gx = (int)floor(lx) - frame->view->x - g->x;
+		if (gx >= g->iconify.x && gx < g->iconify.x + g->iconify.width) {
+			return TWM_HIT_ICONIFY;
+		}
+		if (g->resize.width && gx >= g->resize.x && gx < g->resize.x + g->resize.width) {
+			return TWM_HIT_RESIZE;
+		}
+		return TWM_HIT_TITLE;
+	}
 	int x = (int)floor(lx) - frame->view->x - frame->layout.x;
 	switch (tab_part_at(&frame->layout, x)) {
 	case TAB_PART_ICONIFY:
@@ -321,4 +498,32 @@ enum twm_hit_kind frame_part_at(struct twm_frame *frame, double lx, double ly) {
 	default:
 		return TWM_HIT_TITLE;
 	}
+}
+
+struct twm_view *frame_member_at(struct twm_frame *frame, double lx) {
+	if (!frame->is_group || !frame->view->group) {
+		return frame->view;
+	}
+	int i = tab_group_tab_at(&frame->glayout, (int)floor(lx) - frame->view->x - frame->glayout.x);
+	return i >= 0 ? group_member(frame->view->group, i) : NULL;
+}
+
+int frame_insert_at(struct twm_frame *frame, double lx) {
+	struct twm_view *view = frame->view;
+	int n = view->group ? (int)group_size(view->group) : 1;
+	if (!frame->is_group) {
+		/* A single tab: before it on its left half, else after. */
+		int x = (int)floor(lx) - view->x - frame->layout.x;
+		return x < frame->layout.text.x + frame->layout.text.width / 2 ? 0 : 1;
+	}
+	return tab_group_insert_at(&frame->glayout, (int)floor(lx) - view->x - frame->glayout.x, n);
+}
+
+void frame_set_slot(struct twm_frame *frame, int index, int width) {
+	if (frame->slot_index == index && frame->slot_width == width) {
+		return;
+	}
+	frame->slot_index = index;
+	frame->slot_width = width;
+	frame_update(frame);
 }

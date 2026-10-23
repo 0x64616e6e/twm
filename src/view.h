@@ -40,6 +40,7 @@ struct twm_view_impl {
 
 struct twm_frame;
 struct twm_icon;
+struct twm_group;
 
 struct twm_view {
 	struct wl_list link;       /* twm_server.views, only while shown */
@@ -70,6 +71,10 @@ struct twm_view {
 	bool iconified; /* FRM-13 */
 	bool squeezed;  /* FRM-14: shaded to its tab */
 	struct twm_icon *icon; /* ROOT-9, while iconified */
+	struct twm_group *group; /* GRP-*, or NULL */
+	struct wl_list group_link;
+	char hint[4];       /* HNT-1: hint code while hint mode is on */
+	bool hint_selected; /* HNT-3 */
 	uint64_t focus_seq; /* when it last had focus (FOC-10) */
 };
 

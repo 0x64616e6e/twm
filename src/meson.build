@@ -3,9 +3,11 @@ twm_core_src = files(
   'draw.c',
   'geomem.c',
   'geometry.c',
+  'history.c',
   'intent.c',
   'squeeze.c',
   'settings.c',
+  'snap.c',
   'theme.c',
   'twmrc.c',
 )

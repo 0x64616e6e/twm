@@ -1,0 +1,83 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  # System wlroots 0.20 and friends from Arch packages.
+  arch:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - name: Install packages
+        run: |
+          pacman -Syu --noconfirm --needed base-devel git meson ninja \
+            wlroots0.20 wayland wayland-protocols libxkbcommon pixman fcft \
+            xorg-xwayland ttf-ibm-plex
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          meson setup build -Dwerror=true -Dxwayland=enabled
+          ninja -C build
+      - name: Version
+        run: ./build/src/twm --version
+      - name: Test
+        run: meson test -C build --suite twm --print-errorlogs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots-arch
+          path: build/tests/*.png
+
+  # Debian 13 packages wlroots 0.18 only: exercises the pinned subprojects (D-2).
+  debian:
+    runs-on: ubuntu-latest
+    container: debian:trixie
+    steps:
+      - name: Install packages
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential git ca-certificates meson ninja-build pkgconf python3 \
+            libwayland-dev wayland-protocols libexpat1-dev libffi-dev libxml2-dev \
+            libxkbcommon-dev libfcft-dev hwdata libdisplay-info-dev libseat-dev \
+            libinput-dev libudev-dev libgbm-dev libegl-dev libgles-dev \
+            libliftoff-dev liblcms2-dev xwayland libxcb1-dev libxcb-composite0-dev \
+            libxcb-icccm4-dev libxcb-res0-dev libxcb-ewmh-dev libxcb-xfixes0-dev \
+            libxcb-render0-dev libxcb-xinput-dev libxcb-errors-dev fonts-ibm-plex
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          meson setup build -Dxwayland=enabled
+          ninja -C build
+      - name: Version
+        run: ./build/src/twm --version
+      - name: Test
+        run: meson test -C build --suite twm --print-errorlogs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots-debian
+          path: build/tests/*.png
+
+  freebsd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test on FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: '14.3'
+          usesh: true
+          prepare: |
+            pkg install -y git meson ninja pkgconf python3 wayland wayland-protocols \
+              libxkbcommon pixman fcft libdrm libinput libseat libdisplay-info hwdata \
+              mesa-libs libliftoff lcms2 xwayland evdev-proto libepoll-shim
+            pkg install -y wlroots020 || echo "no wlroots020 package; using the subproject"
+            pkg install -y ibm-plex || echo "IBM Plex not packaged; tests use the fallback font"
+          run: |
+            meson setup build
+            ninja -C build
+            ./build/src/twm --version
+            meson test -C build --suite twm --print-errorlogs

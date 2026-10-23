@@ -1,10 +1,10 @@
 # Pure modules (D-5): no wlroots, unit-tested on their own.
 twm_core_src = files(
+  'draw.c',
   'theme.c',
 )
 
 twm_src = twm_core_src + files(
-  'draw.c',
   'input.c',
   'main.c',
   'output.c',

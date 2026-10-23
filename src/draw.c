@@ -1,4 +1,5 @@
 #include <math.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include "draw.h"
 
@@ -12,8 +13,27 @@ static pixman_color_t argb_to_color(uint32_t argb) {
 	};
 }
 
+/* pixman's solid fills don't clip to the image; every caller goes through
+ * this so nothing is written outside it. */
+static bool clip_rect(pixman_image_t *img, int *x, int *y, int *w, int *h) {
+	int iw = pixman_image_get_width(img);
+	int ih = pixman_image_get_height(img);
+	int x0 = *x < 0 ? 0 : *x;
+	int y0 = *y < 0 ? 0 : *y;
+	int x1 = *x + *w > iw ? iw : *x + *w;
+	int y1 = *y + *h > ih ? ih : *y + *h;
+	if (x1 <= x0 || y1 <= y0) {
+		return false;
+	}
+	*x = x0;
+	*y = y0;
+	*w = x1 - x0;
+	*h = y1 - y0;
+	return true;
+}
+
 void draw_fill(pixman_image_t *img, uint32_t argb, int x, int y, int w, int h) {
-	if (w <= 0 || h <= 0) {
+	if (!clip_rect(img, &x, &y, &w, &h)) {
 		return;
 	}
 	pixman_color_t color = argb_to_color(argb);
@@ -56,12 +76,13 @@ void draw_weave(pixman_image_t *img, float scale, int pitch,
 			int lx = ox + col * pitch + 2;
 			int x0 = (int)lroundf(lx * scale);
 			int x1 = (int)lroundf((lx + 2) * scale);
-			if (x1 <= 0 || x0 >= dw || y1 <= 0 || y0 >= dh) {
+			int rx = x0, ry = y0, rw = x1 - x0, rh = y1 - y0;
+			if (!clip_rect(img, &rx, &ry, &rw, &rh)) {
 				continue;
 			}
 			rects[n++] = (pixman_rectangle16_t){
-				.x = (int16_t)x0, .y = (int16_t)y0,
-				.width = (uint16_t)(x1 - x0), .height = (uint16_t)(y1 - y0),
+				.x = (int16_t)rx, .y = (int16_t)ry,
+				.width = (uint16_t)rw, .height = (uint16_t)rh,
 			};
 		}
 		if (n > 0) {

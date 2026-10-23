@@ -4,6 +4,25 @@ A Wayland compositor that reads twm (Tom LaStrange, 1987) for today:
 squeezed title tabs, 1 px frames, an Icon Manager instead of a panel, root
 menus, outline moves, and one plain-text `~/.twmrc`. The binary is `twm`.
 
+![Tom's WM: two windows, the Icon Manager and the Panner](docs/shots/m4-desktop.png)
+
+- **twm's grammar, kept.** Title tabs as wide as their names, an iconify box
+  and a resize box, click to place a new window, moves and resizes as
+  outlines, menus from the bare desktop.
+- **Nothing that moves for show.** No blur, shadows, rounded corners, panel,
+  dock or tray; no animation over 80 ms. Focus is shown by a hatch, not
+  only by color.
+- **Calm.** Windows never steal focus; they ask, and `M-u` takes you there.
+  Quiet desktops hold their requests until you visit.
+- **Honest about privacy.** A window capturing the screen says so in its
+  tab, always. Consent prompts appear in a frame no app can imitate, and
+  synthetic input never reaches them.
+- **The config is the interface.** Everything is a line in `~/.twmrc`,
+  reloaded on save; a bad file keeps the old one running and says why. The
+  Settings window edits that file and shows you the diff.
+- **Small and portable.** C17 on wlroots 0.20, with XWayland, for Linux and
+  FreeBSD.
+
 - Design spec: [docs/DESIGN.md](docs/DESIGN.md) (requirements are cited by ID, e.g. `FRM-3`)
 - Progress: [docs/PROGRESS.md](docs/PROGRESS.md)
 

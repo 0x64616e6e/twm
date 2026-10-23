@@ -212,10 +212,12 @@ static void update_border(struct twm_frame *frame, enum frame_state state, float
 	if (frame->drawn_border.valid && frame->drawn_border.state == state &&
 			frame->drawn_border.width == w && frame->drawn_border.height == h &&
 			frame->drawn_border.scale == scale && frame->drawn_border.th == th &&
-			frame->drawn_border.gen == view->server->theme_gen) {
+			frame->drawn_border.gen == view->server->theme_gen &&
+			frame->drawn_border.squeezed == view->squeezed) {
 		return;
 	}
 	frame->drawn_border.th = th;
+	frame->drawn_border.squeezed = view->squeezed;
 	frame->drawn_border.gen = view->server->theme_gen;
 	frame->drawn_border.valid = true;
 	frame->drawn_border.state = state;
@@ -224,6 +226,7 @@ static void update_border(struct twm_frame *frame, enum frame_state state, float
 	frame->drawn_border.scale = scale;
 
 	bool dashed = state == FRAME_URGENT;
+	bool hidden = view->squeezed && th > 0; /* FRM-14: the tab alone */
 	float color[4];
 	rgba_premul(rgba_hex(state == FRAME_FOCUSED ? t->accent : t->hairline, 1), color);
 	struct { int x, y, w, h; } r[4] = {
@@ -237,8 +240,8 @@ static void update_border(struct twm_frame *frame, enum frame_state state, float
 		wlr_scene_rect_set_size(frame->border[i], r[i].w > 0 ? r[i].w : 0,
 			r[i].h > 0 ? r[i].h : 0);
 		wlr_scene_node_set_position(&frame->border[i]->node, r[i].x, r[i].y);
-		wlr_scene_node_set_enabled(&frame->border[i]->node, !dashed);
-		if (dashed) {
+		wlr_scene_node_set_enabled(&frame->border[i]->node, !dashed && !hidden);
+		if (dashed && !hidden) {
 			draw_dash_edge(frame, i, w, h, scale);
 		} else {
 			wlr_scene_node_set_enabled(&frame->dash[i]->node, false);

@@ -30,7 +30,11 @@ enum hist_op {
 struct hist_state {
 	int x, y; /* frame top-left, layout coordinates */
 	int w, h; /* client size */
+	int desktop;
+	bool iconified, squeezed;
 };
+
+bool hist_state_equal(struct hist_state a, struct hist_state b);
 
 struct hist_entry {
 	enum hist_op op;

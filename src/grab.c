@@ -7,8 +7,10 @@
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/log.h>
+#include "desktop.h"
 #include "frame.h"
 #include "grab.h"
+#include "icons.h"
 #include "histview.h"
 #include "outline.h"
 #include "remember.h"
@@ -87,7 +89,7 @@ static bool opaque(struct twm_server *server) {
 
 static void show_outline(struct twm_server *server) {
 	struct twm_grab *g = &server->grab;
-	if (g->mode == TWM_GRAB_PENDING_MOVE) {
+	if (g->mode == TWM_GRAB_PENDING_MOVE || g->mode == TWM_GRAB_ICON) {
 		return;
 	}
 	char olabel[96];
@@ -119,7 +121,7 @@ static void apply_snap(struct twm_server *server, struct geo_limits lim) {
 	size_t k = 0;
 	struct twm_view *v;
 	wl_list_for_each(v, &server->views, link) {
-		if (v == g->view || !v->shown) {
+		if (v == g->view || !view_visible(v)) {
 			continue;
 		}
 		struct wlr_box f = view_frame_box(v);
@@ -169,6 +171,14 @@ void grab_begin_move(struct twm_server *server, struct twm_view *view, uint32_t 
 	histview_changed(server);
 	wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "move");
 	show_outline(server);
+}
+
+void grab_begin_icon(struct twm_server *server, struct twm_view *view, uint32_t button) {
+	if (!view->icon) {
+		return;
+	}
+	begin(server, view, button, TWM_GRAB_ICON);
+	server->grab.start = (struct geo_box){view->icon->x, view->icon->y, 0, 0};
 }
 
 void grab_begin_resize(struct twm_server *server, struct twm_view *view,
@@ -238,15 +248,24 @@ static void commit(struct twm_server *server) {
 	int deco_w = 2 * server->theme.border_width;
 	int deco_h = deco_w + view_title_height(view);
 	/* HIS-1: what this grab does, before and after. */
-	struct hist_state before = {g->start.x, g->start.y, g->start_w, g->start_h};
-	struct hist_state after = {g->box.x, g->box.y, g->box.w - deco_w, g->box.h - deco_h};
+	struct hist_state before = hist_state_of(view);
+	before.x = g->start.x;
+	before.y = g->start.y;
+	before.w = g->start_w;
+	before.h = g->start_h;
+	struct hist_state after = before;
+	after.x = g->box.x;
+	after.y = g->box.y;
+	after.w = g->box.w - deco_w;
+	after.h = g->box.h - deco_h;
 	enum hist_op op = g->mode == TWM_GRAB_RESIZE ? HIST_RESIZE :
 		(g->mode == TWM_GRAB_PLACE || g->mode == TWM_GRAB_PLACE_SIZE) ? HIST_PLACE : HIST_MOVE;
 	if (g->mode == TWM_GRAB_MOVE) {
 		after.w = g->start_w;
 		after.h = g->start_h;
 	}
-	bool record = g->mode != TWM_GRAB_PENDING_MOVE && g->mode != TWM_GRAB_NONE;
+	bool record = g->mode != TWM_GRAB_PENDING_MOVE && g->mode != TWM_GRAB_NONE &&
+		g->mode != TWM_GRAB_ICON;
 	switch (g->mode) {
 	case TWM_GRAB_MOVE:
 		view_move(view, g->box.x, g->box.y);
@@ -259,8 +278,13 @@ static void commit(struct twm_server *server) {
 		finish_placement(server);
 		break;
 	case TWM_GRAB_PENDING_MOVE:
+	case TWM_GRAB_ICON:
 	case TWM_GRAB_NONE:
 		break;
+	}
+	if (g->mode == TWM_GRAB_ICON) {
+		end_grab(server);
+		return;
 	}
 	remember_record(server, view); /* CFG-11 */
 	if (record) {
@@ -280,7 +304,7 @@ static void fit(struct twm_server *server) {
 		size_t k = 0;
 		struct twm_view *v;
 		wl_list_for_each(v, &server->views, link) {
-			if (v != g->view && v->shown) {
+			if (v != g->view && view_visible(v)) {
 				struct wlr_box f = view_frame_box(v);
 				obs[k++] = (struct geo_box){f.x, f.y, f.width, f.height};
 			}
@@ -325,6 +349,10 @@ void grab_motion(struct twm_server *server) {
 	int ix = (int)dx + g->key_dx, iy = (int)dy + g->key_dy;
 	switch (g->mode) {
 	case TWM_GRAB_NONE:
+		return;
+	case TWM_GRAB_ICON:
+		/* ROOT-10: icons move directly, no outline. */
+		icon_move(g->view, g->start.x + ix, g->start.y + iy);
 		return;
 	case TWM_GRAB_PENDING_MOVE:
 		if (dx * dx + dy * dy < DRAG_THRESHOLD * DRAG_THRESHOLD) {
@@ -379,6 +407,11 @@ bool grab_button(struct twm_server *server, uint32_t button, bool pressed) {
 		return true;
 	default:
 		break;
+	}
+	if (pressed && g->button == 0 && (g->mode == TWM_GRAB_MOVE ||
+			g->mode == TWM_GRAB_RESIZE)) {
+		commit(server); /* keyboard or menu-started: a click ends it (MNU-5) */
+		return true;
 	}
 	if (!pressed && button == g->button) {
 		if (g->mode == TWM_GRAB_PENDING_MOVE) {

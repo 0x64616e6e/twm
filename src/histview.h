@@ -9,6 +9,9 @@
 void histview_init(struct twm_server *server);
 void histview_finish(struct twm_server *server);
 
+/* The window's state as the history sees it. */
+struct hist_state hist_state_of(struct twm_view *view);
+
 /* A grab finished: record what it did to the window. */
 void histview_record(struct twm_server *server, enum hist_op op, struct twm_view *view,
 	struct hist_state before, struct hist_state after);

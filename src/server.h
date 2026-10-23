@@ -23,6 +23,8 @@ struct twm_config;
 struct twm_rootline;
 struct twm_watch;
 struct twm_internal_view;
+struct twm_menu_ui;
+struct twm_func;
 
 /* Scene layers, back to front (D-4). */
 enum twm_layer {
@@ -51,6 +53,7 @@ enum twm_hit_kind {
 	TWM_HIT_ICONIFY,
 	TWM_HIT_RESIZE,
 	TWM_HIT_BORDER,
+	TWM_HIT_ICON, /* a root icon (ROOT-9) */
 };
 
 struct twm_hit {
@@ -113,6 +116,18 @@ struct twm_server {
 	struct twm_view *focused;
 	uint64_t focus_counter;
 	uint64_t view_counter;
+	uint64_t icon_counter;
+	int desktop; /* current, 1-based (DSK-1) */
+	struct wl_event_source *ui_idle;
+	bool shutting_down;
+
+	/* M4: twm's own windows, the root menu, click-to-select */
+	struct twm_internal_view *imgr;
+	struct twm_internal_view *panner;
+	struct twm_internal_view *logview;
+	struct twm_menu_ui *menu;
+	bool selecting;
+	struct twm_func *select_func;
 
 	/* HIS-*: the operation history and its window */
 	struct history history;

@@ -50,6 +50,7 @@ const char config_default_twmrc[] =
 	"Button1 = M : window : f.move\n"
 	"Button3 = M : window : f.resize\n"
 	"Button1 = icon    : f.iconify\n"
+	"Button2 = icon    : f.move\n"
 	"\n"
 	"\"M-Return\" : f.terminal\n"
 	"\"M-b\"      : !\"${BROWSER:-firefox}\"\n"

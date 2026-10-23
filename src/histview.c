@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "desktop.h"
 #include "draw.h"
 #include "grab.h"
 #include "histview.h"
@@ -33,6 +34,7 @@ static const char *grab_op_name(enum twm_grab_mode mode) {
 	case TWM_GRAB_RESIZE: return "resize";
 	case TWM_GRAB_PLACE:
 	case TWM_GRAB_PLACE_SIZE: return "place";
+	case TWM_GRAB_ICON:
 	case TWM_GRAB_NONE: break;
 	}
 	return NULL;
@@ -205,15 +207,22 @@ void histview_record(struct twm_server *server, enum hist_op op, struct twm_view
 	if (view->type == TWM_VIEW_INTERNAL) {
 		return; /* twm's own windows stay out of the log */
 	}
-	if (op != HIST_PLACE && memcmp(&before, &after, sizeof(before)) == 0) {
+	if (op != HIST_PLACE && hist_state_equal(before, after)) {
 		return; /* a click, not a change */
 	}
 	history_record(&server->history, op, view->id, view_title(view), time(NULL), before, after);
 	histview_changed(server);
 }
 
+struct hist_state hist_state_of(struct twm_view *view) {
+	return (struct hist_state){
+		view->x, view->y, view->width, view->height,
+		view->desktop, view->iconified, view->squeezed,
+	};
+}
+
 static void apply(struct twm_server *server, struct twm_view *view, struct hist_state s) {
-	view_move_resize(view, s.x, s.y, s.w, s.h);
+	view_apply_state(view, s);
 	remember_record(server, view);
 	histview_changed(server);
 }

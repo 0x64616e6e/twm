@@ -16,6 +16,7 @@ enum twm_grab_mode {
 	TWM_GRAB_RESIZE,
 	TWM_GRAB_PLACE,        /* outline hangs from the pointer */
 	TWM_GRAB_PLACE_SIZE,   /* B2 held during placement: drag out the size */
+	TWM_GRAB_ICON,         /* B2 dragging a root icon (ROOT-10) */
 };
 
 struct twm_grab {

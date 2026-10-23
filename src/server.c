@@ -24,7 +24,10 @@
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/util/log.h>
 #include "histview.h"
+#include "imgr.h"
 #include "ipc.h"
+#include "panner.h"
+#include "ui.h"
 #include "outline.h"
 #include "rc.h"
 #include "remember.h"
@@ -102,6 +105,7 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	server->opts = *opts;
 	theme_init_defaults(&server->theme);
 	wl_list_init(&server->views);
+	server->desktop = 1;
 	wl_list_init(&server->place_queue);
 	server->root_hit.kind = TWM_HIT_ROOT;
 
@@ -166,6 +170,8 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	focus_init(server);
 	outline_init(server);
 	histview_init(server);
+	imgr_init(server);
+	panner_init(server);
 #if HAVE_XWAYLAND
 	if (opts->xwayland && server->config->xwayland) {
 		xwayland_init(server);
@@ -199,6 +205,7 @@ void server_run(struct twm_server *server) {
 }
 
 void server_finish(struct twm_server *server) {
+	server->shutting_down = true;
 	if (server->startup_pid > 0) {
 		kill(server->startup_pid, SIGTERM);
 	}
@@ -209,6 +216,9 @@ void server_finish(struct twm_server *server) {
 	xwayland_finish(server);
 #endif
 	ipc_finish(server);
+	ui_finish(server);
+	imgr_finish(server);
+	panner_finish(server);
 	histview_finish(server);
 	remember_finish(server);
 	rc_finish(server);

@@ -39,6 +39,7 @@ struct twm_view_impl {
 };
 
 struct twm_frame;
+struct twm_icon;
 
 struct twm_view {
 	struct wl_list link;       /* twm_server.views, only while shown */
@@ -64,6 +65,11 @@ struct twm_view {
 	bool urgent;  /* FRM-9, URG-* */
 	bool notitle; /* NoTitle: border only (FRM-15) */
 	bool utility; /* FRM-18: title-only tab, no buttons */
+	int desktop;    /* DSK-1, 1-based */
+	bool sticky;    /* on every desktop (twm's own windows) */
+	bool iconified; /* FRM-13 */
+	bool squeezed;  /* FRM-14: shaded to its tab */
+	struct twm_icon *icon; /* ROOT-9, while iconified */
 	uint64_t focus_seq; /* when it last had focus (FOC-10) */
 };
 

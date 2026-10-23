@@ -52,6 +52,7 @@ struct twm_internal_view *internal_view_create(struct twm_server *server,
 	iv->data = data;
 	view_init(&iv->view, server, TWM_VIEW_INTERNAL, &internal_impl);
 	iv->view.utility = true; /* FRM-18: title only, no buttons */
+	iv->view.sticky = true;  /* on every desktop */
 	struct wlr_scene_tree *content = wlr_scene_tree_create(iv->view.tree);
 	iv->buffer = wlr_scene_buffer_create(content, NULL);
 	view_set_content(&iv->view, content);

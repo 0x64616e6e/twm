@@ -3,8 +3,11 @@
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_seat.h>
+#include "desktop.h"
 #include "frame.h"
 #include "grab.h"
+#include "icons.h"
+#include "ui.h"
 #include "remember.h"
 #include "settings.h"
 #include "view.h"
@@ -16,6 +19,7 @@ void view_init(struct twm_view *view, struct twm_server *server,
 	view->impl = impl;
 	view->client_hit = (struct twm_hit){.kind = TWM_HIT_CLIENT, .view = view};
 	view->id = ++server->view_counter;
+	view->desktop = server->desktop > 0 ? server->desktop : 1;
 	wl_list_init(&view->link);
 	wl_list_init(&view->place_link);
 	view->tree = wlr_scene_tree_create(server->layers[TWM_LAYER_WINDOWS]);
@@ -69,10 +73,12 @@ void view_frame_size(struct twm_server *server, int cw, int ch, int *fw, int *fh
 
 struct wlr_box view_frame_box(struct twm_view *view) {
 	const struct twm_theme *t = &view->server->theme;
+	int th = view_title_height(view);
 	return (struct wlr_box){
 		.x = view->x, .y = view->y,
 		.width = view->width + 2 * t->border_width,
-		.height = view->height + 2 * t->border_width + view_title_height(view),
+		/* FRM-14: squeezed, the frame is its tab. */
+		.height = view->squeezed && th ? th : view->height + 2 * t->border_width + th,
 	};
 }
 
@@ -111,6 +117,7 @@ void view_update_frame(struct twm_view *view) {
 	if (view->frame) {
 		frame_update(view->frame);
 	}
+	ui_changed(view->server);
 }
 
 static struct twm_output *output_for_new_view(struct twm_server *server) {
@@ -135,6 +142,7 @@ void view_map(struct twm_view *view) {
 	/* OUT-15: transients open over their parent, focused if it was. */
 	struct twm_view *parent = view->impl->get_parent ? view->impl->get_parent(view) : NULL;
 	if (parent && parent->shown) {
+		view->desktop = parent->desktop;
 		center_in(view, view_frame_box(parent));
 		view_show(view, server->focused == parent);
 		return;
@@ -181,7 +189,7 @@ void view_show(struct twm_view *view, bool focus) {
 	view->shown = true;
 	wl_list_remove(&view->link);
 	wl_list_insert(&server->views, &view->link);
-	wlr_scene_node_set_enabled(&view->tree->node, true);
+	view_update_visibility(view);
 	wlr_scene_node_raise_to_top(&view->tree->node);
 	if (focus) {
 		view_focus(view);
@@ -196,12 +204,13 @@ static struct twm_view *next_focus(struct twm_server *server) {
 	struct wlr_surface *surface;
 	struct twm_hit hit = server_hit_at(server, server->cursor->x, server->cursor->y,
 		&surface, &sx, &sy);
-	if (hit.view && hit.view->shown) {
+	if (hit.view && view_visible(hit.view)) {
 		return hit.view;
 	}
 	struct twm_view *best = NULL, *view;
 	wl_list_for_each(view, &server->views, link) {
-		if (!best || view->focus_seq > best->focus_seq) {
+		if (view_visible(view) && view->type != TWM_VIEW_INTERNAL &&
+				(!best || view->focus_seq > best->focus_seq)) {
 			best = view;
 		}
 	}
@@ -212,8 +221,11 @@ void view_unmap(struct twm_view *view) {
 	struct twm_server *server = view->server;
 	grab_view_gone(server, view);
 	remember_record(server, view);
+	icon_destroy(view);
+	view->iconified = false;
 	view->mapped = false;
 	view->shown = false;
+	ui_changed(server);
 	wlr_scene_node_set_enabled(&view->tree->node, false);
 	wl_list_remove(&view->link);
 	wl_list_init(&view->link);
@@ -299,6 +311,7 @@ void view_focus(struct twm_view *view) {
 	}
 	view_update_frame(view);
 	focus_changed(server);
+	ui_changed(server);
 }
 
 void view_set_urgent(struct twm_view *view, bool urgent) {

@@ -42,6 +42,7 @@ struct twm_frame {
 		float scale;
 		int th;
 		uint32_t gen;
+		bool squeezed;
 		bool valid;
 	} drawn_border;
 };

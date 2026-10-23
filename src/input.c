@@ -258,6 +258,7 @@ static bool handle_press(struct twm_server *server, uint32_t button) {
 	case TWM_HIT_RESIZE: context = TWM_CTX_RESIZE; break;
 	case TWM_HIT_BORDER: context = TWM_CTX_BORDER; break;
 	case TWM_HIT_CLIENT: context = TWM_CTX_WINDOW; break;
+	case TWM_HIT_ICON: context = TWM_CTX_ICON; break;
 	case TWM_HIT_UNMANAGED:
 	default:
 		return false;

@@ -1,6 +1,7 @@
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/util/edges.h>
 #include "actions.h"
+#include "desktop.h"
 #include "grab.h"
 #include "histview.h"
 #include "rc.h"
@@ -35,7 +36,11 @@ void action_run(struct twm_server *server, const struct twm_func *func,
 		return;
 	case TWM_F_MOVE:
 		if (view && !grab_active(server)) {
-			grab_begin_move(server, view, ctx->button);
+			if (ctx->context == TWM_CTX_ICON) {
+				grab_begin_icon(server, view, ctx->button); /* ROOT-10 */
+			} else {
+				grab_begin_move(server, view, ctx->button);
+			}
 		}
 		return;
 	case TWM_F_RAISEMOVE:
@@ -90,12 +95,24 @@ void action_run(struct twm_server *server, const struct twm_func *func,
 			view->impl->close(view);
 		}
 		return;
-	case TWM_F_MENU:
-	case TWM_F_SQUEEZE:
-	case TWM_F_ICONIFY:
-	case TWM_F_LOG:
-	case TWM_F_DESKTOP:
+	case TWM_F_ICONIFY: /* FRM-13; from an icon it deiconifies */
+		if (view) {
+			view_set_iconified(view, !view->iconified);
+		}
+		return;
+	case TWM_F_SQUEEZE: /* FRM-14 */
+		if (view) {
+			view_set_squeezed(view, !view->squeezed);
+		}
+		return;
+	case TWM_F_DESKTOP: /* DSK-1 */
+		desktop_switch(server, func->num);
+		return;
 	case TWM_F_SEND:
+		desktop_send(server, view, func->num);
+		return;
+	case TWM_F_MENU:
+	case TWM_F_LOG:
 		not_yet(server, func->kind, "M4");
 		return;
 	case TWM_F_UNDO:

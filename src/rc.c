@@ -3,6 +3,7 @@
 #include <string.h>
 #include <time.h>
 #include <wlr/util/log.h>
+#include "desktop.h"
 #include "frame.h"
 #include "rc.h"
 #include "rootline.h"
@@ -131,6 +132,7 @@ void rc_apply(struct twm_server *server, const struct twm_config *old) {
 		root_update(output);
 	}
 	root_update_text(server);
+	desktops_reconfigure(server);
 	struct twm_view *view;
 	wl_list_for_each(view, &server->views, link) {
 		view_relayout(view);

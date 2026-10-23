@@ -17,6 +17,8 @@ bool grab_active(struct twm_server *server);
 void grab_begin_pending_move(struct twm_server *server, struct twm_view *view,
 	uint32_t button);
 void grab_begin_move(struct twm_server *server, struct twm_view *view, uint32_t button);
+/* ROOT-10: B2 drags a root icon. */
+void grab_begin_icon(struct twm_server *server, struct twm_view *view, uint32_t button);
 void grab_begin_resize(struct twm_server *server, struct twm_view *view,
 	uint32_t button, uint32_t edges);
 

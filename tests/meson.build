@@ -1,5 +1,5 @@
 # Unit tests: pure modules, no compositor (D-5).
-foreach name : ['theme', 'draw', 'squeeze', 'geometry', 'intent', 'twmrc', 'settings', 'geomem', 'snap', 'history']
+foreach name : ['theme', 'draw', 'squeeze', 'geometry', 'intent', 'twmrc', 'settings', 'geomem', 'snap', 'history', 'group']
   test('unit-' + name, executable(
     'test_' + name,
     'unit/test_@0@.c'.format(name),

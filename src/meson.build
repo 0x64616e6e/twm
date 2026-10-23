@@ -3,6 +3,7 @@ twm_core_src = files(
   'draw.c',
   'geomem.c',
   'geometry.c',
+  'hintcode.c',
   'history.c',
   'intent.c',
   'squeeze.c',

@@ -17,6 +17,7 @@ enum twm_grab_mode {
 	TWM_GRAB_PLACE,        /* outline hangs from the pointer */
 	TWM_GRAB_PLACE_SIZE,   /* B2 held during placement: drag out the size */
 	TWM_GRAB_ICON,         /* B2 dragging a root icon (ROOT-10) */
+	TWM_GRAB_TAB,          /* B2 dragging a tab out of a group (GRP-5) */
 };
 
 struct twm_grab {
@@ -32,6 +33,10 @@ struct twm_grab {
 	bool mod_held;      /* the modifier as of the last key event */
 	struct snap_result snap;
 	struct geo_box output; /* the output the outline is on */
+	/* GRP-1, GRP-2: a frame whose top edge is under the pointer */
+	struct twm_view *drop_target;
+	int drop_index;
+	bool dragged_off; /* GRP-5: the tab left its row */
 };
 
 #endif

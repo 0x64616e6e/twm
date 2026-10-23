@@ -53,6 +53,10 @@ void outline_init(struct twm_server *server) {
 	}
 	o->output_label = wlr_scene_buffer_create(o->guides, NULL);
 	wlr_scene_node_set_enabled(&o->guides->node, false);
+	o->float_tab = wlr_scene_buffer_create(server->layers[TWM_LAYER_OVERLAY], NULL);
+	o->drop_label = wlr_scene_buffer_create(server->layers[TWM_LAYER_OVERLAY], NULL);
+	wlr_scene_node_set_enabled(&o->float_tab->node, false);
+	wlr_scene_node_set_enabled(&o->drop_label->node, false);
 	server->outline = o;
 }
 
@@ -180,7 +184,62 @@ void outline_hide(struct twm_server *server) {
 	if (server->outline) {
 		wlr_scene_node_set_enabled(&server->outline->tree->node, false);
 		wlr_scene_node_set_enabled(&server->outline->guides->node, false);
+		wlr_scene_node_set_enabled(&server->outline->float_tab->node, false);
+		wlr_scene_node_set_enabled(&server->outline->drop_label->node, false);
 	}
+}
+
+int outline_tab_width(struct twm_server *server, const char *title) {
+	const struct twm_theme *t = &server->theme;
+	float scale = output_max_scale(server);
+	struct twm_font *f = font_get(t->ui_font, t->font_size, TWM_WEIGHT_MEDIUM, scale);
+	return (int)ceilf(text_width(f, title, 0) / scale) + 2 * t->title_pad;
+}
+
+int outline_drop(struct twm_server *server, double px, double py, const char *title,
+		const char *label) {
+	struct twm_outline *o = server->outline;
+	if (!o) {
+		return 0;
+	}
+	const struct twm_theme *t = &server->theme;
+	float scale = output_max_scale(server);
+	wlr_scene_node_set_enabled(&o->tree->node, false);
+	wlr_scene_node_set_enabled(&o->guides->node, false);
+	/* B2: graphite, ink text, a 1 px accent inset. */
+	int lw = outline_tab_width(server, title), lh = t->title_height;
+	int dw = (int)lroundf(lw * scale), dh = (int)lroundf(lh * scale);
+	struct twm_pixbuf *buf = pixbuf_create(dw, dh);
+	if (buf) {
+		struct twm_font *f = font_get(t->ui_font, t->font_size, TWM_WEIGHT_MEDIUM, scale);
+		draw_fill(buf->image, rgba_argb32(rgba_hex(t->graphite, 1)), 0, 0, dw, dh);
+		draw_box(buf->image, rgba_argb32(rgba_hex(t->accent, 1)), 0, 0, dw, dh,
+			draw_stroke(scale));
+		text_draw(buf->image, f, title, (int)lroundf(t->title_pad * scale),
+			text_baseline_centered(f, 0, dh), rgba_argb32(rgba_hex(t->ink, 1)), 0, 0);
+		wlr_scene_buffer_set_buffer(o->float_tab, &buf->base);
+		pixbuf_drop(buf);
+		wlr_scene_buffer_set_dest_size(o->float_tab, lw, lh);
+		/* The pointer holds it 80 % across, halfway down (B2). */
+		wlr_scene_node_set_position(&o->float_tab->node, (int)px - lw * 4 / 5, (int)py - lh / 2);
+		wlr_scene_node_set_enabled(&o->float_tab->node, true);
+		wlr_scene_node_raise_to_top(&o->float_tab->node);
+	}
+	struct twm_font *sf = font_get(t->ui_font, LABEL_SIZE, TWM_WEIGHT_REGULAR, scale);
+	int w = text_width(sf, label, 1.0f * scale);
+	buf = sf ? pixbuf_create(w > 0 ? w : 1, sf->height) : NULL;
+	if (buf) {
+		text_draw(buf->image, sf, label, 0, sf->ascent, rgba_argb32(rgba_hex(t->accent, 1)),
+			1.0f * scale, 0);
+		wlr_scene_buffer_set_buffer(o->drop_label, &buf->base);
+		pixbuf_drop(buf);
+		wlr_scene_buffer_set_dest_size(o->drop_label, (int)ceilf(w / scale),
+			(int)ceilf(sf->height / scale));
+		wlr_scene_node_set_position(&o->drop_label->node, (int)px + 40, (int)py + 34);
+		wlr_scene_node_set_enabled(&o->drop_label->node, true);
+		wlr_scene_node_raise_to_top(&o->drop_label->node);
+	}
+	return lw;
 }
 
 /* A 1 px dashed line, `len` logical px long (§2.4 dash: 3 on, 3 off). */

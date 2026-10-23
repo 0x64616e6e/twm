@@ -16,6 +16,7 @@
 #include "actions.h"
 #include "frame.h"
 #include "grab.h"
+#include "hints.h"
 #include "internal.h"
 #include "layers.h"
 #include "menu.h"
@@ -45,6 +46,13 @@ static bool handle_key(struct twm_server *server, struct wlr_keyboard *kb,
 		if (nsyms > 0) {
 			menu_key(server, syms[0]);
 		}
+		return true;
+	}
+	/* Hint mode holds the keyboard (HNT-5). */
+	if (hints_active(server)) {
+		char hu[16] = "";
+		xkb_state_key_get_utf8(kb->xkb_state, keycode, hu, sizeof(hu));
+		hints_key(server, nsyms > 0 ? syms[0] : XKB_KEY_NoSymbol, hu);
 		return true;
 	}
 	if (server->selecting && nsyms > 0 && syms[0] == XKB_KEY_Escape) {
@@ -305,6 +313,8 @@ static bool handle_press(struct twm_server *server, uint32_t button) {
 	if (b) {
 		struct action_ctx ctx = {
 			.view = view, .context = context, .button = button, .lx = lx, .ly = ly,
+			.tab = context == TWM_CTX_TITLE && view && view->frame ?
+				frame_member_at(view->frame, lx) : NULL,
 		};
 		action_run(server, &b->func, &ctx);
 		return true;
@@ -338,6 +348,9 @@ static void handle_cursor_button(struct wl_listener *listener, void *data) {
 	uint32_t bit = button_bit(event->button);
 
 	bool consumed;
+	if (pressed && hints_active(server)) {
+		hints_cancel(server); /* a click leaves hint mode and goes on */
+	}
 	if (menu_active(server)) {
 		/* MNU-1: the menu takes every button, the opening press's release too. */
 		menu_button(server, event->button, pressed);

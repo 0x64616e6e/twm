@@ -25,6 +25,7 @@
 #include <wlr/util/log.h>
 #include "histview.h"
 #include "imgr.h"
+#include "hints.h"
 #include "ipc.h"
 #include "layers.h"
 #include "logview.h"
@@ -221,6 +222,7 @@ void server_finish(struct twm_server *server) {
 	xwayland_finish(server);
 #endif
 	ipc_finish(server);
+	hints_finish(server);
 	menu_close_all(server);
 	select_cancel(server);
 	ui_finish(server);

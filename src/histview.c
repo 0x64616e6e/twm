@@ -5,6 +5,7 @@
 #include "desktop.h"
 #include "draw.h"
 #include "grab.h"
+#include "group.h"
 #include "histview.h"
 #include "internal.h"
 #include "pixbuf.h"
@@ -34,6 +35,7 @@ static const char *grab_op_name(enum twm_grab_mode mode) {
 	case TWM_GRAB_RESIZE: return "resize";
 	case TWM_GRAB_PLACE:
 	case TWM_GRAB_PLACE_SIZE: return "place";
+	case TWM_GRAB_TAB: return "ungroup";
 	case TWM_GRAB_ICON:
 	case TWM_GRAB_NONE: break;
 	}
@@ -223,9 +225,19 @@ void histview_record(struct twm_server *server, enum hist_op op, struct twm_view
 }
 
 struct hist_state hist_state_of(struct twm_view *view) {
+	uint64_t with = 0;
+	if (view->group) {
+		struct twm_view *m;
+		wl_list_for_each(m, &view->group->members, group_link) {
+			if (m != view) {
+				with = m->id;
+				break;
+			}
+		}
+	}
 	return (struct hist_state){
 		view->x, view->y, view->width, view->height,
-		view->desktop, view->iconified, view->squeezed,
+		view->desktop, view->iconified, view->squeezed, with,
 	};
 }
 

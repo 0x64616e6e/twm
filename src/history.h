@@ -32,6 +32,7 @@ struct hist_state {
 	int w, h; /* client size */
 	int desktop;
 	bool iconified, squeezed;
+	uint64_t group_with; /* another member of its group; 0 = alone */
 };
 
 bool hist_state_equal(struct hist_state a, struct hist_state b);

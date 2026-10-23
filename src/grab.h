@@ -17,6 +17,8 @@ bool grab_active(struct twm_server *server);
 void grab_begin_pending_move(struct twm_server *server, struct twm_view *view,
 	uint32_t button);
 void grab_begin_move(struct twm_server *server, struct twm_view *view, uint32_t button);
+/* GRP-5: B2 drags one tab of a group. */
+void grab_begin_tab(struct twm_server *server, struct twm_view *member, uint32_t button);
 /* ROOT-10: B2 drags a root icon. */
 void grab_begin_icon(struct twm_server *server, struct twm_view *view, uint32_t button);
 void grab_begin_resize(struct twm_server *server, struct twm_view *view,

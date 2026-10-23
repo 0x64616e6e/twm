@@ -21,6 +21,7 @@ twm_src = twm_core_src + files(
   'frame.c',
   'grab.c',
   'group.c',
+  'hints.c',
   'histview.c',
   'icons.c',
   'imgr.c',

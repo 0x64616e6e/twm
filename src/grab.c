@@ -11,6 +11,7 @@
 #include "desktop.h"
 #include "frame.h"
 #include "grab.h"
+#include "group.h"
 #include "icons.h"
 #include "layers.h"
 #include "histview.h"
@@ -89,10 +90,19 @@ static bool opaque(struct twm_server *server) {
 	return server->config->opaque_move && g->mode == TWM_GRAB_MOVE; /* OUT-11 */
 }
 
+static bool show_drop(struct twm_server *server);
+
 static void show_outline(struct twm_server *server) {
 	struct twm_grab *g = &server->grab;
 	if (g->mode == TWM_GRAB_PENDING_MOVE || g->mode == TWM_GRAB_ICON) {
 		return;
+	}
+	if (show_drop(server)) {
+		return;
+	}
+	if (server->outline) {
+		wlr_scene_node_set_enabled(&server->outline->float_tab->node, false);
+		wlr_scene_node_set_enabled(&server->outline->drop_label->node, false);
 	}
 	char olabel[96];
 	output_label(server, olabel, sizeof(olabel));
@@ -104,6 +114,58 @@ static void show_outline(struct twm_server *server) {
 	}
 	char hint[128];
 	outline_show(server, g->box, view_title(g->view), hint_for(g, hint, sizeof(hint)));
+}
+
+/* GRP-1: the frame whose top edge (its title band, across its width) is
+ * under the pointer, other than the dragged window's own. */
+static struct twm_view *drop_target_at(struct twm_server *server, double px, double py) {
+	struct twm_grab *g = &server->grab;
+	struct twm_view *v;
+	wl_list_for_each(v, &server->views, link) { /* top of the stack first */
+		if (!view_visible(v) || v == g->view || v->utility || v->notitle ||
+				(g->view->group && v->group == g->view->group)) {
+			continue;
+		}
+		struct wlr_box f = view_frame_box(v);
+		int th = server->theme.title_height;
+		if (px >= f.x && px < f.x + f.width && py >= f.y && py < f.y + th) {
+			return v;
+		}
+		if (px >= f.x && px < f.x + f.width && py >= f.y && py < f.y + f.height) {
+			return NULL; /* over the body of a window in front */
+		}
+	}
+	return NULL;
+}
+
+static void set_drop_target(struct twm_server *server, struct twm_view *target, int index) {
+	struct twm_grab *g = &server->grab;
+	if (g->drop_target && (g->drop_target != target || g->drop_index != index)) {
+		frame_set_slot(g->drop_target->frame, -1, 0);
+	}
+	g->drop_target = target;
+	g->drop_index = index;
+	if (target) {
+		frame_set_slot(target->frame, index, outline_tab_width(server, view_title(g->view)));
+	}
+}
+
+/* GRP-2: over a target, a floating tab and a slot replace the outline. */
+static bool show_drop(struct twm_server *server) {
+	struct twm_grab *g = &server->grab;
+	bool may = (g->mode == TWM_GRAB_TAB && g->dragged_off) ||
+		(g->mode == TWM_GRAB_MOVE && !g->view->group && !g->view->utility);
+	struct twm_view *t = may ? drop_target_at(server, server->cursor->x, server->cursor->y) : NULL;
+	if (!t) {
+		set_drop_target(server, NULL, 0);
+		return false;
+	}
+	set_drop_target(server, t, frame_insert_at(t->frame, server->cursor->x));
+	size_t n = t->group ? group_size(t->group) : 1;
+	char label[48];
+	snprintf(label, sizeof(label), "DROP \xe2\x86\x92 GROUP OF %zu", n + 1);
+	outline_drop(server, server->cursor->x, server->cursor->y, view_title(g->view), label);
+	return true;
 }
 
 /* SNP-1, SNP-7: snap the raw outline unless snapping is off or M is down. */
@@ -174,6 +236,11 @@ void grab_begin_move(struct twm_server *server, struct twm_view *view, uint32_t 
 	histview_changed(server);
 	wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "move");
 	show_outline(server);
+}
+
+void grab_begin_tab(struct twm_server *server, struct twm_view *member, uint32_t button) {
+	begin(server, member, button, TWM_GRAB_TAB);
+	histview_changed(server);
 }
 
 void grab_begin_icon(struct twm_server *server, struct twm_view *view, uint32_t button) {
@@ -268,7 +335,32 @@ static void commit(struct twm_server *server) {
 		after.h = g->start_h;
 	}
 	bool record = g->mode != TWM_GRAB_PENDING_MOVE && g->mode != TWM_GRAB_NONE &&
-		g->mode != TWM_GRAB_ICON;
+		g->mode != TWM_GRAB_ICON && g->mode != TWM_GRAB_TAB;
+	if (g->drop_target) {
+		/* GRP-1: join the group whose edge it was dropped on. */
+		struct twm_view *target = g->drop_target;
+		int index = g->drop_index;
+		set_drop_target(server, NULL, 0);
+		struct hist_state hb = hist_state_of(view);
+		group_join(view, target, index);
+		histview_record(server, HIST_GROUP, view, hb, hist_state_of(view));
+		end_grab(server);
+		return;
+	}
+	if (g->mode == TWM_GRAB_TAB) {
+		if (g->dragged_off) {
+			/* GRP-5: out of the group, at its outline. */
+			struct hist_state hb = hist_state_of(view);
+			group_leave(view);
+			view_move(view, g->box.x, g->box.y);
+			view_raise(view);
+			view_focus(view);
+			remember_record(server, view);
+			histview_record(server, HIST_UNGROUP, view, hb, hist_state_of(view));
+		}
+		end_grab(server);
+		return;
+	}
 	switch (g->mode) {
 	case TWM_GRAB_MOVE:
 		view_move(view, g->box.x, g->box.y);
@@ -282,6 +374,7 @@ static void commit(struct twm_server *server) {
 		break;
 	case TWM_GRAB_PENDING_MOVE:
 	case TWM_GRAB_ICON:
+	case TWM_GRAB_TAB:
 	case TWM_GRAB_NONE:
 		break;
 	}
@@ -343,6 +436,7 @@ static void cancel(struct twm_server *server) {
 	if (opaque(server)) {
 		view_move(g->view, g->start.x, g->start.y); /* OUT-6: unchanged */
 	}
+	set_drop_target(server, NULL, 0);
 	end_grab(server);
 }
 
@@ -360,6 +454,20 @@ void grab_motion(struct twm_server *server) {
 		/* ROOT-10: icons move directly, no outline. */
 		icon_move(g->view, g->start.x + ix, g->start.y + iy);
 		return;
+	case TWM_GRAB_TAB: {
+		/* GRP-5: nothing until it leaves the row; then its outline hangs
+		 * from the pointer, as a new window's does (OUT-12). */
+		struct wlr_box f = view_frame_box(g->view);
+		int th = server->theme.title_height;
+		double px = server->cursor->x, py = server->cursor->y;
+		if (!g->dragged_off && px >= f.x && px < f.x + f.width && py >= f.y && py < f.y + th) {
+			return;
+		}
+		g->dragged_off = true;
+		g->box.x = (int)lround(px);
+		g->box.y = (int)lround(py);
+		break;
+	}
 	case TWM_GRAB_PENDING_MOVE:
 		if (dx * dx + dy * dy < DRAG_THRESHOLD * DRAG_THRESHOLD) {
 			return;
@@ -486,7 +594,11 @@ void grab_view_gone(struct twm_server *server, struct twm_view *view) {
 		wl_list_init(&view->place_link);
 		view->placing = false;
 	}
+	if (server->grab.drop_target == view) {
+		set_drop_target(server, NULL, 0);
+	}
 	if (server->grab.view == view) {
+		set_drop_target(server, NULL, 0);
 		server->grab = (struct twm_grab){0};
 		outline_hide(server);
 		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "default");

@@ -7,6 +7,7 @@
 #include "frame.h"
 #include "grab.h"
 #include "group.h"
+#include "hints.h"
 #include "icons.h"
 #include "internal.h"
 #include "layers.h"
@@ -227,6 +228,7 @@ void view_unmap(struct twm_view *view) {
 	grab_view_gone(server, view);
 	remember_record(server, view);
 	group_leave(view);
+	hints_view_gone(server, view);
 	icon_destroy(view);
 	view->iconified = false;
 	view->mapped = false;

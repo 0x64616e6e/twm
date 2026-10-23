@@ -58,7 +58,8 @@ const struct hist_entry *history_newest(const struct history *h, size_t i) {
 
 bool hist_state_equal(struct hist_state a, struct hist_state b) {
 	return a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h &&
-		a.desktop == b.desktop && a.iconified == b.iconified && a.squeezed == b.squeezed;
+		a.desktop == b.desktop && a.iconified == b.iconified && a.squeezed == b.squeezed &&
+		a.group_with == b.group_with;
 }
 
 const char *history_op_name(enum hist_op op) {

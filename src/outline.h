@@ -27,6 +27,10 @@ struct twm_outline {
 	struct wlr_scene_buffer *line[2];    /* snapped: vertical, horizontal */
 	struct wlr_scene_buffer *line_label[2];
 	struct wlr_scene_buffer *output_label;
+
+	/* GRP-2: the dragged tab and its label */
+	struct wlr_scene_buffer *float_tab;
+	struct wlr_scene_buffer *drop_label;
 };
 
 void outline_init(struct twm_server *server);
@@ -42,5 +46,12 @@ void outline_hide(struct twm_server *server);
  * scale in the corner. */
 void outline_guides(struct twm_server *server, struct geo_box out,
 	const struct snap_result *snap, bool thirds, const char *output_label);
+
+/* GRP-2: a floating tab titled `title` with the pointer at (px, py), and
+ * `label` (DROP → GROUP OF N) beside it; returns the tab's logical width. */
+int outline_drop(struct twm_server *server, double px, double py, const char *title,
+	const char *label);
+/* The width a tab titled `title` takes (for the drop slot). */
+int outline_tab_width(struct twm_server *server, const char *title);
 
 #endif

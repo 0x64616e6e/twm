@@ -10,6 +10,7 @@ struct action_ctx {
 	struct twm_view *view;   /* the window under the pointer, or focused */
 	enum twm_context context;
 	uint32_t button;         /* 0 for keys */
+	struct twm_view *tab;    /* the group member whose tab was clicked */
 	double lx, ly;           /* pointer, layout coordinates */
 };
 

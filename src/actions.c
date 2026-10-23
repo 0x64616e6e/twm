@@ -5,6 +5,8 @@
 #include "actions.h"
 #include "desktop.h"
 #include "grab.h"
+#include "group.h"
+#include "hints.h"
 #include "histview.h"
 #include "logview.h"
 #include "menu.h"
@@ -54,12 +56,18 @@ void action_run(struct twm_server *server, const struct twm_func *func,
 		if (view && !grab_active(server)) {
 			if (ctx->context == TWM_CTX_ICON) {
 				grab_begin_icon(server, view, ctx->button); /* ROOT-10 */
+			} else if (ctx->tab && ctx->tab->group && ctx->button) {
+				grab_begin_tab(server, ctx->tab, ctx->button); /* GRP-5 */
 			} else {
 				grab_begin_move(server, view, ctx->button);
 			}
 		}
 		return;
 	case TWM_F_RAISEMOVE:
+		if (ctx->tab && ctx->tab->group && ctx->tab != view) {
+			group_activate(ctx->tab); /* GRP-4 */
+			view = ctx->tab;
+		}
 		if (view && !grab_active(server)) {
 			view_raise(view);
 			view_focus(view);
@@ -116,8 +124,10 @@ void action_run(struct twm_server *server, const struct twm_func *func,
 			view_set_iconified(view, !view->iconified);
 		}
 		return;
-	case TWM_F_SQUEEZE: /* FRM-14 */
-		if (view) {
+	case TWM_F_SQUEEZE: /* FRM-14; on a group it folds the tabs (GRP-6) */
+		if (view && view->group) {
+			group_set_folded(view->group, !view->group->folded);
+		} else if (view) {
 			view_set_squeezed(view, !view->squeezed);
 		}
 		return;
@@ -142,9 +152,11 @@ void action_run(struct twm_server *server, const struct twm_func *func,
 	case TWM_F_HISTORY:
 		histview_toggle(server); /* HIS-3 */
 		return;
-	case TWM_F_HINTS:
-	case TWM_F_NEXTTAB:
-		not_yet(server, func->kind, "M5");
+	case TWM_F_NEXTTAB: /* GRP-4 */
+		group_cycle(view, 1);
+		return;
+	case TWM_F_HINTS: /* HNT-1 */
+		hints_begin(server);
 		return;
 	case TWM_F_URGENT:
 		not_yet(server, func->kind, "M6");

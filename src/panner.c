@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "desktop.h"
 #include "draw.h"
+#include "group.h"
 #include "internal.h"
 #include "panner.h"
 #include "pixbuf.h"
@@ -110,7 +111,8 @@ static void render(struct twm_internal_view *iv, float scale, struct twm_pixbuf 
 		/* Miniatures, bottom of the stack first so the top one wins. */
 		struct twm_view *v;
 		wl_list_for_each_reverse(v, &server->views, link) {
-			if (v->type == TWM_VIEW_INTERNAL || v->iconified || v->desktop != d) {
+			if (v->type == TWM_VIEW_INTERNAL || v->iconified || v->desktop != d ||
+					view_hidden_member(v)) {
 				continue;
 			}
 			struct wlr_box f = view_frame_box(v);

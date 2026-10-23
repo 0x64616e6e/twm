@@ -128,6 +128,23 @@ static void set_iconified(struct twm_view *view, bool iconified) {
 
 void view_apply_state(struct twm_view *view, struct hist_state s) {
 	struct twm_server *server = view->server;
+	/* GRP-8: grouping first; a joined window takes the group's place. */
+	if (!s.group_with && view->group) {
+		group_leave(view);
+	} else if (s.group_with) {
+		struct twm_view *w;
+		wl_list_for_each(w, &server->views, link) {
+			if (w->id == s.group_with && (!view->group || view->group != w->group)) {
+				struct twm_view *target = w->group ? w->group->active : w;
+				group_join(view, target, -1);
+				break;
+			}
+		}
+		if (view->group) {
+			ui_changed(server);
+			return;
+		}
+	}
 	view_move_resize(view, s.x, s.y, s.w, s.h);
 	if (!view->sticky && s.desktop >= 1 && s.desktop <= desktop_count(server)) {
 		view->desktop = s.desktop;
@@ -178,6 +195,9 @@ void view_set_squeezed(struct twm_view *view, bool squeezed) {
 
 void view_present(struct twm_view *view) {
 	struct twm_server *server = view->server;
+	if (view_hidden_member(view)) {
+		group_activate(view); /* a tab of a group: bring it to the front */
+	}
 	if (!view->sticky && view->desktop != server->desktop) {
 		desktop_switch(server, view->desktop);
 	}

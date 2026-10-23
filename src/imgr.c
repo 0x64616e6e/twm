@@ -11,6 +11,7 @@
 #include "actions.h"
 #include "desktop.h"
 #include "draw.h"
+#include "group.h"
 #include "icons.h"
 #include "imgr.h"
 #include "internal.h"
@@ -348,6 +349,7 @@ static size_t list_views(struct twm_server *server, struct twm_view **out, size_
 	struct twm_view *v;
 	wl_list_for_each(v, &server->views, link) {
 		if (n < cap && v->type != TWM_VIEW_INTERNAL && v->iconified == iconified &&
+				!view_hidden_member(v) &&
 				(iconified || v->sticky || v->desktop == server->desktop)) {
 			out[n++] = v;
 		}
@@ -369,8 +371,22 @@ static size_t list_views(struct twm_server *server, struct twm_view **out, size_
 }
 
 /* A count from the title, like ROOT-9's "(4)". */
+/* IMG-3, GRP-7: a group is one row, "foot ×2". */
+static const char *row_title(struct twm_view *v, char *buf, size_t len) {
+	if (v->group && group_size(v->group) > 1) {
+		const char *id = v->impl->get_app_id(v);
+		snprintf(buf, len, "%s \xc3\x97%zu", id && *id ? id : view_title(v), group_size(v->group));
+		return buf;
+	}
+	return view_title(v);
+}
+
 static void right_label(struct twm_view *v, char *buf, size_t len) {
 	buf[0] = '\0';
+	if (v->group && group_size(v->group) > 1 && !v->urgent) {
+		snprintf(buf, len, "tabs");
+		return;
+	}
 	char label[64];
 	icon_label(v->impl->get_title(v), NULL, false, label, sizeof(label));
 	const char *dot = strstr(label, " \xc2\xb7 ");
@@ -482,7 +498,8 @@ static void draw_rest(struct imgr *im, pixman_image_t *img, float scale) {
 			int rw = *right ? text_width(font, right, 0) : 0;
 			int base = text_baseline_centered(font, S(y), S(ROW_H));
 			int tx = S(ROW_PAD + MARK + ROW_GAP);
-			text_draw(img, font, view_title(v), tx, base, argb(fg), 0,
+			char rt[96];
+			text_draw(img, font, row_title(v, rt, sizeof(rt)), tx, base, argb(fg), 0,
 				S(IM_W - ROW_PAD) - tx - (rw ? rw + S(ROW_GAP) : 0));
 			if (*right) {
 				uint32_t rc = v->urgent ? t->accent : t->dim;

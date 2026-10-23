@@ -14,7 +14,7 @@ jobs:
         run: |
           pacman -Syu --noconfirm --needed base-devel git meson ninja \
             wlroots0.20 wayland wayland-protocols libxkbcommon pixman fcft \
-            xorg-xwayland ttf-ibm-plex
+            xorg-xwayland ttf-ibm-plex systemd-libs dbus
       - uses: actions/checkout@v4
       - name: Build
         run: |
@@ -45,7 +45,8 @@ jobs:
             libinput-dev libudev-dev libgbm-dev libegl-dev libgles-dev \
             libliftoff-dev liblcms2-dev xwayland libxcb1-dev libxcb-composite0-dev \
             libxcb-icccm4-dev libxcb-res0-dev libxcb-ewmh-dev libxcb-xfixes0-dev \
-            libxcb-render0-dev libxcb-xinput-dev libxcb-errors-dev fonts-ibm-plex
+            libxcb-render0-dev libxcb-xinput-dev libxcb-errors-dev fonts-ibm-plex \
+            libsystemd-dev dbus-daemon
       - uses: actions/checkout@v4
       - name: Build
         run: |
@@ -73,7 +74,7 @@ jobs:
           prepare: |
             pkg install -y git meson ninja pkgconf python3 wayland wayland-protocols \
               libxkbcommon pixman fcft libdrm libinput libseat libdisplay-info hwdata \
-              mesa-libs libliftoff lcms2 xwayland evdev-proto libepoll-shim
+              mesa-libs libliftoff lcms2 xwayland evdev-proto libepoll-shim basu dbus
             pkg install -y wlroots020 || echo "no wlroots020 package; using the subproject"
             pkg install -y ibm-plex || echo "IBM Plex not packaged; tests use the fallback font"
           run: |

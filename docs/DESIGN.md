@@ -688,7 +688,21 @@ accent can change:
   `grim`) gets a root line that stays while it captures:
   `capture  grim is recording DP-1`.
 - **CAP-4** `[M6]` *Decided:* the 7 px dot is the only round shape in the UI;
-  it is a dot, not a rounded corner, and is drawn as on B6.
+  it is a dot, not a rounded corner, and is drawn as on B6. So the trusted
+  frame's choice rows use square markers, not round radio buttons.
+- **CAP-5** `[M6]` *Decided:* what twm can see, it marks: wlr-screencopy
+  frames and ext-image-copy-capture sessions, per client; a client counts as
+  capturing until 2 s after its last frame. A tab inside a group carries the
+  marker in the group's row (the title gives way, the marker keeps its
+  width), and the group's Icon Manager row says `SCREEN` when any tab
+  captures. *Not yet:* portal ScreenCast is captured by
+  xdg-desktop-portal-wlr, so twm sees xdpw capturing (a CAP-3 root line), not
+  the app that asked; marking the app itself, and `MIC`/camera, needs twm's
+  own ScreenCast backend, which means PipeWire — a dependency question for
+  the owner (§7).
+- **CAP-6** `[M6]` *Decided:* `--test` only: the startup command (the test
+  program) is trusted, its own screenshots go unmarked. Every other client,
+  including the test's child processes, is marked as usual.
 
 ### TRU — the trusted frame
 
@@ -711,6 +725,39 @@ accent can change:
   `on-accent` 600 text; buttons 38 high.
 - **TRU-6** `[M6 · B6]` Strings that come from a client (app name, origin) are
   drawn verbatim in `ink-2`, never in the prompt's heading style.
+- **TRU-7** `[M6]` *Decided — how prompts behave:*
+  - The heading is always twm's own words, fixed per kind of prompt:
+    `Choose what to share` (screen-share chooser), `An app asks for
+    permission` (portal Access). The asker's words follow on one or two
+    `ink-2` lines, newlines flattened. Button labels are twm's too
+    (`Deny`/`Share`, `Deny`/`Allow`): the portal's `grant_label` and
+    `deny_label` are ignored, or an app could label Allow "Deny". Choice rows
+    show the options as given (they are what is being chosen).
+  - One prompt at a time, in arrival order; the others wait. Opening one
+    cancels any move, resize, menu, hint mode or click-to-select; windows
+    waiting for click-to-place wait until it closes. New windows don't get
+    the focus while it is open. On close, focus returns to the window that
+    had it.
+  - Centred on the output under the pointer; it can't be moved, iconified
+    or resized. Up/Down choose, Space ticks the checkbox, Return grants, Esc
+    denies; B1 on a row, the checkbox or a button.
+  - Synthetic input (TRU-4) is dropped while a prompt is up — pointer
+    motion too, so a remote tool can't even move the cursor. *Test mode:*
+    with `--test`, the startup command's own virtual keyboard and pointer are
+    trusted so the headless tests can answer prompts; any other client's are
+    not. Outside a prompt, virtual input works as before (D-6).
+- **TRU-8** `[M6]` *Decided — where prompts come from:*
+  - `twm --choose [who]`: a dmenu-style chooser for xdg-desktop-portal-wlr
+    (`chooser_type=dmenu`, `chooser_cmd=twm --choose`). Lines from stdin
+    become rows; the chosen line, verbatim, goes to stdout; Deny or Esc
+    prints nothing and exits 1. It talks to twm over the IPC socket (D-8).
+  - The portal backend `org.freedesktop.impl.portal.desktop.twm` serves
+    `org.freedesktop.impl.portal.Access`: the first choice with options
+    becomes rows (its label the legend), the first boolean choice the
+    checkbox; `Request.Close` withdraws the prompt.
+  - *Not yet:* polkit password prompts. A polkit agent needs
+    libpolkit-agent (or reimplementing its helper protocol), a dependency
+    question for the owner (§7). The trusted frame is ready for it.
 
 ### SET — settings, as a file
 
@@ -836,7 +883,21 @@ Pointer (FRM-12, OUT-8, OUT-9, ROOT-4): see those requirements.
   columns, hatch period, border colors, dash pattern). Text pixels are
   checked for presence, not exact glyph shapes, because font builds differ.
 - **D-8 IPC.** One UNIX socket (CFG-12), line-based, for `--reload` and
-  future tools. No D-Bus in the compositor until M6 (see §7).
+  `--choose` (whose request runs to an empty line and is answered when the
+  prompt closes; hanging up withdraws the prompt).
+- **D-10 D-Bus** `[M6]`. Through the sd-bus API: libsystemd on Linux, basu on
+  FreeBSD (owner's choice); `-Dportal=disabled` builds without. Without a
+  session bus, twm skips all of it. It serves the portal backend (TRU-8) and,
+  when the name is free and `Notifications` is on, `org.freedesktop.
+  Notifications`: each notification is one root line (`HH:MM  app  summary —
+  body`), critical ones in `accent`; no actions, no icons, no toasts
+  (ROOT-7). *Decided:* when twm is the session — not nested in another
+  Wayland or X11 session, not headless — it sets `XDG_CURRENT_DESKTOP=twm`
+  and pushes `WAYLAND_DISPLAY`, `DISPLAY`, `XDG_CURRENT_DESKTOP` and
+  `TWM_SOCK` into the D-Bus and systemd activation environments, so portals
+  started on demand find this display. Nested, it leaves the outer session's
+  environment alone. `data/twm-portals.conf` routes Access to twm and
+  ScreenCast/Screenshot to xdpw; screenshot tests run on a private bus.
 - **D-9 Config file watching.** Watch the containing directory (inotify /
   kqueue) and re-read when the file's identity or mtime changes.
 
@@ -879,6 +940,7 @@ each milestone; CFG-3 says an unlisted key is an error.
 | `Panner` | `{ desktops 4 }` | desktops N, on/off | DSK-1 |
 | `Quiet` | `{ }` | desktop numbers | URG-3 |
 | `XWayland` | `on` | on/off (takes effect at the next start) | GEN-6 |
+| `Notifications` | `on` | on/off: serve `org.freedesktop.Notifications` as root lines, if no one else does | D-10 |
 | `NoDefaultBindings` | — | no value | CFG-14 |
 | `ButtonN = context : function` | see KEY | contexts: root, title, iconify, resize, window, icon, iconmgr | FRM-12 |
 | `"key" : function` | see KEY | | KEY |
@@ -944,10 +1006,11 @@ Places where a board could be read more than one way, and the reading taken.
 
 ## 7. Open questions for the owner
 
-- **License** — undecided. MIT would match twm's X11 license and wlroots.
-- **Future dependencies** — the M6 portal backend (screen-share picker,
-  consent) and polkit prompts speak D-Bus, so M6 will need a D-Bus library
-  (sd-bus, basu on FreeBSD, or libdbus). To be asked before M6.
+- **License** — *decided:* MIT.
+- **Future dependencies** — *Decided:* sd-bus (libsystemd / basu) for M6.
+  Still open: **PipeWire**, for twm's own ScreenCast backend (marking the app
+  that shares, not xdpw; camera and microphone markers, CAP-5), and
+  **libpolkit-agent**, for password prompts in the trusted frame (TRU-8).
 - **Settings window** (M7) — drawn by the compositor like the Icon Manager
   (no new deps), or a separate client. Leaning compositor-drawn; decided at M7.
 - **Binary name** — `/usr/bin/twm` clashes with the X11 `twm` package on

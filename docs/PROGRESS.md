@@ -2,6 +2,81 @@
 
 Newest milestone first. Requirement IDs refer to [DESIGN.md](DESIGN.md).
 
+## M6 — Polite urgency, capture markers, the trusted frame (2026-10-24)
+
+**Done**
+
+- Polite urgency (URG-1…5): asking for attention never takes the focus; the
+  frame and the Icon Manager show it. `M-u` goes to the oldest urgent window
+  (switching desktop, deiconifying) and `M-u` again comes back. Quiet
+  desktops (`Quiet { 2 }`, or B3 on a desktop button) hold their windows'
+  urgency, shown as `quiet`, until you visit.
+- Capture markers (CAP-1…6): a client capturing through wlr-screencopy or
+  ext-image-copy-capture gets `● SCREEN` in its tab and on its Icon Manager
+  row, until 2 s after its last frame; inside a tab group too. A capture with
+  no window writes a root line that stays while it lasts
+  (`capture  grim is recording DP-1`). No setting turns them off.
+- The trusted frame (TRU-1…8): prompts only twm draws, as on B6 — accent
+  border, a 10 px weave band, a lock in the tab, `system · <purpose>`, hatch,
+  no resize box, the desktop dimmed 35 %. While one is open every key and
+  button goes to it, clients get neither focus nor pointer, and virtual
+  keyboards and pointers go nowhere (only `--test`'s own program may answer,
+  so the tests can). Prompts queue; focus comes back when they close.
+- `twm --choose`: a dmenu-style chooser for xdg-desktop-portal-wlr, so screen
+  sharing asks in the trusted frame.
+- D-Bus through sd-bus (libsystemd, or basu on FreeBSD): the portal backend
+  `org.freedesktop.impl.portal.desktop.twm` answers Access dialogs (choices
+  as rows and a checkbox, `Request.Close` withdraws); notifications become
+  root lines when no other daemon runs (`Notifications on|off`); as the
+  session, twm updates the D-Bus/systemd activation environment. Portal
+  files in `data/`.
+
+**Screenshot test** `shot-m6_calm` (32 checks): held urgency on a quiet
+desktop (`M-u` has nowhere to go), asking without taking focus, the urgent
+outline, `M-u` there and back, the visit releasing held urgency; a helper
+process capturing gets the marker in its tab and Icon Manager row, keeps it
+when grouped (whichever tab is in front), loses it when it stops; a
+windowless capture's root line comes and goes; the chooser's anatomy (accent
+frame, weave band, lock, no resize box, the dim), another client's synthetic
+click and Return ignored, Down/Return printing the chosen line, focus coming
+back, Esc denying; an Access dialog over D-Bus answered with its choices,
+`Request.Close` withdrawing one; a notification as a root line. Tests now run
+on a private D-Bus (`dbus-run-session`). All 19 suites stable over repeated
+runs and under load; the build without D-Bus (`-Dportal=disabled`) compiles.
+
+![The screen-share chooser in the trusted frame, as on B6](shots/m6-trusted.png)
+
+![A portal Access dialog](shots/m6-access.png)
+
+![A capturing window's tab](shots/m6-capture.png)
+
+![The Icon Manager: SCREEN on the row, desktop 2 quiet](shots/m6-imgr.png)
+
+![A capture with no window](shots/m6-capture-root.png)
+
+**Decided along the way** (recorded in DESIGN.md): CAP-4 (square markers in
+prompts, not radio circles), CAP-5 (what twm can mark, groups), CAP-6 and
+TRU-7 (`--test` trusts its own program only), TRU-7 (headings and buttons
+are twm's words; portal button labels ignored), TRU-8 (the chooser, the
+Access mapping), D-10 (D-Bus, notifications, activation environment only
+when twm is the session).
+
+**Found along the way**: a capturing window in a tab group lost its marker
+(the row didn't redraw for a hidden tab, and the Icon Manager said `tabs`);
+both fixed, and the test covers it. The fix also redraws a group's row when
+a hidden tab's title changes.
+
+**Not done yet / not verified**
+- Portal ScreenCast is captured by xdg-desktop-portal-wlr, so the marker
+  names xdpw (a root line), not the app sharing. Marking the app, and
+  `MIC`/camera markers, need twm's own ScreenCast backend with PipeWire — a
+  new dependency, your call.
+- Polkit password prompts: the frame is ready, the agent needs
+  libpolkit-agent — also your call.
+- Not tried against a real xdg-desktop-portal and xdpw in a desktop session
+  (the tests call the backend over D-Bus directly); FreeBSD/basu only in CI,
+  which still hasn't run (no git remote).
+
 ## M5 — Tab groups and hint mode (2026-10-24)
 
 **Done**

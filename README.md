@@ -20,8 +20,9 @@ ninja -C build
 ```
 
 Dependencies: wlroots 0.20, wayland, wayland-protocols, xkbcommon, pixman,
-fcft (fontconfig, freetype, harfbuzz), libinput; Xwayland for X11 clients.
-The UI font is IBM Plex Mono.
+fcft (fontconfig, freetype, harfbuzz), libinput; Xwayland for X11 clients;
+sd-bus for the portal backend and notifications (libsystemd on Linux, basu on
+FreeBSD; `-Dportal=disabled` to build without). The UI font is IBM Plex Mono.
 
 ## Run
 
@@ -49,6 +50,8 @@ The UI font is IBM Plex Mono.
 | B2-drag a tab off its row | it stands alone again |
 | `M-;` then a letter | hint mode: jump to the window with that letter |
 | `M-n` | recent messages |
+| `M-u` | go to the window that asked for attention; again to come back |
+| B3 on a desktop button in the Icon Manager | make that desktop quiet (its windows' requests wait until you visit) |
 | `M-z`, `M-S-z` | undo / redo the focused window's last move, resize, iconify, squeeze, send |
 | `M-S-h` | the history view |
 | hold `M` while dragging | move freely; otherwise outlines snap to edges and thirds |
@@ -85,6 +88,26 @@ twm --reload
 ```
 
 Window positions are remembered per app id in `$XDG_STATE_HOME/twm/geometry`.
+
+## Privacy and prompts
+
+A window never takes the focus because it asked: it is marked, and `M-u`
+goes there. A window whose app is capturing the screen says `SCREEN` in its
+tab and in the Icon Manager, and a capture with no window writes a line on
+the desktop; neither can be turned off.
+
+Consent dialogs appear in twm's *trusted frame*, which no app can draw: a
+lock in the tab, a dotted band inside an accent border, the desktop dimmed
+behind it. While it is open all input goes to it, and synthetic input (remote
+tools, virtual keyboards) goes nowhere.
+
+- Portal access dialogs: install twm (it ships `twm.portal` and
+  `twm-portals.conf` for xdg-desktop-portal).
+- Screen sharing through xdg-desktop-portal-wlr: copy
+  `data/xdg-desktop-portal-wlr.conf` to `~/.config/xdg-desktop-portal-wlr/twm`
+  so xdpw asks with `twm --choose`.
+- Notifications (`notify-send`) become desktop lines, if no other
+  notification daemon runs (`Notifications off` to leave them alone).
 
 ## Test
 

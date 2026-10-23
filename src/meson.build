@@ -26,6 +26,7 @@ twm_src = twm_core_src + files(
   'internal.c',
   'ipc.c',
   'main.c',
+  'menu.c',
   'outline.c',
   'output.c',
   'panner.c',

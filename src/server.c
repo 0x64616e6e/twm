@@ -26,6 +26,7 @@
 #include "histview.h"
 #include "imgr.h"
 #include "ipc.h"
+#include "menu.h"
 #include "panner.h"
 #include "ui.h"
 #include "outline.h"
@@ -216,6 +217,8 @@ void server_finish(struct twm_server *server) {
 	xwayland_finish(server);
 #endif
 	ipc_finish(server);
+	menu_close_all(server);
+	select_cancel(server);
 	ui_finish(server);
 	imgr_finish(server);
 	panner_finish(server);

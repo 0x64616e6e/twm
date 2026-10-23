@@ -17,6 +17,7 @@
 #include "frame.h"
 #include "grab.h"
 #include "internal.h"
+#include "menu.h"
 #include "view.h"
 
 struct twm_keyboard {
@@ -37,6 +38,17 @@ static bool handle_key(struct twm_server *server, struct wlr_keyboard *kb,
 		if (grab_key(server, syms[i], mods)) {
 			return true;
 		}
+	}
+	/* An open menu holds the keyboard (MNU-6); so does selecting (MNU-5). */
+	if (menu_active(server)) {
+		if (nsyms > 0) {
+			menu_key(server, syms[0]);
+		}
+		return true;
+	}
+	if (server->selecting && nsyms > 0 && syms[0] == XKB_KEY_Escape) {
+		select_cancel(server);
+		return true;
 	}
 	/* twm's own focused window (the Icon Manager filtering) may want keys
 	 * before the bindings (IMG-8: M-Return brings a window here). */
@@ -212,6 +224,13 @@ static void pointer_moved(struct twm_server *server, uint32_t time_msec) {
 		grab_motion(server);
 		return;
 	}
+	if (menu_active(server)) {
+		menu_motion(server, server->cursor->x, server->cursor->y);
+		return; /* FOC-8 */
+	}
+	if (server->selecting) {
+		return;
+	}
 	input_update_pointer_focus(server, time_msec); /* FOC-4: immediate */
 	focus_pointer_moved(server);                    /* FOC-2: keyboard waits */
 }
@@ -315,6 +334,21 @@ static void handle_cursor_button(struct wl_listener *listener, void *data) {
 	uint32_t bit = button_bit(event->button);
 
 	bool consumed;
+	if (menu_active(server)) {
+		/* MNU-1: the menu takes every button, the opening press's release too. */
+		menu_button(server, event->button, pressed);
+		if (pressed) {
+			server->consumed_buttons |= bit;
+		} else {
+			server->consumed_buttons &= ~bit;
+		}
+		return;
+	}
+	if (pressed && server->selecting) {
+		select_press(server);
+		server->consumed_buttons |= bit;
+		return;
+	}
 	if (grab_active(server)) {
 		consumed = grab_button(server, event->button, pressed);
 	} else if (pressed) {

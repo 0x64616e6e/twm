@@ -1131,6 +1131,16 @@ const struct twm_key_binding *config_key_for(const struct twm_config *cfg,
 	return NULL;
 }
 
+const struct twm_button_binding *config_button_for(const struct twm_config *cfg,
+		const struct twm_func *func, enum twm_context ctx) {
+	for (size_t i = 0; i < cfg->nbuttons; i++) {
+		if (cfg->buttons[i].context == ctx && func_equal(&cfg->buttons[i].func, func)) {
+			return &cfg->buttons[i];
+		}
+	}
+	return NULL;
+}
+
 static bool matches(const char *pattern, const char *app_id, const char *title) {
 	return (app_id && fnmatch(pattern, app_id, 0) == 0) ||
 		(title && fnmatch(pattern, title, 0) == 0);

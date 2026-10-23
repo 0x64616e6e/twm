@@ -189,6 +189,9 @@ const struct twm_menu *config_menu(const struct twm_config *cfg, const char *nam
 /* The key bound to the same function, for menu shortcut columns (MNU-3). */
 const struct twm_key_binding *config_key_for(const struct twm_config *cfg,
 	const struct twm_func *func);
+/* A button binding in `ctx` for the same function, or NULL (MNU-3). */
+const struct twm_button_binding *config_button_for(const struct twm_config *cfg,
+	const struct twm_func *func, enum twm_context ctx);
 enum twm_justify config_justify(const struct twm_config *cfg, const char *app_id,
 	const char *title);
 bool config_notitle(const struct twm_config *cfg, const char *app_id, const char *title);

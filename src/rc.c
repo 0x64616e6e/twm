@@ -5,6 +5,7 @@
 #include <wlr/util/log.h>
 #include "desktop.h"
 #include "frame.h"
+#include "menu.h"
 #include "rc.h"
 #include "rootline.h"
 #include "server.h"
@@ -117,6 +118,7 @@ static void theme_from_config(struct twm_theme *t, const struct twm_config *c) {
 
 void rc_apply(struct twm_server *server, const struct twm_config *old) {
 	const struct twm_config *cfg = server->config;
+	menu_close_all(server); /* open menus point into the old config */
 	theme_from_config(&server->theme, cfg);
 	server->theme_gen++;
 

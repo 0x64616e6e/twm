@@ -27,8 +27,8 @@
  * B8 metrics at 26/30 (DESIGN measurement rule): the window body 1135 × 527,
  * nav 165, diff pane 364; rows 49, controls 29, buttons 38.
  */
-#define SW_W 1135
-#define SW_H 527
+#define SW_MIN_W 1135
+#define SW_MIN_H 527
 #define NAV_W 165
 #define DIFF_W 364
 #define NAV_ITEM 33
@@ -734,6 +734,7 @@ static void do_undo(struct setwin *sw, bool redo) {
 /* --- drawing --- */
 
 struct cv {
+	int w, h; /* the body, logical px */
 	pixman_image_t *img;
 	float scale;
 	const struct twm_theme *t;
@@ -800,7 +801,7 @@ static void checkbox(const struct cv *cv, double x, double y, bool on, bool focu
 
 static void draw_nav(struct setwin *sw, const struct cv *cv) {
 	const struct twm_theme *t = cv->t;
-	fill(cv, C(t->hairline), NAV_W - 1, 0, 1, SW_H);
+	fill(cv, C(t->hairline), NAV_W - 1, 0, 1, cv->h);
 	double fx = 10, fy = 12, fw = NAV_W - 20;
 	fill(cv, C(t->ground), fx, fy, fw, FILTER_H);
 	frame_box(cv, C(sw->filter[0] ? t->accent : t->hairline_strong), fx, fy, fw, FILTER_H);
@@ -825,9 +826,9 @@ static void draw_nav(struct setwin *sw, const struct cv *cv) {
 		add_hit(sw, 0, y, NAV_W - 1, NAV_ITEM, HIT_NAV, -1, s);
 		y += NAV_ITEM;
 	}
-	text(cv, F_SMALL, TWM_WEIGHT_REGULAR, C(t->dim), NAV_PAD, SW_H - 12 - 30, 15,
+	text(cv, F_SMALL, TWM_WEIGHT_REGULAR, C(t->dim), NAV_PAD, cv->h - 12 - 30, 15,
 		"Everything here is also", 0, 0);
-	text(cv, F_SMALL, TWM_WEIGHT_REGULAR, C(t->dim), NAV_PAD, SW_H - 12 - 15, 15,
+	text(cv, F_SMALL, TWM_WEIGHT_REGULAR, C(t->dim), NAV_PAD, cv->h - 12 - 15, 15,
 		"man 5 twmrc.", 0, 0);
 }
 
@@ -1159,12 +1160,12 @@ static void draw_preview(struct setwin *sw, const struct cv *cv, double x, doubl
 
 static void draw_controls(struct setwin *sw, const struct cv *cv) {
 	const struct twm_theme *t = cv->t;
-	double x0 = NAV_W + PANE_PAD_X, x1 = SW_W - DIFF_W - PANE_PAD_X;
+	double x0 = NAV_W + PANE_PAD_X, x1 = cv->w - DIFF_W - PANE_PAD_X;
 	double y = PANE_PAD_Y;
 	int list[NCTLS];
 	int n = visible(sw, list);
 	bool preview = !sw->filter[0] && (sw->section == SEC_FRAMES || sw->section == SEC_LOOK);
-	double bottom = SW_H - PANE_PAD_Y - (preview ? sw->cfg->title_height + 14 : 0);
+	double bottom = cv->h - PANE_PAD_Y - (preview ? sw->cfg->title_height + 14 : 0);
 	int shown = 0;
 	for (int k = 0; k < n; k++) {
 		const struct ctl *c = &ctls[list[k]];
@@ -1204,7 +1205,7 @@ static void draw_controls(struct setwin *sw, const struct cv *cv) {
 			"no key matches; the file may still have it", 0, 0);
 	}
 	if (preview) {
-		draw_preview(sw, cv, x0, SW_H - PANE_PAD_Y - sw->cfg->title_height);
+		draw_preview(sw, cv, x0, cv->h - PANE_PAD_Y - sw->cfg->title_height);
 	}
 }
 
@@ -1212,9 +1213,9 @@ static void draw_controls(struct setwin *sw, const struct cv *cv) {
 
 static void draw_diff(struct setwin *sw, const struct cv *cv) {
 	const struct twm_theme *t = cv->t;
-	double x = SW_W - DIFF_W, w = DIFF_W;
-	fill(cv, C(t->surface_sunk), x, 0, w, SW_H);
-	fill(cv, C(t->hairline), x, 0, 1, SW_H);
+	double x = cv->w - DIFF_W, w = DIFF_W;
+	fill(cv, C(t->surface_sunk), x, 0, w, cv->h);
+	fill(cv, C(t->hairline), x, 0, 1, cv->h);
 	/* Header: the file, and how many changes. */
 	char name[96];
 	const char *home = getenv("HOME");
@@ -1239,7 +1240,7 @@ static void draw_diff(struct setwin *sw, const struct cv *cv) {
 
 	/* Footer: the check, Discard, Write. */
 	double foot_h = 12 + 15 + 12 + BTN_H + 12 + 30 + 12;
-	double fy = SW_H - foot_h;
+	double fy = cv->h - foot_h;
 	fill(cv, C(t->hairline), x, fy, w, 1);
 	double y = fy + 12;
 	text(cv, F_CTL, TWM_WEIGHT_REGULAR, C(t->muted), x + DIFF_PAD, y, 15, "twm --check", 0, 0);
@@ -1318,15 +1319,16 @@ static void draw_diff(struct setwin *sw, const struct cv *cv) {
 static void render(struct twm_internal_view *iv, float scale, struct twm_pixbuf **out,
 		int *lw, int *lh) {
 	struct setwin *sw = iv->data;
-	*lw = SW_W;
-	*lh = SW_H;
-	struct twm_pixbuf *buf = pixbuf_create((int)lroundf(SW_W * scale),
-		(int)lroundf(SW_H * scale));
+	int w = iv->req_w > SW_MIN_W ? iv->req_w : SW_MIN_W;
+	int h = iv->req_h > SW_MIN_H ? iv->req_h : SW_MIN_H;
+	*lw = w;
+	*lh = h;
+	struct twm_pixbuf *buf = pixbuf_create((int)lroundf(w * scale), (int)lroundf(h * scale));
 	if (!buf) {
 		return;
 	}
-	struct cv cv = {buf->image, scale, &sw->server->theme, sw->server->theme.ui_font};
-	draw_fill(cv.img, C(cv.t->surface), 0, 0, S(&cv, SW_W), S(&cv, SW_H));
+	struct cv cv = {w, h, buf->image, scale, &sw->server->theme, sw->server->theme.ui_font};
+	draw_fill(cv.img, C(cv.t->surface), 0, 0, S(&cv, w), S(&cv, h));
 	sw->nhits = 0;
 	draw_nav(sw, &cv);
 	draw_controls(sw, &cv);
@@ -1744,7 +1746,10 @@ void setwin_init(struct twm_server *server) {
 		free(sw);
 		return;
 	}
-	sw->iv->view.utility = false; /* B8: a full frame, iconify box and all */
+	sw->iv->view.utility = false; /* B8: a full frame, iconify and resize boxes */
+	sw->iv->resizable = true;     /* a bigger window shows more of the diff */
+	sw->iv->min_w = sw->iv->req_w = SW_MIN_W;
+	sw->iv->min_h = sw->iv->req_h = SW_MIN_H;
 	sw->iv->button = on_button;
 	sw->iv->key = on_key;
 	sw->iv->wants_keys_first = wants_keys_first;

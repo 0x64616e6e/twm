@@ -27,6 +27,10 @@ struct twm_internal_view {
 	void *data;
 	struct wlr_scene_buffer *buffer;
 	bool positioned;
+	/* Resizable windows lay out to req_w × req_h (at least min_w × min_h);
+	 * the others are as big as their content. */
+	bool resizable;
+	int min_w, min_h, req_w, req_h;
 
 	/* Input, in content coordinates (logical px from the content's corner).
 	 * Each returns true when it used the event. All optional. */

@@ -25,7 +25,13 @@ static void iv_set_activated(struct twm_view *view, bool activated) {
 }
 
 static void iv_configure(struct twm_view *view, int x, int y, int w, int h) {
-	/* The content decides its own size. */
+	struct twm_internal_view *iv = iv_of(view);
+	if (!iv->resizable || (w == iv->req_w && h == iv->req_h)) {
+		return; /* the content decides its own size */
+	}
+	iv->req_w = w > iv->min_w ? w : iv->min_w;
+	iv->req_h = h > iv->min_h ? h : iv->min_h;
+	internal_view_redraw(iv);
 }
 
 static void iv_close(struct twm_view *view) {
@@ -33,6 +39,10 @@ static void iv_close(struct twm_view *view) {
 }
 
 static struct twm_size_limits iv_get_size_limits(struct twm_view *view) {
+	struct twm_internal_view *iv = iv_of(view);
+	if (iv->resizable) {
+		return (struct twm_size_limits){iv->min_w, iv->min_h, 0, 0};
+	}
 	return (struct twm_size_limits){view->width, view->height, view->width, view->height};
 }
 

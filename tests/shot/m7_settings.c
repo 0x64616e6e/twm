@@ -283,6 +283,28 @@ int main(int argc, char *argv[]) {
 		tc_image_write_png(&img, path);
 	}
 
+	/* B8's resize box: a bigger window, more room for the diff. */
+	int tab_end = 391;
+	while (tab_end < 1900 && (tc_pixel(&img, tab_end, 263) >> 16 & 0xff) > 0x80) {
+		tab_end++;
+	}
+	tc_pointer_move(tc, tab_end - 15, 262 + 15);
+	tc_pointer_button(tc, TC_BTN_LEFT, true);
+	for (int i = 1; i <= 6; i++) {
+		tc_pointer_move(tc, tab_end - 15 + 200 * i / 6, 262 + 15 + 120 * i / 6);
+	}
+	tc_pointer_button(tc, TC_BTN_LEFT, false);
+	tc_wait(tc, 100);
+	shot(tc, &img);
+	snprintf(path, sizeof(path), "%.*s-resized.png", (int)strlen(out) - 4, out);
+	tc_image_write_png(&img, path);
+	int right = 1919;
+	while (right > 391 && !near(tc_pixel(&img, right, 600), ACCENT, 2)) {
+		right--;
+	}
+	tc_expect("SET-1", right > 391 + 1137 + 150 && near(tc_pixel(&img, right - 100, 880), SUNK, 0),
+		"resized: wider (right edge %d) and taller, the diff pane follows", right);
+
 	tc_image_free(&img);
 	tc_disconnect(tc);
 	return tc_report();

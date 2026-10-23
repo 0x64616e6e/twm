@@ -259,6 +259,15 @@ static void window_commit_buffer(struct tc_window *win) {
 	wl_surface_commit(win->surface);
 }
 
+void tc_window_resize_self(struct tc_window *win, int w, int h) {
+	win->opts.width = w;
+	win->opts.height = h;
+	win->width = w;
+	win->height = h;
+	window_commit_buffer(win);
+	wl_display_flush(win->tc->display);
+}
+
 static void xdg_surface_configure(void *data, struct xdg_surface *xs, uint32_t serial) {
 	struct tc_window *win = data;
 	xdg_surface_ack_configure(xs, serial);

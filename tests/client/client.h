@@ -61,6 +61,9 @@ struct tc_window *tc_window_create(struct tc *tc, const struct tc_window_opts *o
 void tc_window_destroy(struct tc_window *win);
 bool tc_window_activated(struct tc_window *win);
 void tc_window_size(struct tc_window *win, int *w, int *h);
+/* Change size on its own, as foot does when its font changes (OUT-17);
+ * later configures with a size still win, as they do for foot. */
+void tc_window_resize_self(struct tc_window *win, int w, int h);
 /* Ask to be activated without a token (URG-2 in M1). */
 void tc_window_request_activation(struct tc_window *win);
 

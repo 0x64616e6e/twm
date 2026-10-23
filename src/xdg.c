@@ -6,12 +6,14 @@
 #include <wlr/util/log.h>
 #include "remember.h"
 #include "view.h"
+#include "group.h"
 #include "xdg.h"
 
 struct twm_xdg_view {
 	struct twm_view view;
 	struct wlr_xdg_toplevel *toplevel;
 	struct wlr_xdg_toplevel_decoration_v1 *decoration;
+	int refused_w, refused_h; /* a size it chose in a group, refused once */
 
 	struct wl_listener map;
 	struct wl_listener unmap;
@@ -47,6 +49,7 @@ static void xdg_set_activated(struct twm_view *view, bool activated) {
 
 static void xdg_configure(struct twm_view *view, int x, int y, int w, int h) {
 	struct wlr_xdg_toplevel *toplevel = xdg_view(view)->toplevel;
+	xdg_view(view)->refused_w = xdg_view(view)->refused_h = 0;
 	if (w != view->width || h != view->height) {
 		wlr_xdg_toplevel_set_size(toplevel, w, h);
 	}
@@ -109,6 +112,21 @@ static void handle_unmap(struct wl_listener *listener, void *data) {
 	view_unmap(&xv->view);
 }
 
+/*
+ * Did the app pick this size itself (foot keeping its grid when its font
+ * changes) rather than answer a configure? Only when it has acked every
+ * size twm asked for, and twm asked for one.
+ */
+static bool own_size_change(struct twm_xdg_view *xv, const struct wlr_box *geo) {
+	struct wlr_xdg_toplevel *tl = xv->toplevel;
+	if (tl->scheduled.width <= 0 || tl->scheduled.height <= 0 ||
+			tl->current.width != tl->scheduled.width ||
+			tl->current.height != tl->scheduled.height) {
+		return false;
+	}
+	return geo->width != tl->scheduled.width || geo->height != tl->scheduled.height;
+}
+
 static void handle_commit(struct wl_listener *listener, void *data) {
 	struct twm_xdg_view *xv = wl_container_of(listener, xv, commit);
 	struct wlr_xdg_surface *base = xv->toplevel->base;
@@ -127,8 +145,24 @@ static void handle_commit(struct wl_listener *listener, void *data) {
 		return;
 	}
 	struct wlr_box *geo = &base->geometry;
-	if (geo->x != xv->view.geom_x || geo->y != xv->view.geom_y ||
-			geo->width != xv->view.width || geo->height != xv->view.height) {
+	bool resized = geo->width != xv->view.width || geo->height != xv->view.height;
+	if (resized && own_size_change(xv, geo)) {
+		struct wlr_xdg_toplevel *tl = xv->toplevel;
+		struct twm_group *g = xv->view.group;
+		if (g && group_size(g) > 1 &&
+				(geo->width != xv->refused_w || geo->height != xv->refused_h)) {
+			/* OUT-17: tabs share one size; only a resize changes it, not a
+			 * terminal zooming its font. Tell it the group's size again. */
+			xv->refused_w = geo->width;
+			xv->refused_h = geo->height;
+			wlr_xdg_toplevel_set_size(tl, tl->scheduled.width, tl->scheduled.height);
+			return;
+		}
+		/* OUT-17: alone (or a client that can't take the group's size, asked
+		 * twice), the window takes the size its app chose, and keeps it. */
+		wlr_xdg_toplevel_set_size(tl, geo->width, geo->height);
+	}
+	if (geo->x != xv->view.geom_x || geo->y != xv->view.geom_y || resized) {
 		update_geometry(xv);
 	} else {
 		view_update_frame(&xv->view); /* size limits may have changed (FRM-6) */

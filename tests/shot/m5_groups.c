@@ -240,6 +240,62 @@ int main(int argc, char *argv[]) {
 	tc_expect("HNT-4", tc_window_activated(d), "a non-hint key: focus unchanged");
 	shot(tc, &img);
 	tc_expect_pixel("HNT-4", &img, 152, 192, GRAPHITE, 2);   /* no letters left */
+
+	/* --- OUT-17: an app that sizes itself (foot, when its font changes) --- */
+	/* notes was resized by twm first (M-B3), so twm has a size on record. */
+	int w0, h0;
+	tc_window_size(d, &w0, &h0);
+	tc_key(tc, TC_KEY_LEFTMETA, true);
+	drag(tc, TC_BTN_RIGHT, 1560, 830, 1610, 870, true);
+	tc_key(tc, TC_KEY_LEFTMETA, false);
+	tc_wait(tc, 60);
+	int w1, h1;
+	tc_window_size(d, &w1, &h1);
+	tc_window_resize_self(d, w1 + 70, h1 + 50);
+	tc_wait(tc, 80);
+	/* Focus elsewhere and back: each change sends it a configure. */
+	tc_pointer_move(tc, 150 + 27 + 20, 203);
+	tc_pointer_click(tc, TC_BTN_LEFT);
+	tc_wait(tc, 60);
+	tc_pointer_move(tc, 1350, 760);
+	tc_pointer_click(tc, TC_BTN_LEFT);
+	tc_wait(tc, 80);
+	int w2, h2;
+	tc_window_size(d, &w2, &h2);
+	shot(tc, &img);
+	tc_expect("OUT-17", (w1 != w0 || h1 != h0) && w2 == w1 + 70 && h2 == h1 + 50 &&
+		tc_window_activated(d), "alone, it keeps the size it chose (%dx%d -> %dx%d)",
+		w1, h1, w2, h2);
+	tc_expect("OUT-17", !near(tc_pixel(&img, 1300 + w2 + 1, 650 + TH + h2 / 2), GROUND, 8),
+		"and its frame follows");
+
+	/* In a group, only a resize changes the size: a tab can't grow it alone. */
+	tc_pointer_move(tc, 150 + 27 + 20, 203);
+	tc_pointer_click(tc, TC_BTN_LEFT);
+	tc_wait(tc, 60);
+	struct tc_window *g = tc_window_activated(a) ? a : tc_window_activated(b) ? b : c;
+	tc_window_resize_self(g, 900, 500);
+	tc_wait(tc, 120);
+	int gw, gh, ow, oh;
+	tc_window_size(g, &gw, &gh);
+	tc_window_size(g == a ? b : a, &ow, &oh);
+	shot(tc, &img);
+	snprintf(path, sizeof(path), "%.*s-zoom.png", (int)strlen(out) - 4, out);
+	tc_image_write_png(&img, path);
+	tc_expect("OUT-17", gw == 818 && gh == 438 && ow == 818 && oh == 438,
+		"a grouped tab growing alone is held to the group's size (%dx%d, other %dx%d)",
+		gw, gh, ow, oh);
+	tc_expect("OUT-17", near(tc_pixel(&img, 150 + 818 + 20, 190 + TH + 200), GROUND, 30),
+		"the group's frame doesn't grow");
+	/* GRP-7: resizing the group still resizes every tab. */
+	tc_key(tc, TC_KEY_LEFTMETA, true);
+	drag(tc, TC_BTN_RIGHT, 900, 580, 960, 620, true);
+	tc_key(tc, TC_KEY_LEFTMETA, false);
+	tc_wait(tc, 80);
+	tc_window_size(g, &gw, &gh);
+	tc_window_size(g == a ? b : a, &ow, &oh);
+	tc_expect("GRP-7", gw > 818 && gw == ow && gh == oh,
+		"M-B3 on the group: every tab takes the new size (%dx%d, other %dx%d)", gw, gh, ow, oh);
 	tc_image_free(&img);
 
 	tc_window_destroy(d);

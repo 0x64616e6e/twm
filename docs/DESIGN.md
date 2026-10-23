@@ -348,6 +348,12 @@ accent can change:
   top of it.
   Windows without an app id, transients and windows whose remembered output
   is gone are placed as usual.
+- **OUT-17** `[owner, after M7]` A window that changes its own size (foot
+  keeping its grid when its font changes, an X11 app's resize request)
+  gets that size and keeps it: later configures carry the new size, not the
+  one twm last asked for. In a tab group it doesn't: tabs share one size
+  (GRP-3) and only a resize changes it, so the tab is told the group's size
+  again (an app that can't take it, asked twice, wins, and the group follows).
 
 ### SNP — outlines that think
 
@@ -612,7 +618,8 @@ accent can change:
   dragged tab at the insertion point (4 px margins), and `DROP → GROUP OF N`
   (11 px, tracked 1, `accent`) shows near the pointer.
 - **GRP-3** `[M5 · B2]` A group frame has one border and one client area (all
-  members get the same size) and one tab row: iconify box, the tabs, resize
+  members get the same size; a member can't change it on its own, OUT-17)
+  and one tab row: iconify box, the tabs, resize
   box. Each tab stays squeezed to its name. The active tab is focused-style
   with its hatch inside, 12 after the title; inactive tabs are `graphite`
   with `muted` 500 text and a 1 px `hairline` right separator. Each button

@@ -7,6 +7,7 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/log.h>
 #include <wlr/xwayland.h>
+#include "group.h"
 #include "view.h"
 
 /* GEN-6: XWayland starts lazily, on the first X11 client. */
@@ -187,11 +188,14 @@ static void view_handle_request_configure(struct wl_listener *listener, void *da
 		wlr_xwayland_surface_configure(xv->xsurface, ev->x, ev->y, ev->width, ev->height);
 		return;
 	}
-	/* Mapped: honour the size, keep the frame where it is. */
+	/* Mapped: honour the size, keep the frame where it is (OUT-17) — but
+	 * tabs share one size, so a grouped window keeps the group's. */
 	int dx, dy;
 	view_client_offset(&xv->view, &dx, &dy);
+	bool grouped = xv->view.group && group_size(xv->view.group) > 1;
 	wlr_xwayland_surface_configure(xv->xsurface, (int16_t)(xv->view.x + dx),
-		(int16_t)(xv->view.y + dy), ev->width, ev->height);
+		(int16_t)(xv->view.y + dy), grouped ? (uint16_t)xv->view.width : ev->width,
+		grouped ? (uint16_t)xv->view.height : ev->height);
 }
 
 static void view_handle_request_activate(struct wl_listener *listener, void *data) {

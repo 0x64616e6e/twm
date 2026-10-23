@@ -1,6 +1,7 @@
 #include "histview.h"
 #include "icons.h"
 #include "imgr.h"
+#include "logview.h"
 #include "panner.h"
 #include "server.h"
 #include "ui.h"
@@ -12,6 +13,7 @@ static void handle_idle(void *data) {
 	imgr_refresh(server);
 	panner_refresh(server);
 	histview_changed(server);
+	logview_refresh(server);
 }
 
 void ui_changed(struct twm_server *server) {

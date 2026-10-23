@@ -4,6 +4,7 @@ wayland_scanner = find_program('wayland-scanner', native: true)
 # Server side: wlroots headers include these generated headers.
 server_protocols = [
   wl_protocol_dir / 'stable/xdg-shell/xdg-shell.xml',
+  'wlr-layer-shell-unstable-v1.xml',
 ]
 
 # Client side: the test client.
@@ -14,6 +15,7 @@ client_protocols = [
   'wlr-screencopy-unstable-v1.xml',
   'wlr-virtual-pointer-unstable-v1.xml',
   'virtual-keyboard-unstable-v1.xml',
+  'wlr-layer-shell-unstable-v1.xml',
 ]
 
 server_protos_src = []

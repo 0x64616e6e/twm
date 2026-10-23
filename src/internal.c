@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "internal.h"
+#include "layers.h"
 #include "pixbuf.h"
 #include "remember.h"
 
@@ -111,9 +112,10 @@ void internal_view_show(struct twm_internal_view *iv) {
 		wl_container_of(server->outputs.next, out, link);
 	if (out) {
 		struct wlr_box f = view_frame_box(view);
-		int x = out->box.x + out->box.width - 24 - f.width, y = out->box.y + 24;
+		struct wlr_box area = output_usable(out);
+		int x = area.x + area.width - 24 - f.width, y = area.y + 24;
 		if (iv->place) {
-			iv->place(iv, out->box, &x, &y);
+			iv->place(iv, area, &x, &y);
 		}
 		view_move(view, x, y);
 	}

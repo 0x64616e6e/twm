@@ -17,6 +17,7 @@
 #include "frame.h"
 #include "grab.h"
 #include "internal.h"
+#include "layers.h"
 #include "menu.h"
 #include "view.h"
 
@@ -292,6 +293,9 @@ static bool handle_press(struct twm_server *server, uint32_t button) {
 	case TWM_HIT_BORDER: context = TWM_CTX_BORDER; break;
 	case TWM_HIT_CLIENT: context = TWM_CTX_WINDOW; break;
 	case TWM_HIT_ICON: context = TWM_CTX_ICON; break;
+	case TWM_HIT_LAYER:
+		layers_pressed(server, surface); /* keyboard on demand */
+		return false;
 	case TWM_HIT_UNMANAGED:
 	default:
 		return false;

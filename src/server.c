@@ -26,6 +26,8 @@
 #include "histview.h"
 #include "imgr.h"
 #include "ipc.h"
+#include "layers.h"
+#include "logview.h"
 #include "menu.h"
 #include "panner.h"
 #include "ui.h"
@@ -166,6 +168,7 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	remember_init(server);
 	wlr_xdg_output_manager_v1_create(server->display, server->output_layout);
 	xdg_init(server);
+	layers_init(server);
 	decoration_init(server);
 	input_init(server);
 	focus_init(server);
@@ -173,6 +176,7 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	histview_init(server);
 	imgr_init(server);
 	panner_init(server);
+	logview_init(server);
 #if HAVE_XWAYLAND
 	if (opts->xwayland && server->config->xwayland) {
 		xwayland_init(server);
@@ -222,11 +226,13 @@ void server_finish(struct twm_server *server) {
 	ui_finish(server);
 	imgr_finish(server);
 	panner_finish(server);
+	logview_finish(server);
 	histview_finish(server);
 	remember_finish(server);
 	rc_finish(server);
 	rootline_finish(server);
 	xdg_finish(server);
+	layers_finish(server);
 	decoration_finish(server);
 	focus_finish(server);
 	input_finish(server);

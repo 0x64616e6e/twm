@@ -11,6 +11,7 @@
 #include "frame.h"
 #include "grab.h"
 #include "icons.h"
+#include "layers.h"
 #include "histview.h"
 #include "outline.h"
 #include "remember.h"
@@ -110,7 +111,8 @@ static void apply_snap(struct twm_server *server, struct geo_limits lim) {
 	g->snap = (struct snap_result){.box = g->box};
 	struct twm_output *out = output_at(server, server->cursor->x, server->cursor->y);
 	if (out) {
-		g->output = (struct geo_box){out->box.x, out->box.y, out->box.width, out->box.height};
+		struct wlr_box a = output_usable(out); /* minus bars (GEN-2) */
+		g->output = (struct geo_box){a.x, a.y, a.width, a.height};
 	}
 	const struct twm_config *cfg = server->config;
 	if (g->free || !cfg->snap || !out) {
@@ -310,7 +312,8 @@ static void fit(struct twm_server *server) {
 			}
 		}
 		struct geo_box area;
-		struct geo_box ob = {out->box.x, out->box.y, out->box.width, out->box.height};
+		struct wlr_box ua = output_usable(out);
+		struct geo_box ob = {ua.x, ua.y, ua.width, ua.height};
 		if (snap_fit(ob, obs, k, (int)server->cursor->x, (int)server->cursor->y, &area)) {
 			struct geo_limits lim = frame_limits(g->view);
 			int w = area.w, h = area.h;

@@ -6,6 +6,7 @@
 #include "desktop.h"
 #include "grab.h"
 #include "histview.h"
+#include "logview.h"
 #include "menu.h"
 #include "rc.h"
 #include "rootline.h"
@@ -129,8 +130,8 @@ void action_run(struct twm_server *server, const struct twm_func *func,
 	case TWM_F_MENU: /* MNU-1, MNU-6, MNU-7 */
 		menu_open(server, func->arg, ctx->lx, ctx->ly, ctx->button != 0);
 		return;
-	case TWM_F_LOG:
-		not_yet(server, func->kind, "M4");
+	case TWM_F_LOG: /* ROOT-8 */
+		logview_toggle(server);
 		return;
 	case TWM_F_UNDO:
 		histview_undo(server, view); /* HIS-2 */

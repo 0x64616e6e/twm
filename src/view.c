@@ -8,6 +8,7 @@
 #include "grab.h"
 #include "icons.h"
 #include "internal.h"
+#include "layers.h"
 #include "ui.h"
 #include "remember.h"
 #include "settings.h"
@@ -172,7 +173,8 @@ void view_map(struct twm_view *view) {
 	if (server->config->placement == TWM_PLACE_CASCADE && co) {
 		int step = server->theme.title_height;
 		int n = server->cascade++ % 10;
-		view_move(view, co->box.x + 40 + n * step, co->box.y + 40 + n * step);
+		struct wlr_box ua = output_usable(co);
+		view_move(view, ua.x + 40 + n * step, ua.y + 40 + n * step);
 		view_show(view, false);
 		return;
 	}
@@ -292,6 +294,9 @@ void view_focus(struct twm_view *view) {
 	view->focus_seq = ++server->focus_counter;
 	if (prev == view) {
 		return;
+	}
+	if (layers_hold_keyboard(server)) {
+		return; /* a launcher or locker has the keyboard (GEN-2) */
 	}
 	server->focused = view;
 	if (prev) {

@@ -6,6 +6,7 @@
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_scene.h>
 #include <wlr/util/log.h>
+#include "layers.h"
 #include "rootline.h"
 #include "server.h"
 #include "settings.h"
@@ -188,6 +189,7 @@ void output_arrange(struct twm_server *server) {
 		output->scale = output->wlr_output->scale;
 		if (changed) {
 			root_update(output);
+			layers_arrange(output);
 		}
 	}
 	root_update_text(server);

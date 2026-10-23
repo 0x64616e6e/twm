@@ -22,7 +22,7 @@ static struct twm_view *view_under_pointer(struct twm_server *server, bool *unma
 	struct wlr_surface *surface;
 	struct twm_hit hit = server_hit_at(server, server->cursor->x, server->cursor->y,
 		&surface, &sx, &sy);
-	*unmanaged = hit.kind == TWM_HIT_UNMANAGED;
+	*unmanaged = hit.kind == TWM_HIT_UNMANAGED || hit.kind == TWM_HIT_LAYER;
 	return hit.view && hit.view->shown ? hit.view : NULL;
 }
 
@@ -55,7 +55,7 @@ void focus_pointer_moved(struct twm_server *server) {
 	bool unmanaged;
 	struct twm_view *under = view_under_pointer(server, &unmanaged);
 	if (unmanaged) {
-		return; /* an X11 menu belongs to whoever opened it */
+		return; /* an X11 menu or a bar belongs to no window */
 	}
 	uint32_t deadline = 0;
 	uint32_t delay = (uint32_t)server->theme.focus_delay_ms;

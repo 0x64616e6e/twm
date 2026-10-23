@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
@@ -255,8 +256,13 @@ static void popup_handle_destroy(struct wl_listener *listener, void *data) {
 static void handle_new_popup(struct wl_listener *listener, void *data) {
 	struct wlr_xdg_popup *popup = data;
 	struct wlr_xdg_surface *parent = wlr_xdg_surface_try_from_wlr_surface(popup->parent);
-	if (!parent || !parent->data) {
-		/* Parents that aren't xdg surfaces (layer shell) arrive in M4. */
+	struct wlr_scene_tree *parent_tree = parent ? parent->data : NULL;
+	if (!parent_tree) {
+		/* A layer-shell surface's popup (a bar's menu). */
+		struct wlr_layer_surface_v1 *ls = wlr_layer_surface_v1_try_from_wlr_surface(popup->parent);
+		parent_tree = ls ? ls->data : NULL;
+	}
+	if (!parent_tree) {
 		wlr_log(WLR_DEBUG, "popup without a known parent");
 		return;
 	}
@@ -265,7 +271,7 @@ static void handle_new_popup(struct wl_listener *listener, void *data) {
 		return;
 	}
 	p->popup = popup;
-	popup->base->data = wlr_scene_xdg_surface_create(parent->data, popup->base);
+	popup->base->data = wlr_scene_xdg_surface_create(parent_tree, popup->base);
 	p->commit.notify = popup_handle_commit;
 	wl_signal_add(&popup->base->surface->events.commit, &p->commit);
 	p->destroy.notify = popup_handle_destroy;

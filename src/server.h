@@ -29,10 +29,14 @@ struct twm_func;
 /* Scene layers, back to front (D-4). */
 enum twm_layer {
 	TWM_LAYER_ROOT,
+	TWM_LAYER_BACKGROUND, /* layer shell: wallpapers (below the root text) */
 	TWM_LAYER_ROOT_TEXT,
+	TWM_LAYER_BOTTOM,     /* layer shell */
 	TWM_LAYER_WINDOWS,
 	TWM_LAYER_UTILITY,
+	TWM_LAYER_TOP,        /* layer shell: bars */
 	TWM_LAYER_UNMANAGED, /* XWayland override-redirect: menus, tooltips */
+	TWM_LAYER_LAYER_OVERLAY, /* layer shell: launchers, OSDs */
 	TWM_LAYER_TRUSTED_DIM,
 	TWM_LAYER_TRUSTED,
 	TWM_LAYER_OVERLAY, /* outlines, readouts, snap guides */
@@ -54,6 +58,7 @@ enum twm_hit_kind {
 	TWM_HIT_RESIZE,
 	TWM_HIT_BORDER,
 	TWM_HIT_ICON, /* a root icon (ROOT-9) */
+	TWM_HIT_LAYER, /* a layer-shell surface (GEN-2) */
 };
 
 struct twm_hit {
@@ -135,6 +140,10 @@ struct twm_server {
 	struct twm_internal_view *histview;
 	struct wl_event_source *histview_timer;
 
+	struct wlr_layer_shell_v1 *layer_shell;
+	struct wl_listener new_layer_surface;
+	struct wl_list layer_surfaces;
+
 	struct wlr_xdg_decoration_manager_v1 *xdg_decoration;
 	struct wl_listener new_toplevel_decoration;
 
@@ -200,6 +209,7 @@ struct twm_output {
 	struct twm_server *server;
 	struct wlr_output *wlr_output;
 	struct wlr_box box; /* layout coordinates */
+	struct wlr_box usable; /* box minus layer-shell exclusive zones */
 	float scale;        /* scale the root was last drawn at */
 
 	struct wlr_scene_buffer *root; /* ground + weave (ROOT-1) */

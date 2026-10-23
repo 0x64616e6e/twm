@@ -25,6 +25,8 @@ twm_src = twm_core_src + files(
   'input.c',
   'internal.c',
   'ipc.c',
+  'layers.c',
+  'logview.c',
   'main.c',
   'menu.c',
   'outline.c',

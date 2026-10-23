@@ -9,6 +9,7 @@
 #include "rootline.h"
 #include "settings.h"
 #include "text.h"
+#include "ui.h"
 
 /* ROOT-5 metrics: 12 px lines, 18 px apart, 10 px above the status line. */
 #define LINE_SIZE 12
@@ -37,6 +38,10 @@ static const struct rootline_msg *nth_newest(struct twm_rootline *rl, size_t n) 
 	}
 	size_t i = (rl->head + ROOTLINE_KEEP - 1 - n) % ROOTLINE_KEEP;
 	return &rl->msgs[i];
+}
+
+const struct rootline_msg *rootline_get(struct twm_server *server, size_t i) {
+	return server->rootline ? nth_newest(server->rootline, i) : NULL;
 }
 
 static int handle_timer(void *data) {
@@ -143,6 +148,7 @@ void rootline_post(struct twm_server *server, enum rootline_kind kind,
 	snprintf(m->source, sizeof(m->source), "%s", source);
 	snprintf(m->text, sizeof(m->text), "%s", text);
 	rootline_update(server);
+	ui_changed(server); /* the log window (ROOT-8) */
 }
 
 void rootline_init(struct twm_server *server) {

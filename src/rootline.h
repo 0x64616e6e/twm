@@ -40,6 +40,9 @@ void rootline_post(struct twm_server *server, enum rootline_kind kind,
 /* Redraw after an output, theme or timeout change. */
 void rootline_update(struct twm_server *server);
 
+/* The i-th newest message (0 = latest), expired ones too; NULL past the end. */
+const struct rootline_msg *rootline_get(struct twm_server *server, size_t i);
+
 /* Format one line as drawn: "HH:MM  source   text" (pure, for tests). */
 void rootline_format(const struct rootline_msg *msg, char *buf, size_t len);
 

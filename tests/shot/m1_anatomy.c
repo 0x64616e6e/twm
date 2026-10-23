@@ -107,6 +107,15 @@ int main(int argc, char *argv[]) {
 	sep_focused = tc_blend(ON_ACCENT, 0.30, ACCENT);
 	struct tc *tc = tc_connect();
 
+	/* This test checks exact B0 positions; snapping (M3) would pull windows
+	 * placed near each other together, so it is off here. */
+	char rc[4096];
+	snprintf(rc, sizeof(rc), "%s/.twmrc", getenv("TWM_TEST_HOME"));
+	FILE *f = fopen(rc, "w");
+	fputs("Snap off\n", f);
+	fclose(f);
+	tc_wait(tc, 400);
+
 	/* B0 windows. Client size = frame - 2 px border, - 26 px tab. */
 	struct tc_window *xclock = place(tc, 1000, 500, (struct tc_window_opts){
 		.title = "xclock", .app_id = "xclock", .width = 230, .height = 230,

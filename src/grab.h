@@ -30,6 +30,9 @@ bool grab_button(struct twm_server *server, uint32_t button, bool pressed);
 /* Returns true when the grab consumed the key. */
 bool grab_key(struct twm_server *server, xkb_keysym_t sym, uint32_t mods);
 
+/* Keyboard modifiers changed (SNP-7: M pressed during a drag = free). */
+void grab_modifiers(struct twm_server *server, uint32_t mods);
+
 /* The view unmapped or is going away. */
 void grab_view_gone(struct twm_server *server, struct twm_view *view);
 

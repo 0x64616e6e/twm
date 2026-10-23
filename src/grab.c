@@ -1,5 +1,8 @@
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <wlr/types/wlr_cursor.h>
+#include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xcursor_manager.h>
@@ -44,13 +47,36 @@ static struct geo_limits frame_limits(struct twm_view *view) {
 	return lim;
 }
 
-static const char *hint_for(struct twm_grab *g) {
-	switch (g->mode) {
-	case TWM_GRAB_PLACE:
-		return "click to place \xc2\xb7 B3 to fit"; /* B0 */
-	default:
-		return NULL; /* snap explanations arrive in M3 (SNP-5) */
+static const char *hint_for(struct twm_grab *g, char *buf, size_t len) {
+	snap_hint(&g->snap, buf, len); /* SNP-5 */
+	if (*buf) {
+		return buf;
 	}
+	if (g->mode == TWM_GRAB_PLACE) {
+		return "click to place \xc2\xb7 B3 to fit"; /* B0 */
+	}
+	return NULL;
+}
+
+static void output_label(struct twm_server *server, char *buf, size_t len) {
+	struct twm_output *o = output_at(server, server->cursor->x, server->cursor->y);
+	if (!o) {
+		buf[0] = '\0';
+		return;
+	}
+	struct wlr_output *w = o->wlr_output;
+	char scale[16];
+	snprintf(scale, sizeof(scale), "%.2f", w->scale);
+	/* "1.25", "1.5", "1" */
+	char *end = scale + strlen(scale) - 1;
+	while (*end == '0') {
+		*end-- = '\0';
+	}
+	if (*end == '.') {
+		*end = '\0';
+	}
+	snprintf(buf, len, "%s \xc2\xb7 %d\xc3\x97%d \xc2\xb7 scale %s",
+		w->name, w->width, w->height, scale);
 }
 
 static bool opaque(struct twm_server *server) {
@@ -60,22 +86,69 @@ static bool opaque(struct twm_server *server) {
 
 static void show_outline(struct twm_server *server) {
 	struct twm_grab *g = &server->grab;
+	if (g->mode == TWM_GRAB_PENDING_MOVE) {
+		return;
+	}
+	char olabel[96];
+	output_label(server, olabel, sizeof(olabel));
+	outline_guides(server, g->output, &g->snap,
+		(server->config->snap & TWM_SNAP_THIRDS) && !g->free, olabel);
 	if (opaque(server)) {
 		view_move(g->view, g->box.x, g->box.y);
 		return;
 	}
-	outline_show(server, g->box, view_title(g->view), hint_for(g));
+	char hint[128];
+	outline_show(server, g->box, view_title(g->view), hint_for(g, hint, sizeof(hint)));
+}
+
+/* SNP-1, SNP-7: snap the raw outline unless snapping is off or M is down. */
+static void apply_snap(struct twm_server *server, struct geo_limits lim) {
+	struct twm_grab *g = &server->grab;
+	g->snap = (struct snap_result){.box = g->box};
+	struct twm_output *out = output_at(server, server->cursor->x, server->cursor->y);
+	if (out) {
+		g->output = (struct geo_box){out->box.x, out->box.y, out->box.width, out->box.height};
+	}
+	const struct twm_config *cfg = server->config;
+	if (g->free || !cfg->snap || !out) {
+		return;
+	}
+	size_t n = (size_t)wl_list_length(&server->views);
+	struct snap_neighbor *nb = calloc(n ? n : 1, sizeof(*nb));
+	size_t k = 0;
+	struct twm_view *v;
+	wl_list_for_each(v, &server->views, link) {
+		if (v == g->view || !v->shown) {
+			continue;
+		}
+		struct wlr_box f = view_frame_box(v);
+		nb[k++] = (struct snap_neighbor){{f.x, f.y, f.width, f.height}, view_title(v)};
+	}
+	struct snap_params p = {.output = g->output, .flags = cfg->snap,
+		.distance = cfg->snap_distance};
+	if (g->mode == TWM_GRAB_RESIZE || g->mode == TWM_GRAB_PLACE_SIZE) {
+		uint32_t edges = g->mode == TWM_GRAB_RESIZE ? g->edges :
+			(GEO_EDGE_RIGHT | GEO_EDGE_BOTTOM);
+		snap_resize(&p, nb, k, g->box, edges, lim, &g->snap);
+	} else {
+		snap_move(&p, nb, k, g->box, &g->snap);
+	}
+	g->box = g->snap.box;
+	free(nb);
 }
 
 static void begin(struct twm_server *server, struct twm_view *view, uint32_t button,
 		enum twm_grab_mode mode) {
 	struct twm_grab *g = &server->grab;
+	struct wlr_keyboard *kb = wlr_seat_get_keyboard(server->seat);
 	*g = (struct twm_grab){
 		.mode = mode,
 		.view = view,
 		.button = button,
 		.cx = server->cursor->x,
 		.cy = server->cursor->y,
+		/* SNP-7: an M already down at the start (M-B1) doesn't count. */
+		.mod_held = kb && (wlr_keyboard_get_modifiers(kb) & server->config->modifier),
 	};
 	g->start = g->box = frame_geo(view);
 	/* FOC-8: the pointer belongs to the grab now. */
@@ -223,6 +296,7 @@ void grab_motion(struct twm_server *server) {
 			frame_limits(g->view));
 		break;
 	}
+	apply_snap(server, frame_limits(g->view));
 	show_outline(server);
 }
 
@@ -289,6 +363,24 @@ bool grab_key(struct twm_server *server, xkb_keysym_t sym, uint32_t mods) {
 	}
 	grab_motion(server);
 	return true;
+}
+
+void grab_modifiers(struct twm_server *server, uint32_t mods) {
+	struct twm_grab *g = &server->grab;
+	if (g->mode == TWM_GRAB_NONE) {
+		return;
+	}
+	bool held = (mods & server->config->modifier) != 0;
+	bool was_free = g->free;
+	if (held && !g->mod_held) {
+		g->free = true; /* SNP-7: pressed during the drag */
+	} else if (!held) {
+		g->free = false;
+	}
+	g->mod_held = held;
+	if (g->free != was_free) {
+		grab_motion(server);
+	}
 }
 
 void grab_view_gone(struct twm_server *server, struct twm_view *view) {

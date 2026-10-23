@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
 		"twm --check names file and line (exit %d)", status);
 
 	/* CFG-12: fixed file, reloaded by command. */
-	write_rc("Accent #FF8A65\nOpaqueMove on\n");
+	write_rc("Accent #FF8A65\nOpaqueMove on\nSnap off\n");
 	status = run("--reload", buf, sizeof(buf));
 	tc_expect("CFG-12", status == 0 && strstr(buf, "config ok \xc2\xb7 0 warnings \xc2\xb7 reloaded in"),
 		"twm --reload: %.*s", (int)strcspn(buf, "\n"), buf);
@@ -210,7 +210,7 @@ int main(int argc, char *argv[]) {
 	tc_image_free(&img);
 
 	/* FOC-7: FocusPolicy click; resting doesn't focus, a click does. */
-	write_rc("Accent #FF8A65\nFocusPolicy click\n");
+	write_rc("Accent #FF8A65\nFocusPolicy click\nSnap off\n");
 	tc_wait(tc, 400);
 	tc_pointer_move(tc, 400, 400);
 	tc_wait(tc, 200);

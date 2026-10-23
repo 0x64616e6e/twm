@@ -60,6 +60,7 @@ static void keyboard_handle_modifiers(struct wl_listener *listener, void *data) 
 	struct twm_keyboard *kb = wl_container_of(listener, kb, modifiers);
 	wlr_seat_set_keyboard(kb->server->seat, kb->wlr_keyboard);
 	wlr_seat_keyboard_notify_modifiers(kb->server->seat, &kb->wlr_keyboard->modifiers);
+	grab_modifiers(kb->server, wlr_keyboard_get_modifiers(kb->wlr_keyboard));
 }
 
 static void keyboard_handle_key(struct wl_listener *listener, void *data) {

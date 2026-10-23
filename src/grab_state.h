@@ -1,8 +1,10 @@
 #ifndef TWM_GRAB_STATE_H
 #define TWM_GRAB_STATE_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "geometry.h"
+#include "snap.h"
 
 struct twm_view;
 
@@ -24,6 +26,10 @@ struct twm_grab {
 	struct geo_box start, box;
 	uint32_t edges;
 	int key_dx, key_dy; /* arrow-key nudges (OUT-7) */
+	bool free;          /* SNP-7: M pressed during the drag */
+	bool mod_held;      /* the modifier as of the last key event */
+	struct snap_result snap;
+	struct geo_box output; /* the output the outline is on */
 };
 
 #endif

@@ -144,7 +144,7 @@ struct setwin {
 	char *pending; /* disk with the edits applied */
 	struct twm_config *cfg; /* from `pending`, or the last good one */
 	bool check_ok;
-	char check[160];
+	char check[200]; /* "line N: " and a 160-byte message */
 	struct rcdiff diff;
 	char *diff_old; /* the texts diff lines point into */
 	enum section section;
@@ -1052,7 +1052,7 @@ static void draw_control(struct setwin *sw, const struct cv *cv, int idx, double
 			add_hit(sw, bx, by, SWATCH, SWATCH, HIT_CTL, idx, i);
 			bx += SWATCH + SWATCH_GAP;
 		}
-		char hex[16];
+		char hex[sizeof(((struct setwin *)0)->edit_buf)];
 		if (sw->editing == idx) {
 			snprintf(hex, sizeof(hex), "%s", sw->edit_buf);
 		} else {

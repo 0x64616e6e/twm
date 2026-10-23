@@ -39,7 +39,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            build-essential git ca-certificates meson ninja-build pkgconf python3 \
+            build-essential git ca-certificates meson ninja-build pkgconf python3 bison \
             libwayland-dev wayland-protocols libexpat1-dev libffi-dev libxml2-dev \
             libxkbcommon-dev libfcft-dev hwdata libdisplay-info-dev libseat-dev \
             libinput-dev libudev-dev libgbm-dev libegl-dev libgles-dev \

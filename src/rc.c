@@ -8,6 +8,7 @@
 #include "menu.h"
 #include "portal.h"
 #include "rc.h"
+#include "setwin.h"
 #include "rootline.h"
 #include "server.h"
 #include "settings.h"
@@ -185,7 +186,15 @@ static void format_reply(struct twm_server *server, struct twmrc_doc *doc, bool 
 	}
 }
 
+static bool reload(struct twm_server *server, bool force, char *reply, size_t reply_len);
+
 bool rc_reload(struct twm_server *server, bool force, char *reply, size_t reply_len) {
+	bool applied = reload(server, force, reply, reply_len);
+	setwin_file_changed(server); /* SET-8: whatever happened, the file may differ */
+	return applied;
+}
+
+static bool reload(struct twm_server *server, bool force, char *reply, size_t reply_len) {
 	struct timespec t0, t1;
 	clock_gettime(CLOCK_MONOTONIC, &t0);
 	char *src;

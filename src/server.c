@@ -34,6 +34,7 @@
 #include "panner.h"
 #include "portal.h"
 #include "prompt.h"
+#include "setwin.h"
 #include "ui.h"
 #include "outline.h"
 #include "rc.h"
@@ -186,6 +187,7 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	imgr_init(server);
 	panner_init(server);
 	logview_init(server);
+	setwin_init(server);
 #if HAVE_XWAYLAND
 	if (opts->xwayland && server->config->xwayland) {
 		xwayland_init(server);
@@ -240,6 +242,7 @@ void server_finish(struct twm_server *server) {
 	ui_finish(server);
 	imgr_finish(server);
 	panner_finish(server);
+	setwin_finish(server);
 	logview_finish(server);
 	histview_finish(server);
 	remember_finish(server);

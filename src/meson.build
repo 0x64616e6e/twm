@@ -44,6 +44,7 @@ twm_src = twm_core_src + files(
   'root.c',
   'rootline.c',
   'server.c',
+  'setwin.c',
   'text.c',
   'ui.c',
   'view.c',

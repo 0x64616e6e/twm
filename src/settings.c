@@ -70,6 +70,7 @@ const char config_default_twmrc[] =
 	"\"M-m\"      : f.menu \"main\"\n"
 	"\"M-S-m\"    : f.move\n"
 	"\"M-S-h\"    : f.history\n"
+	"\"M-comma\"  : f.settings\n"
 	"\"M-1\" : f.desktop 1\n\"M-2\" : f.desktop 2\n\"M-3\" : f.desktop 3\n"
 	"\"M-4\" : f.desktop 4\n\"M-5\" : f.desktop 5\n\"M-6\" : f.desktop 6\n"
 	"\"M-7\" : f.desktop 7\n\"M-8\" : f.desktop 8\n\"M-9\" : f.desktop 9\n"
@@ -89,6 +90,7 @@ const char config_default_twmrc[] =
 	"  \"raise / lower\"  f.raiselower\n"
 	"  \"\"               f.separator\n"
 	"  \"desktops\"       f.menu \"desktops\"\n"
+	"  \"settings\"       f.settings\n"
 	"  \"reload .twmrc\"  f.reload\n"
 	"  \"exit\"           f.quit\n"
 	"}\n"
@@ -271,6 +273,7 @@ static const struct {
 	{"f.log", TWM_F_LOG, 0},
 	{"f.nexttab", TWM_F_NEXTTAB, 0},
 	{"f.history", TWM_F_HISTORY, 0},
+	{"f.settings", TWM_F_SETTINGS, 0},
 	{"f.desktop", TWM_F_DESKTOP, 'n'},
 	{"f.send", TWM_F_SEND, 'n'},
 	{"f.separator", TWM_F_SEPARATOR, 0},
@@ -816,12 +819,17 @@ static void k_panner(struct ctx *c) {
 	}
 	const struct twmrc_node **list;
 	size_t n = block_nodes(blk, &list);
-	if (n != 2 || !node_word(list[0], "desktops") || list[1]->kind != TWMRC_NUMBER ||
-			list[1]->number < 1 || list[1]->number > 9) {
-		ERR(c, "Panner wants { desktops N } with N from 1 to 9");
+	/* `{ desktops N }`, or `{ desktops N off }` to keep N with no Panner. */
+	bool on = true;
+	if (n == 3 && !parse_bool(list[2], &on)) {
+		n = 0;
+	}
+	if ((n != 2 && n != 3) || !node_word(list[0], "desktops") ||
+			list[1]->kind != TWMRC_NUMBER || list[1]->number < 1 || list[1]->number > 9) {
+		ERR(c, "Panner wants { desktops N } with N from 1 to 9 (and on or off)");
 	} else {
 		c->cfg->desktops = (int)list[1]->number;
-		c->cfg->panner = true;
+		c->cfg->panner = on;
 	}
 	free(list);
 }

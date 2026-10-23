@@ -138,6 +138,7 @@ struct twm_server {
 	struct twm_internal_view *imgr;
 	struct twm_internal_view *panner;
 	struct twm_internal_view *logview;
+	struct twm_internal_view *setwin; /* SET-*: the Settings window */
 	struct twm_menu_ui *menu;
 	bool selecting;
 	struct twm_func *select_func;

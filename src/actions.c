@@ -3,6 +3,7 @@
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/util/edges.h>
 #include "actions.h"
+#include "setwin.h"
 #include "desktop.h"
 #include "grab.h"
 #include "group.h"
@@ -144,6 +145,9 @@ void action_run(struct twm_server *server, const struct twm_func *func,
 		return;
 	case TWM_F_HISTORY:
 		histview_toggle(server); /* HIS-3 */
+		return;
+	case TWM_F_SETTINGS:
+		setwin_toggle(server); /* SET-1 */
 		return;
 	case TWM_F_NEXTTAB: /* GRP-4 */
 		group_cycle(view, 1);

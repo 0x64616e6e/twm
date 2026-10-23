@@ -47,6 +47,7 @@ enum twm_func_kind {
 	TWM_F_LOG,
 	TWM_F_NEXTTAB,
 	TWM_F_HISTORY,
+	TWM_F_SETTINGS,
 	TWM_F_DESKTOP, /* num */
 	TWM_F_SEND,    /* num */
 	TWM_F_SEPARATOR,

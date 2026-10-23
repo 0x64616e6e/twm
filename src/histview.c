@@ -171,8 +171,16 @@ static int handle_refresh(void *data) {
 	return 0;
 }
 
+/* First time: left of the Icon Manager's column (HIS-3). */
+static void place(struct twm_internal_view *iv, struct wlr_box out, int *x, int *y) {
+	struct wlr_box f = view_frame_box(&iv->view);
+	*x = out.x + out.width - 24 - 236 - 24 - f.width;
+	*y = out.y + 24;
+}
+
 void histview_init(struct twm_server *server) {
 	server->histview = internal_view_create(server, "history", "twm-history", render, NULL);
+	server->histview->place = place;
 	server->histview_timer = wl_event_loop_add_timer(server->loop, handle_refresh, server);
 }
 

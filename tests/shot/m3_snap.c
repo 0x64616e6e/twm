@@ -103,7 +103,8 @@ int main(int argc, char *argv[]) {
 	tc_wait(tc, 120);
 
 	/* OUT-13: B3 while placing fits the largest empty rectangle around the
-	 * pointer: left of it zpool (ends at 700), below it xterm (from 600). */
+	 * pointer: left of it zpool (ends at 700), below it xterm (from 600),
+	 * right of it the Icon Manager (from 1660, M4). */
 	tc_pointer_move(tc, 800, 300);
 	struct tc_window *fit = tc_window_create(tc, &(struct tc_window_opts){
 		.title = "fit", .app_id = "fit", .width = 300, .height = 200, .color = SURFACE});
@@ -112,11 +113,11 @@ int main(int argc, char *argv[]) {
 	tc_wait(tc, 120);
 	int fw, fh;
 	tc_window_size(fit, &fw, &fh);
-	tc_expect("OUT-13", fw == 1220 - 2 && fh == 600 - TH - 2,
-		"B3 fits 1220x600+700+0 (client %dx%d)", fw, fh);
+	tc_expect("OUT-13", fw == 960 - 2 && fh == 600 - TH - 2,
+		"B3 fits 960x600+700+0 (client %dx%d)", fw, fh);
 	tc_screenshot(tc, &img);
 	tc_expect_pixel("OUT-13", &img, 702, 2, ACCENT, 2);
-	tc_expect_pixel("OUT-13", &img, 1919, 300, ACCENT, 2);
+	tc_expect_pixel("OUT-13", &img, 1659, 300, ACCENT, 2);
 	tc_expect_pixel("OUT-13", &img, 1000, 599, ACCENT, 2);
 	tc_image_free(&img);
 	tc_window_destroy(fit);
@@ -209,10 +210,11 @@ int main(int argc, char *argv[]) {
 	tc_wait(tc, 40);
 	expect_at(tc, "HIS-2", 903, 610, "redo");
 
-	/* HIS-3: M-S-h shows the history, top-right; title-only tab. */
+	/* HIS-3: M-S-h shows the history, left of the Icon Manager's column;
+	 * title-only tab. */
 	tc_chord(tc, 3, TC_KEY_LEFTMETA, TC_KEY_LEFTSHIFT, TC_KEY_H);
 	tc_wait(tc, 60);
-	int hx = 1920 - 24 - 342, hy = 24;
+	int hx = 1920 - 24 - 236 - 24 - 342, hy = 24;
 	tc_screenshot(tc, &img);
 	tc_expect_pixel("FRM-18", &img, hx + 2, hy + 2, GRAPHITE, 2);
 	tc_expect_pixel("FRM-18", &img, hx + 7, hy + 7, GRAPHITE, 2); /* no iconify box */

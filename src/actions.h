@@ -13,6 +13,12 @@ struct action_ctx {
 	double lx, ly;           /* pointer, layout coordinates */
 };
 
+/*
+ * IMG-9: run `cmd` in the configured Terminal. A `%s` in Terminal stands for
+ * the command ("xterm -e %s"); otherwise the command is appended ("foot").
+ */
+void action_run_in_terminal(struct twm_server *server, const char *cmd);
+
 /* Run a bound function (KEY, FRM-12, OUT-8, OUT-9). */
 void action_run(struct twm_server *server, const struct twm_func *func,
 	const struct action_ctx *ctx);

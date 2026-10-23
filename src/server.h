@@ -128,6 +128,7 @@ struct twm_server {
 	struct twm_menu_ui *menu;
 	bool selecting;
 	struct twm_func *select_func;
+	struct twm_internal_view *button_target; /* got the press; gets the release */
 
 	/* HIS-*: the operation history and its window */
 	struct history history;

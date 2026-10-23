@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <string.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/util/edges.h>
 #include "actions.h"
@@ -13,6 +15,18 @@
 static void not_yet(struct twm_server *server, enum twm_func_kind kind, const char *milestone) {
 	rootline_post(server, ROOTLINE_INFO, "twm", "%s arrives in %s",
 		config_func_name(kind), milestone);
+}
+
+void action_run_in_terminal(struct twm_server *server, const char *cmd) {
+	const char *term = server->config->terminal;
+	char line[2048];
+	const char *pct = strstr(term, "%s");
+	if (pct) {
+		snprintf(line, sizeof(line), "%.*s%s%s", (int)(pct - term), term, cmd, pct + 2);
+	} else {
+		snprintf(line, sizeof(line), "%s %s", term, cmd);
+	}
+	server_spawn(server, line);
 }
 
 void action_run(struct twm_server *server, const struct twm_func *func,

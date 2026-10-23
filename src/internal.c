@@ -8,6 +8,10 @@ static struct twm_internal_view *iv_of(struct twm_view *view) {
 	return wl_container_of(view, (struct twm_internal_view *)NULL, view);
 }
 
+struct twm_internal_view *internal_view_of(struct twm_view *view) {
+	return view && view->type == TWM_VIEW_INTERNAL ? iv_of(view) : NULL;
+}
+
 static const char *iv_get_title(struct twm_view *view) {
 	return iv_of(view)->title;
 }
@@ -63,6 +67,9 @@ void internal_view_destroy(struct twm_internal_view *iv) {
 	if (!iv) {
 		return;
 	}
+	if (iv->view.server->button_target == iv) {
+		iv->view.server->button_target = NULL;
+	}
 	view_finish(&iv->view);
 	free(iv);
 }
@@ -104,7 +111,11 @@ void internal_view_show(struct twm_internal_view *iv) {
 		wl_container_of(server->outputs.next, out, link);
 	if (out) {
 		struct wlr_box f = view_frame_box(view);
-		view_move(view, out->box.x + out->box.width - 24 - f.width, out->box.y + 24);
+		int x = out->box.x + out->box.width - 24 - f.width, y = out->box.y + 24;
+		if (iv->place) {
+			iv->place(iv, out->box, &x, &y);
+		}
+		view_move(view, x, y);
 	}
 	view_show(view, false);
 }

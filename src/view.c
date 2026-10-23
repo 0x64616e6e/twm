@@ -7,6 +7,7 @@
 #include "frame.h"
 #include "grab.h"
 #include "icons.h"
+#include "internal.h"
 #include "ui.h"
 #include "remember.h"
 #include "settings.h"
@@ -296,6 +297,10 @@ void view_focus(struct twm_view *view) {
 	if (prev) {
 		prev->impl->set_activated(prev, false);
 		view_update_frame(prev);
+		struct twm_internal_view *piv = internal_view_of(prev);
+		if (piv && piv->blur) {
+			piv->blur(piv);
+		}
 	}
 	view->urgent = false; /* URG-5 */
 	view->impl->set_activated(view, true);

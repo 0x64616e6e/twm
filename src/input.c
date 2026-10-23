@@ -16,6 +16,7 @@
 #include "actions.h"
 #include "frame.h"
 #include "grab.h"
+#include "internal.h"
 #include "view.h"
 
 struct twm_keyboard {
@@ -37,6 +38,16 @@ static bool handle_key(struct twm_server *server, struct wlr_keyboard *kb,
 			return true;
 		}
 	}
+	/* twm's own focused window (the Icon Manager filtering) may want keys
+	 * before the bindings (IMG-8: M-Return brings a window here). */
+	struct twm_internal_view *iv = internal_view_of(server->focused);
+	char utf8[16] = "";
+	xkb_state_key_get_utf8(kb->xkb_state, keycode, utf8, sizeof(utf8));
+	xkb_keysym_t sym = nsyms > 0 ? syms[0] : XKB_KEY_NoSymbol;
+	if (iv && iv->key && iv->wants_keys_first && iv->wants_keys_first(iv) &&
+			iv->key(iv, sym, utf8, mods, true)) {
+		return true;
+	}
 	/* Bindings name the unshifted key ("M-S-1", not "M-exclam"). */
 	xkb_layout_index_t layout = xkb_state_key_get_layout(kb->xkb_state, keycode);
 	nsyms = xkb_keymap_key_get_syms_by_level(kb->keymap, keycode, layout, 0, &syms);
@@ -52,6 +63,9 @@ static bool handle_key(struct twm_server *server, struct wlr_keyboard *kb,
 			action_run(server, &b->func, &ctx);
 			return true;
 		}
+	}
+	if (iv && iv->key && iv->key(iv, sym, utf8, mods, false)) {
+		return true;
 	}
 	return false;
 }
@@ -277,6 +291,16 @@ static bool handle_press(struct twm_server *server, uint32_t button) {
 	}
 	/* FOC-5: a press focuses at once; FOC-6: raising is optional. */
 	view_focus(view);
+	struct twm_internal_view *iv = internal_view_of(view);
+	if (iv && context == TWM_CTX_WINDOW) {
+		int dx, dy;
+		view_client_offset(view, &dx, &dy);
+		if (iv->button) {
+			iv->button(iv, button, true, lx - view->x - dx, ly - view->y - dy);
+		}
+		server->button_target = iv;
+		return true;
+	}
 	if (server->config->raise_on_click) {
 		view_raise(view);
 	}
@@ -297,6 +321,16 @@ static void handle_cursor_button(struct wl_listener *listener, void *data) {
 		consumed = handle_press(server, event->button);
 	} else {
 		consumed = (server->consumed_buttons & bit) != 0;
+		struct twm_internal_view *iv = server->button_target;
+		if (iv && consumed) {
+			server->button_target = NULL;
+			if (iv->button && iv->view.shown) {
+				int dx, dy;
+				view_client_offset(&iv->view, &dx, &dy);
+				iv->button(iv, event->button, false, server->cursor->x - iv->view.x - dx,
+					server->cursor->y - iv->view.y - dy);
+			}
+		}
 	}
 	if (pressed && consumed) {
 		server->consumed_buttons |= bit;

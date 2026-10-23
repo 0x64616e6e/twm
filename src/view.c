@@ -3,6 +3,8 @@
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_seat.h>
+#include "frame.h"
+#include "grab.h"
 #include "view.h"
 
 void view_init(struct twm_view *view, struct twm_server *server,
@@ -12,14 +14,19 @@ void view_init(struct twm_view *view, struct twm_server *server,
 	view->impl = impl;
 	view->client_hit = (struct twm_hit){.kind = TWM_HIT_CLIENT, .view = view};
 	wl_list_init(&view->link);
+	wl_list_init(&view->place_link);
 	view->tree = wlr_scene_tree_create(server->layers[TWM_LAYER_WINDOWS]);
 	wlr_scene_node_set_enabled(&view->tree->node, false);
+	/* The frame's nodes go first, so the client draws above them. */
+	view->frame = frame_create(view);
 }
 
 void view_finish(struct twm_view *view) {
 	if (view->mapped) {
 		view_unmap(view);
 	}
+	frame_destroy(view->frame);
+	view->frame = NULL;
 	wlr_scene_node_destroy(&view->tree->node);
 }
 
@@ -42,9 +49,21 @@ void view_set_content(struct twm_view *view, struct wlr_scene_tree *content) {
 }
 
 void view_client_offset(struct twm_view *view, int *dx, int *dy) {
-	/* M0 has no frames yet; M1 adds the border and title tab here. */
-	*dx = 0;
-	*dy = 0;
+	const struct twm_theme *t = &view->server->theme;
+	*dx = t->border_width;
+	*dy = t->title_height + t->border_width;
+}
+
+void view_frame_size(struct twm_server *server, int cw, int ch, int *fw, int *fh) {
+	const struct twm_theme *t = &server->theme;
+	*fw = cw + 2 * t->border_width;
+	*fh = ch + 2 * t->border_width + t->title_height;
+}
+
+struct wlr_box view_frame_box(struct twm_view *view) {
+	struct wlr_box box = {.x = view->x, .y = view->y};
+	view_frame_size(view->server, view->width, view->height, &box.width, &box.height);
+	return box;
 }
 
 const char *view_title(struct twm_view *view) {
@@ -59,50 +78,108 @@ const char *view_title(struct twm_view *view) {
 	return "untitled";
 }
 
-static void initial_position(struct twm_view *view) {
-	/* Centered on the output under the pointer. Replaced by click-to-place
-	 * (OUT-12) in M1. */
-	struct twm_server *server = view->server;
+void view_update_frame(struct twm_view *view) {
+	if (view->frame) {
+		frame_update(view->frame);
+	}
+}
+
+static struct twm_output *output_for_new_view(struct twm_server *server) {
 	struct twm_output *output = output_at(server, server->cursor->x, server->cursor->y);
 	if (!output && !wl_list_empty(&server->outputs)) {
 		output = wl_container_of(server->outputs.next, output, link);
 	}
-	if (!output) {
-		return;
-	}
-	int dx, dy;
-	view_client_offset(view, &dx, &dy);
-	int fw = view->width + 2 * dx;
-	int fh = view->height + dy + dx;
-	view_move(view, output->box.x + (output->box.width - fw) / 2,
-		output->box.y + (output->box.height - fh) / 2);
+	return output;
+}
+
+static void center_in(struct twm_view *view, struct wlr_box area) {
+	struct wlr_box f = view_frame_box(view);
+	view_move(view, area.x + (area.width - f.width) / 2,
+		area.y + (area.height - f.height) / 2);
 }
 
 void view_map(struct twm_view *view) {
 	struct twm_server *server = view->server;
 	view->mapped = true;
+	view_update_frame(view);
+
+	/* OUT-15: transients open over their parent, focused if it was. */
+	struct twm_view *parent = view->impl->get_parent ? view->impl->get_parent(view) : NULL;
+	if (parent && parent->shown) {
+		center_in(view, view_frame_box(parent));
+		view_show(view, server->focused == parent);
+		return;
+	}
+	/* OUT-15: an X11 window placed by the user keeps its position. */
+	int ux, uy;
+	if (view->impl->get_user_position && view->impl->get_user_position(view, &ux, &uy)) {
+		int dx, dy;
+		view_client_offset(view, &dx, &dy);
+		view_move(view, ux - dx, uy - dy);
+		view_show(view, false);
+		return;
+	}
+	/* OUT-12: click-to-place. */
+	if (grab_place_enqueue(server, view)) {
+		return;
+	}
+	/* No pointer to place with (e.g. no outputs yet): center it, and don't
+	 * take focus (FOC-9). */
+	struct twm_output *output = output_for_new_view(server);
+	if (output) {
+		center_in(view, output->box);
+	}
+	view_show(view, false);
+}
+
+void view_show(struct twm_view *view, bool focus) {
+	struct twm_server *server = view->server;
+	view->shown = true;
 	wl_list_remove(&view->link);
 	wl_list_insert(&server->views, &view->link);
-	initial_position(view);
 	wlr_scene_node_set_enabled(&view->tree->node, true);
 	wlr_scene_node_raise_to_top(&view->tree->node);
-	view_focus(view);
+	if (focus) {
+		view_focus(view);
+	}
+	view_update_frame(view);
 	input_update_pointer_focus(server, 0);
+}
+
+static struct twm_view *next_focus(struct twm_server *server) {
+	/* FOC-10: the window under the pointer, else the most recently focused. */
+	double sx, sy;
+	struct wlr_surface *surface;
+	struct twm_hit hit = server_hit_at(server, server->cursor->x, server->cursor->y,
+		&surface, &sx, &sy);
+	if (hit.view && hit.view->shown) {
+		return hit.view;
+	}
+	struct twm_view *best = NULL, *view;
+	wl_list_for_each(view, &server->views, link) {
+		if (!best || view->focus_seq > best->focus_seq) {
+			best = view;
+		}
+	}
+	return best;
 }
 
 void view_unmap(struct twm_view *view) {
 	struct twm_server *server = view->server;
+	grab_view_gone(server, view);
 	view->mapped = false;
+	view->shown = false;
 	wlr_scene_node_set_enabled(&view->tree->node, false);
 	wl_list_remove(&view->link);
 	wl_list_init(&view->link);
 	if (server->focused == view) {
 		server->focused = NULL;
-		struct twm_view *next = NULL;
-		if (!wl_list_empty(&server->views)) {
-			next = wl_container_of(server->views.next, next, link);
+		struct twm_view *next = next_focus(server);
+		if (next) {
+			view_focus(next);
+		} else {
+			wlr_seat_keyboard_notify_clear_focus(server->seat);
 		}
-		view_focus(next);
 	}
 	input_update_pointer_focus(server, 0);
 }
@@ -114,37 +191,47 @@ void view_update_geometry(struct twm_view *view, int gx, int gy,
 	view->width = width;
 	view->height = height;
 	position_content(view);
+	view_update_frame(view);
 }
 
 void view_move(struct twm_view *view, int x, int y) {
+	view_move_resize(view, x, y, view->width, view->height);
+}
+
+void view_move_resize(struct twm_view *view, int x, int y, int w, int h) {
 	view->x = x;
 	view->y = y;
 	wlr_scene_node_set_position(&view->tree->node, x, y);
 	int dx, dy;
 	view_client_offset(view, &dx, &dy);
-	view->impl->configure(view, x + dx, y + dy, view->width, view->height);
+	view->impl->configure(view, x + dx, y + dy, w, h);
 }
 
 void view_raise(struct twm_view *view) {
 	struct twm_server *server = view->server;
 	wlr_scene_node_raise_to_top(&view->tree->node);
-	wl_list_remove(&view->link);
-	wl_list_insert(&server->views, &view->link);
+	if (view->shown) {
+		wl_list_remove(&view->link);
+		wl_list_insert(&server->views, &view->link);
+	}
 }
 
 void view_focus(struct twm_view *view) {
-	struct twm_server *server = view ? view->server : NULL;
 	if (!view) {
 		return;
 	}
+	struct twm_server *server = view->server;
 	struct twm_view *prev = server->focused;
+	view->focus_seq = ++server->focus_counter;
 	if (prev == view) {
 		return;
 	}
+	server->focused = view;
 	if (prev) {
 		prev->impl->set_activated(prev, false);
+		view_update_frame(prev);
 	}
-	server->focused = view;
+	view->urgent = false; /* URG-5 */
 	view->impl->set_activated(view, true);
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(server->seat);
 	if (kb) {
@@ -152,6 +239,18 @@ void view_focus(struct twm_view *view) {
 			kb->keycodes, kb->num_keycodes, &kb->modifiers);
 	} else {
 		wlr_seat_keyboard_notify_enter(server->seat, view->surface, NULL, 0, NULL);
+	}
+	view_update_frame(view);
+	focus_changed(server);
+}
+
+void view_set_urgent(struct twm_view *view, bool urgent) {
+	if (urgent && view->server->focused == view) {
+		return;
+	}
+	if (view->urgent != urgent) {
+		view->urgent = urgent;
+		view_update_frame(view);
 	}
 }
 

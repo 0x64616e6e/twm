@@ -1,12 +1,15 @@
 #include <stdlib.h>
 #include <wlr/types/wlr_output_layout.h>
+#include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
 #include "view.h"
+#include "xdg.h"
 
 struct twm_xdg_view {
 	struct twm_view view;
 	struct wlr_xdg_toplevel *toplevel;
+	struct wlr_xdg_toplevel_decoration_v1 *decoration;
 
 	struct wl_listener map;
 	struct wl_listener unmap;
@@ -14,6 +17,8 @@ struct twm_xdg_view {
 	struct wl_listener destroy;
 	struct wl_listener request_maximize;
 	struct wl_listener request_fullscreen;
+	struct wl_listener set_title;
+	struct wl_listener set_app_id;
 };
 
 struct twm_xdg_popup {
@@ -57,6 +62,16 @@ static struct twm_size_limits xdg_get_size_limits(struct twm_view *view) {
 	};
 }
 
+static struct twm_view *view_of_toplevel(struct wlr_xdg_toplevel *toplevel) {
+	struct wlr_scene_tree *content = toplevel ? toplevel->base->data : NULL;
+	struct twm_hit *hit = content ? content->node.data : NULL;
+	return hit ? hit->view : NULL;
+}
+
+static struct twm_view *xdg_get_parent(struct twm_view *view) {
+	return view_of_toplevel(xdg_view(view)->toplevel->parent);
+}
+
 static const struct twm_view_impl xdg_impl = {
 	.get_title = xdg_get_title,
 	.get_app_id = xdg_get_app_id,
@@ -64,7 +79,16 @@ static const struct twm_view_impl xdg_impl = {
 	.configure = xdg_configure,
 	.close = xdg_close,
 	.get_size_limits = xdg_get_size_limits,
+	.get_parent = xdg_get_parent,
 };
+
+void xdg_set_decoration(struct wlr_xdg_toplevel *toplevel,
+		struct wlr_xdg_toplevel_decoration_v1 *deco) {
+	struct twm_view *view = view_of_toplevel(toplevel);
+	if (view && view->type == TWM_VIEW_XDG) {
+		xdg_view(view)->decoration = deco;
+	}
+}
 
 static void update_geometry(struct twm_xdg_view *xv) {
 	struct wlr_box *geo = &xv->toplevel->base->geometry;
@@ -89,6 +113,10 @@ static void handle_commit(struct wl_listener *listener, void *data) {
 	if (base->initial_commit) {
 		/* Let the client pick its size; the frame follows. */
 		wlr_xdg_toplevel_set_size(xv->toplevel, 0, 0);
+		if (xv->decoration) {
+			wlr_xdg_toplevel_decoration_v1_set_mode(xv->decoration,
+				WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+		}
 		return;
 	}
 	if (!xv->view.mapped) {
@@ -98,7 +126,19 @@ static void handle_commit(struct wl_listener *listener, void *data) {
 	if (geo->x != xv->view.geom_x || geo->y != xv->view.geom_y ||
 			geo->width != xv->view.width || geo->height != xv->view.height) {
 		update_geometry(xv);
+	} else {
+		view_update_frame(&xv->view); /* size limits may have changed (FRM-6) */
 	}
+}
+
+static void handle_set_title(struct wl_listener *listener, void *data) {
+	struct twm_xdg_view *xv = wl_container_of(listener, xv, set_title);
+	view_update_frame(&xv->view);
+}
+
+static void handle_set_app_id(struct wl_listener *listener, void *data) {
+	struct twm_xdg_view *xv = wl_container_of(listener, xv, set_app_id);
+	view_update_frame(&xv->view);
 }
 
 static void handle_request_state(struct twm_xdg_view *xv) {
@@ -126,6 +166,8 @@ static void handle_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&xv->destroy.link);
 	wl_list_remove(&xv->request_maximize.link);
 	wl_list_remove(&xv->request_fullscreen.link);
+	wl_list_remove(&xv->set_title.link);
+	wl_list_remove(&xv->set_app_id.link);
 	view_finish(&xv->view);
 	free(xv);
 }
@@ -158,6 +200,10 @@ static void handle_new_toplevel(struct wl_listener *listener, void *data) {
 	wl_signal_add(&toplevel->events.request_maximize, &xv->request_maximize);
 	xv->request_fullscreen.notify = handle_request_fullscreen;
 	wl_signal_add(&toplevel->events.request_fullscreen, &xv->request_fullscreen);
+	xv->set_title.notify = handle_set_title;
+	wl_signal_add(&toplevel->events.set_title, &xv->set_title);
+	xv->set_app_id.notify = handle_set_app_id;
+	wl_signal_add(&toplevel->events.set_app_id, &xv->set_app_id);
 }
 
 static void popup_unconstrain(struct twm_xdg_popup *p) {

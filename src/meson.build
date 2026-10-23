@@ -8,8 +8,13 @@ twm_core_src = files(
 )
 
 twm_src = twm_core_src + files(
+  'decoration.c',
+  'focus.c',
+  'frame.c',
+  'grab.c',
   'input.c',
   'main.c',
+  'outline.c',
   'output.c',
   'pixbuf.c',
   'root.c',

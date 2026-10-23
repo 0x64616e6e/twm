@@ -6,6 +6,7 @@
 #include <wlr/types/wlr_scene.h>
 #include <wlr/util/log.h>
 #include "server.h"
+#include "view.h"
 
 static void output_handle_frame(struct wl_listener *listener, void *data) {
 	struct twm_output *output = wl_container_of(listener, output, frame);
@@ -131,6 +132,16 @@ void output_arrange(struct twm_server *server) {
 		output->scale = output->wlr_output->scale;
 		if (changed) {
 			root_update(output);
+		}
+	}
+	root_update_text(server);
+	/* Frames are drawn at the largest output scale (GEN-3). */
+	float scale = output_max_scale(server);
+	if (scale != server->frame_scale) {
+		server->frame_scale = scale;
+		struct twm_view *view;
+		wl_list_for_each(view, &server->views, link) {
+			view_update_frame(view);
 		}
 	}
 }

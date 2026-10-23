@@ -44,15 +44,19 @@ int main(int argc, char *argv[]) {
 		(1076 % 6 == 2 || 1076 % 6 == 3) ? dot : GROUND, 1);
 	tc_image_free(&img);
 
-	/* A client window reaches the screen; M0 centers it on the output. */
+	/* A client window reaches the screen. Since M1 new windows wait for
+	 * click-to-place (OUT-12): park the pointer, click. */
+	tc_pointer_move(tc, 810, 440);
 	struct tc_window *win = tc_window_create(tc, &(struct tc_window_opts){
 		.title = "m0", .app_id = "twm-test", .width = 300, .height = 200,
 		.color = 0x3060A0,
 	});
+	tc_pointer_click(tc, TC_BTN_LEFT);
+	tc_pointer_move(tc, 1900, 20);
 	tc_wait(tc, 100);
 	if (tc_screenshot(tc, &img)) {
-		tc_expect_pixel("GEN-4", &img, 960, 540, 0x3060A0, 0);
-		tc_expect_pixel("ROOT-1", &img, 960 - 151, 540, GROUND, 8);
+		tc_expect_pixel("GEN-4", &img, 960, 590, 0x3060A0, 0);
+		tc_expect_pixel("ROOT-1", &img, 805, 590, GROUND, 8);
 		tc_expect("D-7", tc_image_write_png(&img, out), "wrote %s", out);
 		tc_image_free(&img);
 	}

@@ -91,3 +91,48 @@ void draw_weave(pixman_image_t *img, float scale, int pitch,
 	}
 	free(rects);
 }
+
+int draw_stroke(float scale) {
+	int t = (int)floorf(scale);
+	return t < 1 ? 1 : t;
+}
+
+void draw_box(pixman_image_t *img, uint32_t argb, int x, int y, int w, int h, int t) {
+	draw_fill(img, argb, x, y, w, t);
+	draw_fill(img, argb, x, y + h - t, w, t);
+	draw_fill(img, argb, x, y, t, h);
+	draw_fill(img, argb, x + w - t, y, t, h);
+}
+
+static int sc(float v, float scale) {
+	return (int)lroundf(v * scale);
+}
+
+void draw_glyph(pixman_image_t *img, enum twm_glyph glyph, int x, int y,
+		float scale, uint32_t argb) {
+	int t = draw_stroke(scale);
+	switch (glyph) {
+	case TWM_GLYPH_ICONIFY:
+		draw_box(img, argb, x, y, sc(12, scale), sc(12, scale), t);
+		draw_fill(img, argb, x + sc(4, scale), y + sc(4, scale),
+			sc(8, scale) - sc(4, scale), sc(8, scale) - sc(4, scale));
+		break;
+	case TWM_GLYPH_RESIZE:
+		draw_box(img, argb, x, y, sc(12, scale), sc(12, scale), t);
+		draw_box(img, argb, x, y, sc(8, scale), sc(8, scale), t);
+		draw_box(img, argb, x, y, sc(4, scale), sc(4, scale), t);
+		break;
+	}
+}
+
+void draw_hatch(pixman_image_t *img, int x, int y, int w, int h, float scale,
+		uint32_t argb) {
+	int t = draw_stroke(scale);
+	for (int k = 0;; k++) {
+		int ly = sc(3.0f * (float)k, scale);
+		if (ly >= h) {
+			break;
+		}
+		draw_fill(img, argb, x, y + ly, w, t < h - ly ? t : h - ly);
+	}
+}

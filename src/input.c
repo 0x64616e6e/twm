@@ -13,6 +13,8 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon.h>
+#include "frame.h"
+#include "grab.h"
 #include "view.h"
 
 struct twm_keyboard {
@@ -32,13 +34,48 @@ struct twm_keyboard {
  * binding table replaces this in M2.
  */
 static bool handle_binding(struct twm_server *server, uint32_t mods, xkb_keysym_t sym) {
-	if (mods == (TWM_MOD | WLR_MODIFIER_SHIFT) && (sym == XKB_KEY_Q || sym == XKB_KEY_q)) {
-		wl_display_terminate(server->display);
+	/* Outline operations hold the keyboard (OUT-6, OUT-7). */
+	if (grab_key(server, sym, mods)) {
 		return true;
 	}
-	if (mods == TWM_MOD && sym == XKB_KEY_Return) {
-		server_spawn(server, "foot");
-		return true;
+	sym = xkb_keysym_to_lower(sym);
+	struct twm_view *focused = server->focused;
+	if (mods == (TWM_MOD | WLR_MODIFIER_SHIFT)) {
+		switch (sym) {
+		case XKB_KEY_q:
+			wl_display_terminate(server->display);
+			return true;
+		case XKB_KEY_m: /* OUT-8: keyboard move */
+			if (focused && !grab_active(server)) {
+				grab_begin_move(server, focused, 0);
+			}
+			return true;
+		}
+	}
+	if (mods == TWM_MOD) {
+		switch (sym) {
+		case XKB_KEY_Return:
+			server_spawn(server, "foot");
+			return true;
+		case XKB_KEY_r: /* OUT-9: keyboard resize */
+			if (focused && !grab_active(server)) {
+				grab_begin_resize(server, focused, 0, WLR_EDGE_BOTTOM | WLR_EDGE_RIGHT);
+			}
+			return true;
+		case XKB_KEY_space: /* f.raiselower */
+			if (focused) {
+				struct twm_view *top = wl_list_empty(&server->views) ? NULL :
+					wl_container_of(server->views.next, top, link);
+				if (top == focused) {
+					wlr_scene_node_lower_to_bottom(&focused->tree->node);
+					wl_list_remove(&focused->link);
+					wl_list_insert(server->views.prev, &focused->link);
+				} else {
+					view_raise(focused);
+				}
+			}
+			return true;
+		}
 	}
 	return false;
 }
@@ -55,6 +92,7 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 	struct wlr_keyboard_key_event *event = data;
 
 	bool handled = false;
+	uint32_t bit = event->keycode < 256 ? event->keycode : 0;
 	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED && kb->wlr_keyboard->xkb_state) {
 		uint32_t keycode = event->keycode + 8;
 		const xkb_keysym_t *syms;
@@ -63,6 +101,14 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 		for (int i = 0; i < nsyms && !handled; i++) {
 			handled = handle_binding(server, mods, syms[i]);
 		}
+		if (handled && bit) {
+			server->consumed_keys[bit / 32] |= 1u << (bit % 32);
+		}
+	} else if (event->state == WL_KEYBOARD_KEY_STATE_RELEASED && bit &&
+			(server->consumed_keys[bit / 32] & (1u << (bit % 32)))) {
+		/* The press went to twm; so does the release. */
+		server->consumed_keys[bit / 32] &= ~(1u << (bit % 32));
+		handled = true;
 	}
 	if (!handled) {
 		wlr_seat_set_keyboard(server->seat, kb->wlr_keyboard);
@@ -156,6 +202,9 @@ static void handle_new_virtual_keyboard(struct wl_listener *listener, void *data
 }
 
 void input_update_pointer_focus(struct twm_server *server, uint32_t time_msec) {
+	if (grab_active(server)) {
+		return; /* FOC-8: the grab owns the pointer */
+	}
 	double sx = 0, sy = 0;
 	struct wlr_surface *surface = NULL;
 	struct twm_hit hit = server_hit_at(server, server->cursor->x, server->cursor->y,
@@ -172,40 +221,138 @@ void input_update_pointer_focus(struct twm_server *server, uint32_t time_msec) {
 	}
 }
 
+static void pointer_moved(struct twm_server *server, uint32_t time_msec) {
+	if (grab_active(server)) {
+		grab_motion(server);
+		return;
+	}
+	input_update_pointer_focus(server, time_msec); /* FOC-4: immediate */
+	focus_pointer_moved(server);                    /* FOC-2: keyboard waits */
+}
+
 static void handle_cursor_motion(struct wl_listener *listener, void *data) {
 	struct twm_server *server = wl_container_of(listener, server, cursor_motion);
 	struct wlr_pointer_motion_event *event = data;
 	wlr_cursor_move(server->cursor, &event->pointer->base, event->delta_x, event->delta_y);
-	input_update_pointer_focus(server, event->time_msec);
+	pointer_moved(server, event->time_msec);
 }
 
 static void handle_cursor_motion_absolute(struct wl_listener *listener, void *data) {
 	struct twm_server *server = wl_container_of(listener, server, cursor_motion_absolute);
 	struct wlr_pointer_motion_absolute_event *event = data;
 	wlr_cursor_warp_absolute(server->cursor, &event->pointer->base, event->x, event->y);
-	input_update_pointer_focus(server, event->time_msec);
+	pointer_moved(server, event->time_msec);
+}
+
+static uint32_t button_bit(uint32_t button) {
+	return button >= TWM_BTN_LEFT && button < TWM_BTN_LEFT + 32 ?
+		1u << (button - TWM_BTN_LEFT) : 0;
+}
+
+static bool modifier_held(struct twm_server *server) {
+	struct wlr_keyboard *kb = wlr_seat_get_keyboard(server->seat);
+	return kb && (wlr_keyboard_get_modifiers(kb) & TWM_MOD);
+}
+
+/*
+ * Default pointer bindings (FRM-12, OUT-8, OUT-9). Returns true when twm
+ * takes the press; the client never sees it, nor its release.
+ */
+static bool handle_press(struct twm_server *server, uint32_t button) {
+	double sx, sy;
+	struct wlr_surface *surface = NULL;
+	double lx = server->cursor->x, ly = server->cursor->y;
+	struct twm_hit hit = server_hit_at(server, lx, ly, &surface, &sx, &sy);
+	struct twm_view *view = hit.view;
+	if (hit.kind == TWM_HIT_TITLE && view && view->frame) {
+		hit.kind = frame_part_at(view->frame, lx, ly);
+	}
+
+	switch (hit.kind) {
+	case TWM_HIT_ICONIFY:
+		if (button == TWM_BTN_LEFT) {
+			/* FRM-13: the Icon Manager and root icons arrive in M4. */
+			wlr_log(WLR_INFO, "f.iconify is not available yet (M4)");
+		}
+		return true;
+	case TWM_HIT_RESIZE:
+		if (button == TWM_BTN_LEFT || button == TWM_BTN_MIDDLE) {
+			view_focus(view);
+			grab_begin_resize(server, view, button, WLR_EDGE_BOTTOM | WLR_EDGE_RIGHT);
+		}
+		return true;
+	case TWM_HIT_TITLE:
+		if (button == TWM_BTN_LEFT) {
+			view_raise(view);
+			view_focus(view);
+			grab_begin_pending_move(server, view, button);
+		} else if (button == TWM_BTN_MIDDLE) {
+			grab_begin_move(server, view, button);
+		} else if (button == TWM_BTN_RIGHT) {
+			/* FRM-14 f.squeeze arrives in M4. */
+			wlr_log(WLR_INFO, "f.squeeze is not available yet (M4)");
+		}
+		return true;
+	case TWM_HIT_BORDER:
+		view_focus(view);
+		return true;
+	case TWM_HIT_CLIENT:
+		if (modifier_held(server) && button == TWM_BTN_LEFT) {
+			view_focus(view);
+			grab_begin_move(server, view, button);
+			return true;
+		}
+		if (modifier_held(server) && button == TWM_BTN_RIGHT) {
+			view_focus(view);
+			struct wlr_box f = view_frame_box(view);
+			uint32_t edges = geo_edges_at((struct geo_box){f.x, f.y, f.width, f.height},
+				(int)lx, (int)ly);
+			grab_begin_resize(server, view, button, edges);
+			return true;
+		}
+		view_focus(view); /* FOC-5 */
+		return false;
+	case TWM_HIT_ROOT:
+		/* ROOT-4: the root menu arrives in M4. */
+		return false;
+	case TWM_HIT_UNMANAGED:
+		return false;
+	}
+	return false;
 }
 
 static void handle_cursor_button(struct wl_listener *listener, void *data) {
 	struct twm_server *server = wl_container_of(listener, server, cursor_button);
 	struct wlr_pointer_button_event *event = data;
-	if (event->state == WL_POINTER_BUTTON_STATE_PRESSED) {
-		/* FOC-5: a press focuses at once. Sloppy focus arrives in M1. */
-		double sx, sy;
-		struct wlr_surface *surface = NULL;
-		struct twm_hit hit = server_hit_at(server, server->cursor->x,
-			server->cursor->y, &surface, &sx, &sy);
-		if (hit.view) {
-			view_focus(hit.view);
-		}
+	bool pressed = event->state == WL_POINTER_BUTTON_STATE_PRESSED;
+	uint32_t bit = button_bit(event->button);
+
+	bool consumed;
+	if (grab_active(server)) {
+		consumed = grab_button(server, event->button, pressed);
+	} else if (pressed) {
+		consumed = handle_press(server, event->button);
+	} else {
+		consumed = (server->consumed_buttons & bit) != 0;
 	}
-	wlr_seat_pointer_notify_button(server->seat, event->time_msec,
-		event->button, event->state);
+	if (pressed && consumed) {
+		server->consumed_buttons |= bit;
+	} else if (!pressed && (server->consumed_buttons & bit)) {
+		server->consumed_buttons &= ~bit;
+		consumed = true;
+	}
+	if (!consumed) {
+		wlr_seat_pointer_notify_button(server->seat, event->time_msec,
+			event->button, event->state);
+	}
 }
 
 static void handle_cursor_axis(struct wl_listener *listener, void *data) {
 	struct twm_server *server = wl_container_of(listener, server, cursor_axis);
 	struct wlr_pointer_axis_event *event = data;
+	if (grab_active(server)) {
+		return;
+	}
 	wlr_seat_pointer_notify_axis(server->seat, event->time_msec, event->orientation,
 		event->delta, event->delta_discrete, event->source, event->relative_direction);
 }

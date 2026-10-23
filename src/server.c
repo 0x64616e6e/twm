@@ -23,7 +23,9 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/util/log.h>
+#include "outline.h"
 #include "server.h"
+#include "text.h"
 #include "view.h"
 
 static int handle_sigchld(int signo, void *data) {
@@ -90,6 +92,7 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	server->opts = *opts;
 	theme_init_defaults(&server->theme);
 	wl_list_init(&server->views);
+	wl_list_init(&server->place_queue);
 	server->root_hit.kind = TWM_HIT_ROOT;
 
 	server->display = wl_display_create();
@@ -139,10 +142,16 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 		server->layers[i] = wlr_scene_tree_create(&server->scene->tree);
 	}
 
+	if (!text_init()) {
+		wlr_log(WLR_ERROR, "fcft failed to initialize; titles will be blank");
+	}
 	output_init(server);
 	wlr_xdg_output_manager_v1_create(server->display, server->output_layout);
 	xdg_init(server);
+	decoration_init(server);
 	input_init(server);
+	focus_init(server);
+	outline_init(server);
 #if HAVE_XWAYLAND
 	if (opts->xwayland) {
 		xwayland_init(server);
@@ -185,8 +194,12 @@ void server_finish(struct twm_server *server) {
 	xwayland_finish(server);
 #endif
 	xdg_finish(server);
+	decoration_finish(server);
+	focus_finish(server);
 	input_finish(server);
 	output_finish(server);
+	outline_finish(server);
+	root_finish(server);
 	if (server->sigchld) {
 		wl_event_source_remove(server->sigchld);
 		wl_event_source_remove(server->sigint);
@@ -207,6 +220,7 @@ void server_finish(struct twm_server *server) {
 	if (server->display) {
 		wl_display_destroy(server->display);
 	}
+	text_finish();
 }
 
 struct twm_hit server_hit_at(struct twm_server *server, double lx, double ly,

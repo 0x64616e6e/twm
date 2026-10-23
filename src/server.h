@@ -6,9 +6,17 @@
 #include <wlr/types/wlr_scene.h>
 #include <wlr/util/box.h>
 #include "config.h"
+#include "grab_state.h"
+#include "intent.h"
 #include "theme.h"
 
+/* Linux input button codes (portable: no <linux/input-event-codes.h>). */
+#define TWM_BTN_LEFT 0x110
+#define TWM_BTN_RIGHT 0x111
+#define TWM_BTN_MIDDLE 0x112
+
 struct twm_view;
+struct twm_outline;
 
 /* Scene layers, back to front (D-4). */
 enum twm_layer {
@@ -78,6 +86,29 @@ struct twm_server {
 
 	struct wl_list views; /* twm_view.link, top of the stack first */
 	struct twm_view *focused;
+	uint64_t focus_counter;
+
+	struct wlr_xdg_decoration_manager_v1 *xdg_decoration;
+	struct wl_listener new_toplevel_decoration;
+
+	/* FOC-2: sloppy focus with intent */
+	struct focus_intent intent;
+	struct wl_event_source *focus_timer;
+	struct wlr_xdg_activation_v1 *xdg_activation;
+	struct wl_listener request_activate;
+
+	/* OUT-*: move, resize, click-to-place */
+	struct twm_grab grab;
+	struct wl_list place_queue; /* twm_view.place_link */
+	struct twm_outline *outline;
+	uint32_t consumed_buttons; /* presses twm took; their releases too */
+	uint32_t consumed_keys[8]; /* same for keys, by evdev keycode */
+
+	float frame_scale;
+
+	/* ROOT-2, ROOT-3 on the primary output */
+	struct wlr_scene_buffer *wordmark;
+	struct wlr_scene_buffer *status_line;
 
 	struct wlr_cursor *cursor;
 	struct wlr_xcursor_manager *cursor_mgr;
@@ -149,6 +180,19 @@ float output_max_scale(struct twm_server *server);
 
 /* root.c */
 void root_update(struct twm_output *output);
+void root_update_text(struct twm_server *server);
+void root_finish(struct twm_server *server);
+
+/* focus.c */
+void focus_init(struct twm_server *server);
+void focus_finish(struct twm_server *server);
+void focus_pointer_moved(struct twm_server *server);
+void focus_cancel_pending(struct twm_server *server);
+void focus_changed(struct twm_server *server);
+
+/* decoration.c */
+void decoration_init(struct twm_server *server);
+void decoration_finish(struct twm_server *server);
 
 /* input.c */
 void input_init(struct twm_server *server);

@@ -24,6 +24,9 @@ struct twm_xwayland_view {
 	struct wl_listener request_configure;
 	struct wl_listener request_activate;
 	struct wl_listener set_override_redirect;
+	struct wl_listener set_title;
+	struct wl_listener set_class;
+	struct wl_listener set_hints;
 };
 
 /* Override-redirect windows (menus, tooltips): no frame, X positions them. */
@@ -100,6 +103,24 @@ static struct twm_size_limits xw_get_size_limits(struct twm_view *view) {
 	return limits;
 }
 
+static struct twm_view *xw_get_parent(struct twm_view *view) {
+	struct wlr_xwayland_surface *parent = xw_view(view)->xsurface->parent;
+	if (!parent || !parent->data || parent->override_redirect) {
+		return NULL;
+	}
+	return &((struct twm_xwayland_view *)parent->data)->view;
+}
+
+static bool xw_get_user_position(struct twm_view *view, int *x, int *y) {
+	struct wlr_xwayland_surface *xs = xw_view(view)->xsurface;
+	if (!xs->size_hints || !(xs->size_hints->flags & XCB_ICCCM_SIZE_HINT_US_POSITION)) {
+		return false;
+	}
+	*x = xs->x;
+	*y = xs->y;
+	return true;
+}
+
 static const struct twm_view_impl xw_impl = {
 	.get_title = xw_get_title,
 	.get_app_id = xw_get_app_id,
@@ -107,6 +128,8 @@ static const struct twm_view_impl xw_impl = {
 	.configure = xw_configure,
 	.close = xw_close,
 	.get_size_limits = xw_get_size_limits,
+	.get_parent = xw_get_parent,
+	.get_user_position = xw_get_user_position,
 };
 
 static void view_handle_map(struct wl_listener *listener, void *data) {
@@ -173,9 +196,28 @@ static void view_handle_request_configure(struct wl_listener *listener, void *da
 
 static void view_handle_request_activate(struct wl_listener *listener, void *data) {
 	struct twm_xwayland_view *xv = wl_container_of(listener, xv, request_activate);
-	/* URG-1 turns this into urgency (M6). Until then, ignore it: a window
-	 * never takes focus because it asked. */
+	/* URG-1: a window never takes focus because it asked. */
 	wlr_log(WLR_DEBUG, "X11 window '%s' asked for focus", view_title(&xv->view));
+	if (xv->view.shown) {
+		view_set_urgent(&xv->view, true);
+	}
+}
+
+static void view_handle_set_title(struct wl_listener *listener, void *data) {
+	struct twm_xwayland_view *xv = wl_container_of(listener, xv, set_title);
+	view_update_frame(&xv->view);
+}
+
+static void view_handle_set_class(struct wl_listener *listener, void *data) {
+	struct twm_xwayland_view *xv = wl_container_of(listener, xv, set_class);
+	view_update_frame(&xv->view);
+}
+
+static void view_handle_set_hints(struct wl_listener *listener, void *data) {
+	struct twm_xwayland_view *xv = wl_container_of(listener, xv, set_hints);
+	xcb_icccm_wm_hints_t *hints = xv->xsurface->hints;
+	bool urgent = hints && (hints->flags & XCB_ICCCM_WM_HINT_X_URGENCY);
+	view_set_urgent(&xv->view, urgent);
 }
 
 static void view_destroy(struct twm_xwayland_view *xv) {
@@ -188,6 +230,9 @@ static void view_destroy(struct twm_xwayland_view *xv) {
 	wl_list_remove(&xv->request_configure.link);
 	wl_list_remove(&xv->request_activate.link);
 	wl_list_remove(&xv->set_override_redirect.link);
+	wl_list_remove(&xv->set_title.link);
+	wl_list_remove(&xv->set_class.link);
+	wl_list_remove(&xv->set_hints.link);
 	xv->xsurface->data = NULL;
 	view_finish(&xv->view);
 	free(xv);
@@ -227,6 +272,12 @@ static void create_view(struct twm_server *server, struct wlr_xwayland_surface *
 	wl_signal_add(&xs->events.request_activate, &xv->request_activate);
 	xv->set_override_redirect.notify = view_handle_set_override_redirect;
 	wl_signal_add(&xs->events.set_override_redirect, &xv->set_override_redirect);
+	xv->set_title.notify = view_handle_set_title;
+	wl_signal_add(&xs->events.set_title, &xv->set_title);
+	xv->set_class.notify = view_handle_set_class;
+	wl_signal_add(&xs->events.set_class, &xv->set_class);
+	xv->set_hints.notify = view_handle_set_hints;
+	wl_signal_add(&xs->events.set_hints, &xv->set_hints);
 	if (xs->surface) {
 		view_handle_associate(&xv->associate, NULL);
 	}

@@ -1,0 +1,18 @@
+# ~/.twmrc · Tom's WM
+
+Theme         "phosphor"
+Font          "IBM Plex Mono" 11
+Accent        #FFB000
+FocusPolicy   sloppy
+SqueezeTitle  { "*" left }
+OpaqueMove    off          # outlines, always
+Scale         auto         # per output, fractional
+Effects       none         # no blur, no shadow, no wobble
+
+IconManager   { at top-right  sort name }
+Panner        { desktops 4 }
+
+Button1 = root  : f.menu "main"
+Button2 = title : f.move
+Button3 = title : f.squeeze
+"M-Return"     : !"foot"

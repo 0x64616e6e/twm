@@ -1,12 +1,12 @@
 # Unit tests: pure modules, no compositor (D-5).
-foreach name : ['theme', 'draw', 'squeeze', 'geometry', 'intent']
+foreach name : ['theme', 'draw', 'squeeze', 'geometry', 'intent', 'twmrc']
   test('unit-' + name, executable(
     'test_' + name,
     'unit/test_@0@.c'.format(name),
     twm_core_src,
     include_directories: [config_inc, include_directories('../src')],
     dependencies: [pixman, math],
-  ), suite: 'unit')
+  ), args: [meson.current_source_dir() / 'data' / 'b0.twmrc'], suite: 'unit')
 endforeach
 
 # Screenshot tests: twm on the headless backend, driven over Wayland (D-7).

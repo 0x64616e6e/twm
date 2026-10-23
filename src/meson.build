@@ -5,6 +5,7 @@ twm_core_src = files(
   'intent.c',
   'squeeze.c',
   'theme.c',
+  'twmrc.c',
 )
 
 twm_src = twm_core_src + files(

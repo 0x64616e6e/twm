@@ -16,6 +16,7 @@
 enum twm_view_type {
 	TWM_VIEW_XDG,
 	TWM_VIEW_XWAYLAND,
+	TWM_VIEW_INTERNAL, /* drawn by twm (internal.c) */
 };
 
 struct twm_size_limits {
@@ -45,6 +46,7 @@ struct twm_view {
 	struct twm_server *server;
 	enum twm_view_type type;
 	const struct twm_view_impl *impl;
+	uint64_t id; /* stable, for the history (HIS-1) */
 
 	struct wlr_surface *surface;
 	struct wlr_scene_tree *tree;    /* at the frame's outer top-left */
@@ -61,6 +63,7 @@ struct twm_view {
 	bool placing; /* waiting for click-to-place (OUT-12) */
 	bool urgent;  /* FRM-9, URG-* */
 	bool notitle; /* NoTitle: border only (FRM-15) */
+	bool utility; /* FRM-18: title-only tab, no buttons */
 	uint64_t focus_seq; /* when it last had focus (FOC-10) */
 };
 

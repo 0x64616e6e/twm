@@ -2,6 +2,7 @@
 #include <wlr/util/edges.h>
 #include "actions.h"
 #include "grab.h"
+#include "histview.h"
 #include "rc.h"
 #include "rootline.h"
 #include "view.h"
@@ -98,9 +99,13 @@ void action_run(struct twm_server *server, const struct twm_func *func,
 		not_yet(server, func->kind, "M4");
 		return;
 	case TWM_F_UNDO:
+		histview_undo(server, view); /* HIS-2 */
+		return;
 	case TWM_F_REDO:
+		histview_redo(server, view);
+		return;
 	case TWM_F_HISTORY:
-		not_yet(server, func->kind, "M3");
+		histview_toggle(server); /* HIS-3 */
 		return;
 	case TWM_F_HINTS:
 	case TWM_F_NEXTTAB:

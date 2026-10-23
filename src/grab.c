@@ -9,6 +9,7 @@
 #include <wlr/util/log.h>
 #include "frame.h"
 #include "grab.h"
+#include "histview.h"
 #include "outline.h"
 #include "remember.h"
 #include "settings.h"
@@ -151,6 +152,8 @@ static void begin(struct twm_server *server, struct twm_view *view, uint32_t but
 		.mod_held = kb && (wlr_keyboard_get_modifiers(kb) & server->config->modifier),
 	};
 	g->start = g->box = frame_geo(view);
+	g->start_w = view->width;
+	g->start_h = view->height;
 	/* FOC-8: the pointer belongs to the grab now. */
 	wlr_seat_pointer_clear_focus(server->seat);
 	focus_cancel_pending(server);
@@ -163,6 +166,7 @@ void grab_begin_pending_move(struct twm_server *server, struct twm_view *view,
 
 void grab_begin_move(struct twm_server *server, struct twm_view *view, uint32_t button) {
 	begin(server, view, button, TWM_GRAB_MOVE);
+	histview_changed(server);
 	wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "move");
 	show_outline(server);
 }
@@ -171,6 +175,7 @@ void grab_begin_resize(struct twm_server *server, struct twm_view *view,
 		uint32_t button, uint32_t edges) {
 	begin(server, view, button, TWM_GRAB_RESIZE);
 	server->grab.edges = edges;
+	histview_changed(server);
 	wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr,
 		wlr_xcursor_get_resize_name((enum wlr_edges)edges));
 	show_outline(server);
@@ -197,10 +202,12 @@ static void start_next_placement(struct twm_server *server) {
 	struct twm_view *view = wl_container_of(server->place_queue.next, view, place_link);
 	begin(server, view, 0, TWM_GRAB_PLACE);
 	grab_motion(server);
+	histview_changed(server);
 }
 
 static void end_grab(struct twm_server *server) {
 	server->grab = (struct twm_grab){0};
+	histview_changed(server);
 	outline_hide(server);
 	wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "default");
 	input_update_pointer_focus(server, 0);
@@ -230,6 +237,16 @@ static void commit(struct twm_server *server) {
 	struct twm_view *view = g->view;
 	int deco_w = 2 * server->theme.border_width;
 	int deco_h = deco_w + view_title_height(view);
+	/* HIS-1: what this grab does, before and after. */
+	struct hist_state before = {g->start.x, g->start.y, g->start_w, g->start_h};
+	struct hist_state after = {g->box.x, g->box.y, g->box.w - deco_w, g->box.h - deco_h};
+	enum hist_op op = g->mode == TWM_GRAB_RESIZE ? HIST_RESIZE :
+		(g->mode == TWM_GRAB_PLACE || g->mode == TWM_GRAB_PLACE_SIZE) ? HIST_PLACE : HIST_MOVE;
+	if (g->mode == TWM_GRAB_MOVE) {
+		after.w = g->start_w;
+		after.h = g->start_h;
+	}
+	bool record = g->mode != TWM_GRAB_PENDING_MOVE && g->mode != TWM_GRAB_NONE;
 	switch (g->mode) {
 	case TWM_GRAB_MOVE:
 		view_move(view, g->box.x, g->box.y);
@@ -246,7 +263,46 @@ static void commit(struct twm_server *server) {
 		break;
 	}
 	remember_record(server, view); /* CFG-11 */
+	if (record) {
+		histview_record(server, op, view, before, after);
+	}
 	end_grab(server);
+}
+
+/* OUT-13: grow into the largest empty rectangle around the pointer, then
+ * place. Over another window (no room), it places as B1 would. */
+static void fit(struct twm_server *server) {
+	struct twm_grab *g = &server->grab;
+	struct twm_output *out = output_at(server, server->cursor->x, server->cursor->y);
+	if (out) {
+		size_t n = (size_t)wl_list_length(&server->views);
+		struct geo_box *obs = calloc(n ? n : 1, sizeof(*obs));
+		size_t k = 0;
+		struct twm_view *v;
+		wl_list_for_each(v, &server->views, link) {
+			if (v != g->view && v->shown) {
+				struct wlr_box f = view_frame_box(v);
+				obs[k++] = (struct geo_box){f.x, f.y, f.width, f.height};
+			}
+		}
+		struct geo_box area;
+		struct geo_box ob = {out->box.x, out->box.y, out->box.width, out->box.height};
+		if (snap_fit(ob, obs, k, (int)server->cursor->x, (int)server->cursor->y, &area)) {
+			struct geo_limits lim = frame_limits(g->view);
+			int w = area.w, h = area.h;
+			if (lim.max_w && w > lim.max_w) {
+				w = lim.max_w;
+			}
+			if (lim.max_h && h > lim.max_h) {
+				h = lim.max_h;
+			}
+			if (w >= lim.min_w && h >= lim.min_h) {
+				g->box = (struct geo_box){area.x, area.y, w, h};
+			}
+		}
+		free(obs);
+	}
+	commit(server);
 }
 
 static void cancel(struct twm_server *server) {
@@ -276,6 +332,7 @@ void grab_motion(struct twm_server *server) {
 		}
 		g->mode = TWM_GRAB_MOVE;
 		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "move");
+		histview_changed(server);
 		/* fall through */
 	case TWM_GRAB_MOVE:
 		g->box.x = g->start.x + ix;
@@ -316,8 +373,9 @@ bool grab_button(struct twm_server *server, uint32_t button, bool pressed) {
 			g->mode = TWM_GRAB_PLACE_SIZE;
 			g->button = button;
 			g->start = g->box;
+		} else if (button == TWM_BTN_RIGHT) {
+			fit(server); /* OUT-13: B3 fits */
 		}
-		/* B3 "fit" arrives with snapping (OUT-13, M3). */
 		return true;
 	default:
 		break;

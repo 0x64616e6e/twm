@@ -169,6 +169,11 @@ bool remember_restore(struct twm_server *server, struct twm_view *view) {
 		return false; /* that output is gone: place it by hand instead */
 	}
 	struct geomem_entry entry = *e;
+	if (view->type == TWM_VIEW_INTERNAL) {
+		/* twm's own windows are as big as their content. */
+		entry.w = view->width;
+		entry.h = view->height;
+	}
 	/* Keep the top-left on the output, whatever changed since. */
 	struct wlr_box ob = output->box;
 	int x = entry.x, y = entry.y;

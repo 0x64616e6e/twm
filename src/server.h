@@ -8,6 +8,7 @@
 #include "config.h"
 #include "geomem.h"
 #include "grab_state.h"
+#include "history.h"
 #include "intent.h"
 #include "theme.h"
 
@@ -21,6 +22,7 @@ struct twm_outline;
 struct twm_config;
 struct twm_rootline;
 struct twm_watch;
+struct twm_internal_view;
 
 /* Scene layers, back to front (D-4). */
 enum twm_layer {
@@ -110,6 +112,12 @@ struct twm_server {
 	struct wl_list views; /* twm_view.link, top of the stack first */
 	struct twm_view *focused;
 	uint64_t focus_counter;
+	uint64_t view_counter;
+
+	/* HIS-*: the operation history and its window */
+	struct history history;
+	struct twm_internal_view *histview;
+	struct wl_event_source *histview_timer;
 
 	struct wlr_xdg_decoration_manager_v1 *xdg_decoration;
 	struct wl_listener new_toplevel_decoration;

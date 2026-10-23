@@ -67,7 +67,7 @@ static struct tab_metrics metrics_for(struct twm_frame *frame, struct twm_font *
 	return (struct tab_metrics){
 		.title_height = t->title_height,
 		.separator = t->button_separator,
-		.pad = t->title_pad,
+		.pad = frame->view->utility ? t->utility_title_pad : t->title_pad, /* FRM-18 */
 		.hatch_width = t->hatch_width,
 		.hatch_gap = t->hatch_gap,
 		.ellipsis_width = (int)ceilf(text_width(font, "\xe2\x80\xa6", 0) / scale),
@@ -83,7 +83,8 @@ int frame_min_width(struct twm_frame *frame) {
 	float scale = output_max_scale(frame->view->server);
 	struct twm_font *font = title_font(frame->view->server, TWM_WEIGHT_SEMIBOLD, scale);
 	struct tab_metrics m = metrics_for(frame, font, scale);
-	return tab_min_width(&m, true, view_resizable(frame->view));
+	bool utility = frame->view->utility;
+	return tab_min_width(&m, !utility, !utility && view_resizable(frame->view));
 }
 
 static void draw_tab(struct twm_frame *frame, const char *title, enum frame_state state,
@@ -99,8 +100,8 @@ static void draw_tab(struct twm_frame *frame, const char *title, enum frame_stat
 		.frame_width = frame->view->width + 2 * t->border_width,
 		.text_width = (int)ceilf(text_width(font, title, tracking) / scale),
 		.hatch = state == FRAME_FOCUSED && t->title_highlight,
-		.iconify = true,
-		.resize = view_resizable(frame->view),
+		.iconify = !frame->view->utility,
+		.resize = !frame->view->utility && view_resizable(frame->view),
 		.justify = config_justify(server->config, frame->view->impl->get_app_id(frame->view),
 			frame->view->impl->get_title(frame->view)), /* FRM-4 */
 	};

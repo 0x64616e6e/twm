@@ -15,6 +15,7 @@ void view_init(struct twm_view *view, struct twm_server *server,
 	view->type = type;
 	view->impl = impl;
 	view->client_hit = (struct twm_hit){.kind = TWM_HIT_CLIENT, .view = view};
+	view->id = ++server->view_counter;
 	wl_list_init(&view->link);
 	wl_list_init(&view->place_link);
 	view->tree = wlr_scene_tree_create(server->layers[TWM_LAYER_WINDOWS]);
@@ -287,7 +288,10 @@ void view_focus(struct twm_view *view) {
 	view->urgent = false; /* URG-5 */
 	view->impl->set_activated(view, true);
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(server->seat);
-	if (kb) {
+	if (!view->surface) {
+		/* twm's own windows take keys through twm, not a client. */
+		wlr_seat_keyboard_notify_clear_focus(server->seat);
+	} else if (kb) {
 		wlr_seat_keyboard_notify_enter(server->seat, view->surface,
 			kb->keycodes, kb->num_keycodes, &kb->modifiers);
 	} else {

@@ -23,6 +23,7 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/util/log.h>
+#include "histview.h"
 #include "ipc.h"
 #include "outline.h"
 #include "rc.h"
@@ -164,6 +165,7 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	input_init(server);
 	focus_init(server);
 	outline_init(server);
+	histview_init(server);
 #if HAVE_XWAYLAND
 	if (opts->xwayland && server->config->xwayland) {
 		xwayland_init(server);
@@ -207,6 +209,7 @@ void server_finish(struct twm_server *server) {
 	xwayland_finish(server);
 #endif
 	ipc_finish(server);
+	histview_finish(server);
 	remember_finish(server);
 	rc_finish(server);
 	rootline_finish(server);

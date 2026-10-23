@@ -24,6 +24,7 @@ struct twm_grab {
 	uint32_t button;   /* the button that ends it; 0 for keyboard */
 	double cx, cy;     /* pointer at the start */
 	struct geo_box start, box;
+	int start_w, start_h; /* client size at the start (HIS-1) */
 	uint32_t edges;
 	int key_dx, key_dy; /* arrow-key nudges (OUT-7) */
 	bool free;          /* SNP-7: M pressed during the drag */

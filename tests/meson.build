@@ -13,17 +13,17 @@ endforeach
 test_client = static_library(
   'tc',
   'client/client.c',
-  dependencies: [wayland_client, client_protos, math],
+  dependencies: [wayland_client, client_protos, xkbcommon, math],
 )
 run_shot = find_program('run-shot.sh')
 
-foreach name : ['m0_root', 'm1_anatomy', 'm2_config']
+foreach name : ['m0_root', 'm1_anatomy', 'm2_config', 'm3_snap']
   prog = executable(
     'shot_' + name,
     'shot/@0@.c'.format(name),
     link_with: test_client,
     include_directories: include_directories('client'),
-    dependencies: [wayland_client, client_protos],
+    dependencies: [wayland_client, client_protos, xkbcommon],
   )
   test('shot-' + name, run_shot,
     args: [twm_exe, prog, meson.current_build_dir() / name + '.png'],

@@ -13,6 +13,8 @@
 #include "client.h"
 #include "wlr-screencopy-unstable-v1-client-protocol.h"
 #include "wlr-virtual-pointer-unstable-v1-client-protocol.h"
+#include "virtual-keyboard-unstable-v1-client-protocol.h"
+#include <xkbcommon/xkbcommon.h>
 #include "xdg-activation-v1-client-protocol.h"
 #include "xdg-decoration-unstable-v1-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
@@ -30,6 +32,10 @@ struct tc {
 	struct zwlr_virtual_pointer_v1 *vptr;
 	struct xdg_activation_v1 *activation;
 	struct zxdg_decoration_manager_v1 *decoration;
+	struct zwp_virtual_keyboard_manager_v1 *vkbd_mgr;
+	struct zwp_virtual_keyboard_v1 *vkbd;
+	struct xkb_keymap *keymap;
+	struct xkb_state *xkb; /* wlroots takes modifiers from us, not from keys */
 	int out_width, out_height;
 };
 
@@ -167,6 +173,9 @@ static void registry_global(void *data, struct wl_registry *reg, uint32_t name,
 			&zwlr_virtual_pointer_manager_v1_interface, 1);
 	} else if (strcmp(iface, xdg_activation_v1_interface.name) == 0) {
 		tc->activation = wl_registry_bind(reg, name, &xdg_activation_v1_interface, 1);
+	} else if (strcmp(iface, zwp_virtual_keyboard_manager_v1_interface.name) == 0) {
+		tc->vkbd_mgr = wl_registry_bind(reg, name,
+			&zwp_virtual_keyboard_manager_v1_interface, 1);
 	} else if (strcmp(iface, zxdg_decoration_manager_v1_interface.name) == 0) {
 		tc->decoration = wl_registry_bind(reg, name,
 			&zxdg_decoration_manager_v1_interface, 1);
@@ -198,6 +207,25 @@ struct tc *tc_connect(void) {
 		exit(2);
 	}
 	tc->vptr = zwlr_virtual_pointer_manager_v1_create_virtual_pointer(tc->vptr_mgr, tc->seat);
+	if (tc->vkbd_mgr) {
+		/* The protocol wants a keymap before any key: the default one. */
+		tc->vkbd = zwp_virtual_keyboard_manager_v1_create_virtual_keyboard(tc->vkbd_mgr, tc->seat);
+		struct xkb_context *ctx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+		struct xkb_keymap *km = xkb_keymap_new_from_names(ctx, NULL, XKB_KEYMAP_COMPILE_NO_FLAGS);
+		char *text = xkb_keymap_get_as_string(km, XKB_KEYMAP_FORMAT_TEXT_V1);
+		size_t size = strlen(text) + 1;
+		int fd = create_shm_file(size);
+		void *map = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+		memcpy(map, text, size);
+		munmap(map, size);
+		zwp_virtual_keyboard_v1_keymap(tc->vkbd, WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1, fd,
+			(uint32_t)size);
+		close(fd);
+		free(text);
+		tc->keymap = km;
+		tc->xkb = xkb_state_new(km);
+		xkb_context_unref(ctx);
+	}
 	wl_display_roundtrip(tc->display);
 	return tc;
 }
@@ -386,6 +414,40 @@ void tc_pointer_button(struct tc *tc, uint32_t button, bool pressed) {
 void tc_pointer_click(struct tc *tc, uint32_t button) {
 	tc_pointer_button(tc, button, true);
 	tc_pointer_button(tc, button, false);
+}
+
+void tc_key(struct tc *tc, uint32_t key, bool pressed) {
+	if (!tc->vkbd) {
+		fprintf(stderr, "tc: no virtual keyboard\n");
+		exit(2);
+	}
+	/* Virtual keyboards don't update modifier state from keys in wlroots
+	 * (update_state = false): track it here and send it first. */
+	xkb_state_update_key(tc->xkb, key + 8, pressed ? XKB_KEY_DOWN : XKB_KEY_UP);
+	zwp_virtual_keyboard_v1_modifiers(tc->vkbd,
+		xkb_state_serialize_mods(tc->xkb, XKB_STATE_MODS_DEPRESSED),
+		xkb_state_serialize_mods(tc->xkb, XKB_STATE_MODS_LATCHED),
+		xkb_state_serialize_mods(tc->xkb, XKB_STATE_MODS_LOCKED),
+		xkb_state_serialize_layout(tc->xkb, XKB_STATE_LAYOUT_EFFECTIVE));
+	zwp_virtual_keyboard_v1_key(tc->vkbd, now_ms(), key,
+		pressed ? WL_KEYBOARD_KEY_STATE_PRESSED : WL_KEYBOARD_KEY_STATE_RELEASED);
+	wl_display_roundtrip(tc->display);
+}
+
+void tc_chord(struct tc *tc, int n, ...) {
+	uint32_t keys[8];
+	va_list ap;
+	va_start(ap, n);
+	for (int i = 0; i < n && i < 8; i++) {
+		keys[i] = va_arg(ap, uint32_t);
+	}
+	va_end(ap);
+	for (int i = 0; i < n && i < 8; i++) {
+		tc_key(tc, keys[i], true);
+	}
+	for (int i = (n < 8 ? n : 8) - 1; i >= 0; i--) {
+		tc_key(tc, keys[i], false);
+	}
 }
 
 void tc_roundtrip(struct tc *tc) {

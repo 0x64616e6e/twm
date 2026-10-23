@@ -13,6 +13,7 @@ client_protocols = [
   wl_protocol_dir / 'unstable/xdg-decoration/xdg-decoration-unstable-v1.xml',
   'wlr-screencopy-unstable-v1.xml',
   'wlr-virtual-pointer-unstable-v1.xml',
+  'virtual-keyboard-unstable-v1.xml',
 ]
 
 server_protos_src = []

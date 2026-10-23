@@ -14,6 +14,20 @@
 #define TC_BTN_RIGHT 0x111
 #define TC_BTN_MIDDLE 0x112
 
+/* evdev key codes (virtual keyboard). */
+#define TC_KEY_ESC 1
+#define TC_KEY_R 19
+#define TC_KEY_ENTER 28
+#define TC_KEY_H 35
+#define TC_KEY_LEFTSHIFT 42
+#define TC_KEY_Z 44
+#define TC_KEY_M 50
+#define TC_KEY_UP 103
+#define TC_KEY_LEFT 105
+#define TC_KEY_RIGHT 106
+#define TC_KEY_DOWN 108
+#define TC_KEY_LEFTMETA 125
+
 struct tc;
 struct tc_window;
 
@@ -47,6 +61,12 @@ void tc_window_request_activation(struct tc_window *win);
 void tc_pointer_move(struct tc *tc, double x, double y);
 void tc_pointer_button(struct tc *tc, uint32_t button, bool pressed);
 void tc_pointer_click(struct tc *tc, uint32_t button);
+
+/* Virtual keyboard (default xkb keymap). */
+void tc_key(struct tc *tc, uint32_t key, bool pressed);
+/* Press the keys in order, release them in reverse: tc_chord(tc, 3,
+ * TC_KEY_LEFTMETA, TC_KEY_LEFTSHIFT, TC_KEY_Z) is M-S-z. */
+void tc_chord(struct tc *tc, int n, ...);
 
 /* Dispatch events for `ms` milliseconds. */
 void tc_wait(struct tc *tc, int ms);

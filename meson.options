@@ -1,0 +1,2 @@
+option('xwayland', type: 'feature', value: 'auto', description: 'Support X11 clients through XWayland')
+option('tests', type: 'boolean', value: true, description: 'Build unit and screenshot tests')

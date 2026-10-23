@@ -1,0 +1,8 @@
+# Needed only when the system has pixman < 0.46 (wlroots 0.20 minimum).
+[wrap-git]
+url = https://gitlab.freedesktop.org/pixman/pixman.git
+revision = pixman-0.46.4
+depth = 1
+
+[provide]
+dependency_names = pixman-1

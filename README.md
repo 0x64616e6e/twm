@@ -54,6 +54,7 @@ FreeBSD; `-Dportal=disabled` to build without). The UI font is IBM Plex Mono.
 | B3 on a desktop button in the Icon Manager | make that desktop quiet (its windows' requests wait until you visit) |
 | `M-z`, `M-S-z` | undo / redo the focused window's last move, resize, iconify, squeeze, send |
 | `M-S-h` | the history view |
+| `M-,` | Settings: change `~/.twmrc` with the diff in view; Write applies it, `M-z` undoes |
 | hold `M` while dragging | move freely; otherwise outlines snap to edges and thirds |
 | B3 while placing | fit the new window into the empty space around the pointer |
 | `M-Return` | `foot` |
@@ -76,7 +77,9 @@ SqueezeTitle  { "xclock" right  "*" left }
 Button3 = title : f.squeeze
 ```
 
-Save the file and twm reloads it. A file with errors is never applied: the
+Or press `M-,` for the Settings window: each control names the key it
+writes, the pending diff is always visible, and Write saves and applies it
+(comments and order kept). Save the file by hand and twm reloads it. A file with errors is never applied: the
 old config keeps running and the error appears on the desktop.
 
 ```sh

@@ -2,6 +2,68 @@
 
 Newest milestone first. Requirement IDs refer to [DESIGN.md](DESIGN.md).
 
+## M7 — Settings, as a file (2026-10-24)
+
+**Done**
+
+- The Settings window (SET-1…14), `settings — ~/.twmrc`, as on B8: `M-,`
+  or `settings` in the root menu. Sections down the left with a
+  `filter keys…` field (typing filters); each row shows its label, its
+  control and the key it writes, which turns accent with `●` once changed;
+  a preview of a focused and an unfocused tab with the pending values; and
+  the diff pane, always visible: `N changes`, the unified diff with line
+  numbers (removed in alert, added in ok, context dim), the `twm --check`
+  result, Discard and Write.
+- B8's Frames controls exactly (squeeze segments, title height slider,
+  hatch checkbox, outline/opaque, snap checkboxes, accent swatches and
+  hex), plus Look, Focus, Desktops, Outputs and Privacy controls for the
+  other simple keys. Bindings, Output rules and menus are listed read-only,
+  with a button that opens the file in `$EDITOR`.
+- It is not a second source of truth: it holds pending edits to the file.
+  Writing changes only the edited values (comments, spacing and order
+  kept), appends new keys, writes atomically (through symlinks) and
+  applies at once. A hand edit of the file updates the controls. An
+  invalid value shows in the diff and the check line, and can't be
+  written.
+- `M-z` while Settings has focus undoes the last pending change, then the
+  last write; `M-S-z` redoes (HIS-5). Everything works from the keyboard:
+  arrows, Space, Return, Tab for sections, `Ctrl-S` write, `Ctrl-D` discard.
+- The window is resizable (B8 shows a resize box); a bigger one shows more
+  of the diff. Internal windows can now be resizable in general.
+- A pure module with unit tests: in-place `.twmrc` edits and the line diff
+  (`unit-rcedit`).
+- `Panner { desktops N off }` keeps the desktop count with the Panner
+  hidden (the Settings toggle needed it).
+
+**Screenshot test** `shot-m7_settings` (26 checks), on a real `~/.twmrc`
+with comments: opens focused on Frames; the slider to 28 and ticking
+"output centre" light the keys, the diff shows the removed and added lines
+and `2 changes`, the file is untouched; the mint swatch turns the preview
+mint while the desktop stays amber, and `M-z` takes it back; Write produces
+exactly the expected file (one value changed, one key appended, comments
+kept) and the tab is 28 px at once; `M-z` puts the old file back and
+applied, `M-S-z` writes it again; a hand edit moves the slider and is
+applied; `#1` as accent shows the error on the check line and Write does
+nothing; `Ctrl-D` discards; typing `snap` filters; keys only (Tab, Down,
+Right, `Ctrl-S`) write `FocusPolicy click`; the resize box makes the window
+bigger. All 21 suites stable over repeated runs and under load.
+
+![The Settings window, as on B8](shots/m7-settings.png)
+
+![An invalid value: the check says why, Write is off](shots/m7-error.png)
+
+**Decided along the way** (recorded in DESIGN.md): SET-10 (compositor-drawn,
+sizes, `M-,`, the menu entry), SET-11 (what each section holds; structures
+read-only), SET-12 (the edit model, the diff), SET-13 (atomic writes),
+SET-14 (keys), HIS-5 (undo order).
+
+**Not done yet / not verified**
+- Bindings, menus and Output rules are edited in the file, not in the
+  window.
+- The diff pane doesn't scroll; a long diff ends in `… N more`.
+- Settings windows on more than one output, fractional scale, and FreeBSD
+  are untested, like the rest.
+
 ## M6 — Polite urgency, capture markers, the trusted frame (2026-10-24)
 
 **Done**

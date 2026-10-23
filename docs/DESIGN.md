@@ -402,7 +402,10 @@ accent can change:
 - **HIS-4** `[M3]` History keeps the last 100 operations for the session and is
   not saved.
 - **HIS-5** `[M7 · B8]` A write from the Settings window is undoable with
-  `M-z` while Settings has focus.
+  `M-z` while Settings has focus. *Decided:* `M-z` first takes back pending
+  changes, one at a time; with none pending it undoes the last write (the
+  old file is written back and applied, or removed if there was none).
+  `M-S-z` redoes either. Up to 64 pending steps and 16 writes.
 
 ### ROOT — the root
 
@@ -565,7 +568,7 @@ accent can change:
   `B3` for squeeze), and `Return`/`space` read `↵`/`␣`.
 - **MNU-4** `[M4 · B0]` Default `main` menu: xterm · browser · files |
   move · resize · squeeze · iconify · raise / lower | desktops ▸ ·
-  reload .twmrc · exit.
+  reload .twmrc · exit. *M7:* `settings` after `desktops ▸` (SET-10).
 - **MNU-5** `[M4]` Window functions run from a menu ask for a target: the
   cursor becomes a crosshair, the next B1 on a window applies, `Esc` cancels
   (twm). *Decided (M4):* a move or resize started this way (or from the
@@ -784,6 +787,49 @@ accent can change:
   (left/center/right/off), `TitleHeight` slider 22–34, `TitleHighlight`
   checkbox, `OpaqueMove` outline/opaque, `Snap` checkboxes
   (edges/thirds/centre), `Accent` swatches plus hex.
+- **SET-10** `[M7]` *Decided — the window:* compositor-drawn, like the Icon
+  Manager (closes the §7 question; no new dependency). `f.settings`,
+  default `M-,`, and a `settings` entry in the root menu (after
+  `desktops ▸`, a small addition to MNU-4). B8's sizes at 26/30: body
+  1135 × 527 at least (it is resizable, as B8's resize box says; more room
+  shows more diff), nav 165, diff pane 364, rows 49, controls 29, buttons
+  38; text 12 for labels and nav, 11 for controls, keys and the diff
+  (SET-3's "12 px" is B8's CSS size, scaled like the rest), 10 for notes.
+  It opens on Frames, centred. The slider thumb is a square (CAP-4).
+- **SET-11** `[M7]` *Decided — what each section holds:* Look (Font, size,
+  BorderWidth, RootWeave, RootWordmark, RootLineTimeout, Effects), Frames
+  (B8's six rows, Accent included, as B8 places it), Focus (FocusPolicy,
+  FocusDelay, RaiseOnClick, Placement, RememberGeometry, SnapDistance,
+  Modifier), Keys & buttons (Terminal, HintKeys), Desktops (desktop count,
+  Panner, IconManager corner and sort, IconsOnRoot, Quiet), Outputs (Scale,
+  XWayland), Privacy (Notifications; capture markers and prompts shown as
+  facts, not settings — CAP-2, TRU-4), Menus. Bindings, Output rules and
+  menus are listed read-only from the running config (built-in rows in
+  `dim`) with an `Edit .twmrc by hand` button that opens `$EDITOR` in the
+  Terminal: their structure is the file's job (P-6). The preview (SET-4)
+  shows under Look and Frames, whose values it draws.
+- **SET-12** `[M7]` *Decided — edits:* the window holds a list of pending
+  key edits, applied to the file's text on top of whatever is on disk; an
+  edit that changes nothing disappears (the same text, or a key the file
+  lacks set to its default). `N changes` counts changed keys. Keys made of
+  several values (`Font`, `Panner`, `IconManager`) are written whole. A row
+  inside a block is edited in place (`SqueezeTitle`'s `"*"`), other block
+  values are replaced. The diff shows 2 lines of context, `…` between hunks,
+  new-file line numbers (old ones for removed lines); tabs show as spaces.
+  `Write .twmrc` is disabled while nothing changed or `twm --check` fails;
+  the failure reads `line N: message` in `alert`.
+- **SET-13** `[M7]` *Decided — writing:* a temporary file beside the real
+  one (through a symlink, so a dotfile manager's link stays a link), the
+  file's mode kept, then `rename`; twm reloads at once rather than waiting
+  for the watcher. Without a `~/.twmrc` the first write creates it with only
+  the changed keys (the built-in defaults still apply, CFG-14).
+- **SET-14** `[M7 · P-8]` *Decided — keys:* Up/Down choose a row, Left/Right
+  change it (Shift: 5 slider steps), Space ticks, Return edits a text field
+  or the hex (Return commits, Esc cancels), Tab / Shift-Tab change section,
+  typing filters (Backspace, Esc clears), `Ctrl-S` writes, `Ctrl-D`
+  discards. `M-…` keys other than `M-z` stay with the bindings. B1 on a
+  slider sets it where pressed and again where released: twm's own windows
+  see presses, not motion.
 
 ### GEN — general
 
@@ -833,6 +879,7 @@ Pointer (FRM-12, OUT-8, OUT-9, ROOT-4): see those requirements.
 | `M-m` | `f.menu "main"` | decided |
 | `M-S-m` | `f.move` (keyboard) | decided |
 | `M-S-h` | `f.history` | decided |
+| `M-,` (`"M-comma"`) | `f.settings` | decided (M7) |
 | `M-1`…`M-9`, `M-S-1`…`M-S-9` | desktop switch / send | decided |
 
 ---
@@ -937,7 +984,7 @@ each milestone; CFG-3 says an unlisted key is an error.
 | `RootLineTimeout` | `60` | seconds | ROOT-6 |
 | `IconManager` | `{ at top-right sort name }` | corner, sort | IMG-1 |
 | `IconsOnRoot` | `on` | on/off | ROOT-9 |
-| `Panner` | `{ desktops 4 }` | desktops N, on/off | DSK-1 |
+| `Panner` | `{ desktops 4 }` | `{ desktops N }`, `{ desktops N off }` (keep N, hide the Panner), on/off | DSK-1 |
 | `Quiet` | `{ }` | desktop numbers | URG-3 |
 | `XWayland` | `on` | on/off (takes effect at the next start) | GEN-6 |
 | `Notifications` | `on` | on/off: serve `org.freedesktop.Notifications` as root lines, if no one else does | D-10 |
@@ -1011,7 +1058,6 @@ Places where a board could be read more than one way, and the reading taken.
   Still open: **PipeWire**, for twm's own ScreenCast backend (marking the app
   that shares, not xdpw; camera and microphone markers, CAP-5), and
   **libpolkit-agent**, for password prompts in the trusted frame (TRU-8).
-- **Settings window** (M7) — drawn by the compositor like the Icon Manager
-  (no new deps), or a separate client. Leaning compositor-drawn; decided at M7.
+- **Settings window** (M7) — *decided:* drawn by the compositor (SET-10).
 - **Binary name** — `/usr/bin/twm` clashes with the X11 `twm` package on
   distributions; packaging will need a conflict or an alternative.

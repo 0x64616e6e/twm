@@ -29,8 +29,21 @@ The UI font is IBM Plex Mono.
 - On a TTY: run it from a virtual console (needs seatd or logind).
 - Headless: `./build/src/twm --headless 1920x1080` (used by the tests).
 
-`twm -s <cmd>` runs a command once the compositor is up. `M-S-q` quits,
-`M-Return` opens `foot` (`M` is the logo key).
+`twm -s <cmd>` runs a command once the compositor is up. `M` is the logo key.
+
+| Input | Does |
+|-------|------|
+| click | places a new window (its outline hangs from the pointer); B2-drag sizes it |
+| B1 on a title | raise and focus; drag to move |
+| B2 on a title, `M-B1` in a window | move (outline, commits on release) |
+| B1/B2 on the resize box, `M-B3` in a window | resize |
+| `M-S-m`, `M-r` | move / resize the focused window with the arrow keys |
+| `Esc`, `Return` | cancel / commit an outline |
+| `M-space` | raise or lower |
+| `M-Return` | `foot` |
+| `M-S-q` | quit |
+
+Focus follows the pointer once it rests on a window for 80 ms.
 
 ## Test
 

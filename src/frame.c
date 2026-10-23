@@ -7,8 +7,8 @@
 #include "text.h"
 #include "view.h"
 
-/* §2.2 title roles: tracking for the focused title. */
-#define TITLE_TRACKING_FOCUSED 0.3f
+/* §2.2: no tracking on titles, so the text doesn't shift on focus (FRM-11). */
+#define TITLE_TRACKING_FOCUSED 0.0f
 
 struct tab_colors {
 	uint32_t bg, fg, sep, hatch, outline;

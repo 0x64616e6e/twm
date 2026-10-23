@@ -107,7 +107,7 @@ accent can change:
 
 | Role | Size / weight | Tracking | Color |
 |------|---------------|----------|-------|
-| `title-focused` | 12 / 600 | 0.3 | on-accent |
+| `title-focused` | 12 / 600 | 0 (see FRM-11) | on-accent |
 | `title` | 12 / 500 | 0 | muted (urgent: accent, 600) |
 | `caps` (status line, section heads) | 11 / 400, uppercase | 1.5 | dim / muted |
 | `outline-label` | 11 / 400 | 0 | ink |
@@ -214,7 +214,10 @@ accent can change:
   shrinks back on blur. The anchored side stays put (left edge for `left`,
   center for `center`, right edge for `right`). No animation. *Decided:* B0
   draws unfocused tabs without the hatch space, so the width change is part of
-  the design, not a side effect.
+  the design, not a side effect. *Decided (M1):* B0's 0.3 px letter-spacing
+  on the focused title is dropped, so the title itself doesn't move when focus
+  changes; Plex Mono's weights share one advance width, so only the hatch and
+  its gap appear. 0.3 px is below a device pixel at scale 1.
 - **FRM-12** `[M1 · B0 B1]` Pointer bindings on the frame (defaults, all
   rebindable): B1 on iconify box → `f.iconify`; B1 or B2 drag on resize box →
   `f.resize`; B2 on title → `f.move`; B3 on title → `f.squeeze`; B1 click on
@@ -729,8 +732,8 @@ Pointer (FRM-12, OUT-8, OUT-9, ROOT-4): see those requirements.
   hatch, dashes, weave and glyphs are pixman-backed `wlr_buffer`s in
   `wlr_scene_buffer` nodes, re-rendered only when their content or scale
   changes. Scene layers, back to front: root, root line/icons, windows,
-  utility frames, trusted dim, trusted frames, outline/readout/guides, menus,
-  cursor.
+  utility frames, XWayland override-redirect windows, trusted dim, trusted
+  frames, outline/readout/guides, menus, cursor.
 - **D-5 Modules.** Pure logic (tab layout, focus intent, outline geometry and
   readout text, snapping, config parsing, history) lives in modules with no
   wlroots dependency, so it is unit-tested without a compositor.

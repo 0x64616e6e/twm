@@ -3,6 +3,7 @@
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
+#include "remember.h"
 #include "view.h"
 #include "xdg.h"
 
@@ -111,8 +112,10 @@ static void handle_commit(struct wl_listener *listener, void *data) {
 	struct twm_xdg_view *xv = wl_container_of(listener, xv, commit);
 	struct wlr_xdg_surface *base = xv->toplevel->base;
 	if (base->initial_commit) {
-		/* Let the client pick its size; the frame follows. */
-		wlr_xdg_toplevel_set_size(xv->toplevel, 0, 0);
+		/* The size it had last time (OUT-16), else the client's choice. */
+		int w = 0, h = 0;
+		remember_initial_size(xv->view.server, xv->toplevel->app_id, &w, &h);
+		wlr_xdg_toplevel_set_size(xv->toplevel, w, h);
 		if (xv->decoration) {
 			wlr_xdg_toplevel_decoration_v1_set_mode(xv->decoration,
 				WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);

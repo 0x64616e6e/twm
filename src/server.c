@@ -26,6 +26,7 @@
 #include "ipc.h"
 #include "outline.h"
 #include "rc.h"
+#include "remember.h"
 #include "rootline.h"
 #include "server.h"
 #include "settings.h"
@@ -156,6 +157,7 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	rootline_init(server);
 	output_init(server);
 	rc_init(server, opts->config_path);
+	remember_init(server);
 	wlr_xdg_output_manager_v1_create(server->display, server->output_layout);
 	xdg_init(server);
 	decoration_init(server);
@@ -205,6 +207,7 @@ void server_finish(struct twm_server *server) {
 	xwayland_finish(server);
 #endif
 	ipc_finish(server);
+	remember_finish(server);
 	rc_finish(server);
 	rootline_finish(server);
 	xdg_finish(server);

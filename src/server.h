@@ -6,6 +6,7 @@
 #include <wlr/types/wlr_scene.h>
 #include <wlr/util/box.h>
 #include "config.h"
+#include "geomem.h"
 #include "grab_state.h"
 #include "intent.h"
 #include "theme.h"
@@ -89,6 +90,12 @@ struct twm_server {
 	char *ipc_path;
 	struct wl_event_source *ipc_source;
 	int cascade; /* Placement cascade: next slot */
+
+	/* CFG-11: geometry remembered per app id */
+	struct geomem geomem;
+	char *geomem_path;
+	struct wl_event_source *geomem_timer;
+	bool geomem_dirty;
 	const char *socket;
 
 	struct wlr_output_layout *output_layout;

@@ -7,6 +7,7 @@
 #include "frame.h"
 #include "grab.h"
 #include "outline.h"
+#include "remember.h"
 #include "settings.h"
 #include "view.h"
 
@@ -171,6 +172,7 @@ static void commit(struct twm_server *server) {
 	case TWM_GRAB_NONE:
 		break;
 	}
+	remember_record(server, view); /* CFG-11 */
 	end_grab(server);
 }
 

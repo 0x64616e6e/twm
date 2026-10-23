@@ -5,6 +5,7 @@
 #include <wlr/types/wlr_seat.h>
 #include "frame.h"
 #include "grab.h"
+#include "remember.h"
 #include "settings.h"
 #include "view.h"
 
@@ -146,6 +147,10 @@ void view_map(struct twm_view *view) {
 		view_show(view, false);
 		return;
 	}
+	/* OUT-16: back where it was last time. */
+	if (remember_restore(server, view)) {
+		return;
+	}
 	/* OUT-12: click-to-place. */
 	if (server->config->placement == TWM_PLACE_INTERACTIVE &&
 			grab_place_enqueue(server, view)) {
@@ -205,6 +210,7 @@ static struct twm_view *next_focus(struct twm_server *server) {
 void view_unmap(struct twm_view *view) {
 	struct twm_server *server = view->server;
 	grab_view_gone(server, view);
+	remember_record(server, view);
 	view->mapped = false;
 	view->shown = false;
 	wlr_scene_node_set_enabled(&view->tree->node, false);

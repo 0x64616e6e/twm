@@ -1,6 +1,7 @@
 # Pure modules (D-5): no wlroots, unit-tested on their own.
 twm_core_src = files(
   'draw.c',
+  'geomem.c',
   'geometry.c',
   'intent.c',
   'squeeze.c',
@@ -22,6 +23,7 @@ twm_src = twm_core_src + files(
   'output.c',
   'pixbuf.c',
   'rc.c',
+  'remember.c',
   'root.c',
   'rootline.c',
   'server.c',

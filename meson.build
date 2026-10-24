@@ -82,8 +82,18 @@ if get_option('lock').enabled() and not pam.found()
   error('lock was requested but PAM (security/pam_appl.h, libpam) was not found')
 endif
 
+# D-13: twm-chkpwd, where PAM can't check a password for an unprivileged
+# process (OpenPAM); Linux-PAM has its own unix_chkpwd.
+linux_pam = have_pam and cc.has_header_symbol('security/pam_appl.h', '__LINUX_PAM__')
+have_chkpwd = have_pam and (get_option('chkpwd').enabled() or
+  (get_option('chkpwd').auto() and not linux_pam))
+twm_chkpwd_path = get_option('prefix') / get_option('libexecdir') / 'twm-chkpwd'
+
 conf = configuration_data()
 conf.set10('HAVE_PAM', have_pam)
+if have_chkpwd
+  conf.set_quoted('TWM_CHKPWD', twm_chkpwd_path)
+endif
 conf.set_quoted('TWM_VERSION', meson.project_version())
 conf.set10('HAVE_XWAYLAND', have_xwayland)
 conf.set10('HAVE_PORTAL', have_portal)

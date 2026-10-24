@@ -26,6 +26,10 @@ struct auth;
 /* `test_password`: --test only (GRT-9), checked instead of PAM; NULL for PAM. */
 struct auth *auth_start(struct wl_event_loop *loop, const char *service, const char *user,
 	const char *test_password, auth_fn fn, void *data);
+/* The password check (GRT-11, GRT-12): PAM's twm-password service, or,
+ * where PAM can't check a password unprivileged, twm-chkpwd (D-13). */
+struct auth *auth_start_password(struct wl_event_loop *loop, const char *user,
+	const char *test_password, auth_fn fn, void *data);
 /* Answer the current question; the text is wiped from memory after. */
 void auth_respond(struct auth *a, char *response);
 /* End it now; no more events. */

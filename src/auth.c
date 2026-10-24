@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 #include "auth.h"
@@ -36,18 +38,31 @@ bool auth_available(void) {
 	return HAVE_PAM;
 }
 
-bool auth_password_checkable(void) {
-	if (!HAVE_PAM) {
-		return false;
-	}
-#if defined(__FreeBSD__)
-	/* OpenPAM's pam_unix reads /etc/master.passwd itself, which only root
-	 * may: unprivileged, every password is refused (tested on 15.1). Linux-PAM
-	 * asks its setuid unix_chkpwd instead. */
-	return geteuid() == 0;
+/* D-13: twm-chkpwd, setuid root, when it is really installed so. */
+static bool chkpwd_usable(void) {
+#ifdef TWM_CHKPWD
+	struct stat st;
+	return stat(TWM_CHKPWD, &st) == 0 && st.st_uid == 0 && (st.st_mode & S_ISUID) &&
+		(st.st_mode & S_IXOTH);
 #else
-	return true;
+	return false;
 #endif
+}
+
+/* GRT-12: can PAM itself check a password from this process? Linux-PAM
+ * can, through its setuid unix_chkpwd; OpenPAM's pam_unix reads
+ * /etc/master.passwd itself, which only root may (tested on FreeBSD 15.1:
+ * every password refused when unprivileged). Any other PAM: assume not. */
+static bool pam_checks_unprivileged(void) {
+#if HAVE_PAM && defined(__LINUX_PAM__)
+	return true;
+#else
+	return geteuid() == 0;
+#endif
+}
+
+bool auth_password_checkable(void) {
+	return HAVE_PAM && (pam_checks_unprivileged() || chkpwd_usable());
 }
 
 static bool have_service(const char *name) {
@@ -178,7 +193,53 @@ static int conv(int num, const struct pam_message **msg, struct pam_response **r
 }
 #endif
 
+/* D-13: ask twm-chkpwd: our question, its answer as an exit status. */
+static void child_chkpwd(void) {
+#ifdef TWM_CHKPWD
+	child_send("P0", "Password: ");
+	char *got = child_read();
+	int in[2];
+	if (pipe(in) < 0) {
+		wipe(got, strlen(got));
+		child_send("NO", "can't run twm-chkpwd");
+		_exit(0);
+	}
+	pid_t pid = fork();
+	if (pid == 0) {
+		dup2(in[0], STDIN_FILENO);
+		close(in[0]);
+		close(in[1]);
+		execl(TWM_CHKPWD, "twm-chkpwd", (char *)NULL);
+		_exit(2);
+	}
+	close(in[0]);
+	size_t n = strlen(got);
+	if (pid > 0 && (write(in[1], got, n) != (ssize_t)n || write(in[1], "\n", 1) != 1)) {
+		/* it went away: its status says so */
+	}
+	close(in[1]);
+	wipe(got, n);
+	free(got);
+	int st = 0;
+	if (pid < 0 || waitpid(pid, &st, 0) != pid || !WIFEXITED(st)) {
+		child_send("NO", "twm-chkpwd failed");
+	} else if (WEXITSTATUS(st) == 0) {
+		child_send("OK", "");
+	} else if (WEXITSTATUS(st) == 1) {
+		child_send("NO", "Authentication failure");
+	} else {
+		child_send("NO", "twm-chkpwd can't check passwords here");
+	}
+#else
+	child_send("NO", "twm was built without twm-chkpwd");
+#endif
+	_exit(0);
+}
+
 static void child_main(const char *service, const char *user, const char *test_password) {
+	if (!test_password && strcmp(service, "@chkpwd") == 0) {
+		child_chkpwd();
+	}
 	if (test_password && strncmp(test_password, "@finger:", 8) == 0) {
 		/* GRT-11, --test: a stand-in reader. Each try leaves a line in
 		 * <path>.tries; a finger is the file <path> existing. */
@@ -347,6 +408,14 @@ struct auth *auth_start(struct wl_event_loop *loop, const char *service, const c
 	a->data = data;
 	a->source = wl_event_loop_add_fd(loop, a->fd, WL_EVENT_READABLE, readable, a);
 	return a;
+}
+
+struct auth *auth_start_password(struct wl_event_loop *loop, const char *user,
+		const char *test_password, auth_fn fn, void *data) {
+	/* D-13: through twm-chkpwd where PAM can't check it from here */
+	const char *service = !test_password && !pam_checks_unprivileged() && chkpwd_usable() ?
+		"@chkpwd" : auth_password_service();
+	return auth_start(loop, service, user, test_password, fn, data);
 }
 
 void auth_respond(struct auth *a, char *response) {

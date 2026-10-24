@@ -69,6 +69,11 @@ an ELAN touchpad and touchscreen), started from Draftpaper's login screen.
   reader and the password check side by side, the reader trying again
   up to 20 times; the greeter begins greetd's conversation again whenever
   the reader times out with nothing typed.
+- The lock on FreeBSD (GRT-12, D-13): OpenPAM can't check a password for
+  an unprivileged process, so `twm-chkpwd`, setuid root and as small as
+  `unix_chkpwd`, checks the caller's own password. Tested on FreeBSD 15.1
+  with a throwaway account: right accepted, wrong refused after 2 s, a
+  terminal refused, another user's password refused.
 - Drag and drop between clients works now (it was never answered before),
   with the drag icon on a layer hit testing skips.
 - FreeBSD 15.1 tested in a VM; CI green on Arch, Debian and FreeBSD.

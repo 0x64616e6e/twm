@@ -40,7 +40,9 @@ ninja -C build
 
 Dependencies: wlroots 0.20, wayland, wayland-protocols, xkbcommon, pixman,
 fcft (fontconfig, freetype, harfbuzz), libinput, PAM (the lock and the
-greeter; `-Dlock=disabled` to build without); Xwayland for X11 clients;
+greeter; `-Dlock=disabled` to build without; with OpenPAM, as on FreeBSD,
+the lock checks passwords through `twm-chkpwd`, installed setuid root);
+Xwayland for X11 clients;
 sd-bus for the portal backend and notifications (libsystemd on Linux, basu on
 FreeBSD; `-Dportal=disabled` to build without). The UI font is IBM Plex Mono.
 

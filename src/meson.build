@@ -98,3 +98,16 @@ twmfetch_exe = executable(
   include_directories: config_inc,
   install: true,
 )
+
+# D-13: the setuid password helper, only where it's needed (meson.build).
+if have_chkpwd
+  executable(
+    'twm-chkpwd',
+    files('chkpwd.c'),
+    dependencies: [pam],
+    include_directories: config_inc,
+    install: true,
+    install_dir: get_option('libexecdir'),
+    install_mode: ['rwsr-xr-x', 'root', 0],
+  )
+endif

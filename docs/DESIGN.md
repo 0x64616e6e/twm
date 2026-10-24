@@ -943,11 +943,13 @@ accent can change:
   twm uses that service only if the module it names exists. *Found on
   FreeBSD 15.1:* OpenPAM's `pam_unix` reads `/etc/master.passwd` itself,
   so for an unprivileged process it refuses every password, right or
-  wrong (Linux-PAM asks its setuid `unix_chkpwd` instead). The lock then
-  can't take a password, so it refuses to lock there and says why on the
-  root line rather than lock the user out. *Open for the owner:* a small
-  setuid helper (as `unix_chkpwd`) to check the user's own password on
-  FreeBSD. The greeter is not affected: greetd runs PAM as root.
+  wrong (Linux-PAM asks its setuid `unix_chkpwd` instead). *Decided by
+  the owner (D-13):* `twm-chkpwd` does that job where it's needed. The
+  choice follows the PAM implementation, not the system's name: with
+  Linux-PAM, PAM checks for itself; with any other PAM, the lock asks
+  `twm-chkpwd` (or PAM directly when twm runs as root). Where neither can
+  check, the lock refuses to lock and says why rather than lock the user
+  out. The greeter is not affected: greetd runs PAM as root.
   LockOnSleep needs logind (Linux); FreeBSD has no lock before sleep, and
   `f.suspend`'s `zzz` needs root there.
 - **GRT-8** `[owner, after M7]` *Decided:* the boot greeter replaces
@@ -1335,6 +1337,15 @@ Pointer (FRM-12, OUT-8, OUT-9, ROOT-4): see those requirements.
   reading a shared image needs only its chunks. No zlib (SHOT-4).
 - **D-12 PAM** `[owner, 2026-10-24]`. The lock and the greeter link libpam
   (Linux-PAM, FreeBSD's OpenPAM: one API), for GRT-6. Approved by the owner.
+- **D-13 twm-chkpwd** `[owner, 2026-10-24]`. A setuid-root helper in
+  libexec, built by default only without Linux-PAM (`-Dchkpwd`), for the
+  lock where PAM can't check a password for an unprivileged process
+  (GRT-12). It checks only the real uid's own account, through the fixed
+  `twm-password` service; reads one line on stdin and refuses a terminal;
+  answers by exit status (0 right, 1 wrong, 2 can't check); clears its
+  environment, closes inherited descriptors, wipes the password, and makes
+  a wrong guess cost two seconds. twm uses it only when it is root-owned
+  and setuid. Approved by the owner.
 - **D-9 Config file watching.** Watch the containing directory (inotify /
   kqueue) and re-read when the file's identity or mtime changes.
 
@@ -1464,10 +1475,7 @@ Places where a board could be read more than one way, and the reading taken.
 - **License** — *decided:* MIT.
 - **Future dependencies** — *Decided:* sd-bus (libsystemd / basu) for M6;
   libpam for the lock and the greeter (D-12, 2026-10-24).
-- **The lock on FreeBSD** (GRT-12) — OpenPAM can't check a password for an
-  unprivileged process, so the lock refuses there. A setuid helper that
-  checks only the caller's own password would fix it; that's a security
-  decision for the owner.
+- **The lock on FreeBSD** (GRT-12) — *decided:* `twm-chkpwd` (D-13).
   Still open: **PipeWire**, for twm's own ScreenCast backend (marking the app
   that shares, not xdpw; camera and microphone markers, CAP-5), and
   **libpolkit-agent**, for password prompts in the trusted frame (TRU-8).

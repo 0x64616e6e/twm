@@ -927,7 +927,7 @@ static void start_auth(struct twm_lock *lk) {
 		return;
 	}
 	lk->asking = false;
-	lk->auth = auth_start(server->loop, auth_password_service(), lk->user, test_pw, on_auth, lk);
+	lk->auth = auth_start_password(server->loop, lk->user, test_pw, on_auth, lk);
 	if (!lk->auth) {
 		snprintf(lk->msg, sizeof(lk->msg), "pam: couldn't start");
 	}

@@ -41,6 +41,8 @@ const char config_default_twmrc[] =
 	"XWayland         on\n"
 	"Notifications    on\n"
 	"CloseBox         on\n"
+	"VolumeStep       5\n"
+	"BrightnessStep   5\n"
 	"\n"
 	"TouchpadTap                 on\n"
 	"TouchpadTapDrag             on\n"
@@ -88,6 +90,12 @@ const char config_default_twmrc[] =
 	"\"M-w\"      : f.delete\n"
 	"\"M-S-w\"    : f.destroy\n"
 	"\"M-d\"      : f.run\n"
+	"\"XF86AudioRaiseVolume\"  : f.volume up\n"
+	"\"XF86AudioLowerVolume\"  : f.volume down\n"
+	"\"XF86AudioMute\"         : f.volume mute\n"
+	"\"XF86AudioMicMute\"      : f.volume mic\n"
+	"\"XF86MonBrightnessUp\"   : f.brightness up\n"
+	"\"XF86MonBrightnessDown\" : f.brightness down\n"
 	"\"M-1\" : f.desktop 1\n\"M-2\" : f.desktop 2\n\"M-3\" : f.desktop 3\n"
 	"\"M-4\" : f.desktop 4\n\"M-5\" : f.desktop 5\n\"M-6\" : f.desktop 6\n"
 	"\"M-7\" : f.desktop 7\n\"M-8\" : f.desktop 8\n\"M-9\" : f.desktop 9\n"
@@ -268,7 +276,8 @@ static const struct twmrc_node *the_block(struct ctx *c, const char *what) {
 static const struct {
 	const char *name;
 	enum twm_func_kind kind;
-	char arg; /* 0 none, 's' string, 'n' number */
+	char arg; /* 0 none, 's' string, 'n' number, 'w' one of `words` (num: its index) */
+	const char *words[5];
 } functions[] = {
 	{"f.nop", TWM_F_NOP, 0},
 	{"f.exec", TWM_F_EXEC, 's'},
@@ -297,6 +306,8 @@ static const struct {
 	{"f.destroy", TWM_F_DESTROY, 0},
 	{"f.run", TWM_F_RUN, 0},
 	{"f.fold", TWM_F_FOLD, 0},
+	{"f.volume", TWM_F_VOLUME, 'w', {"up", "down", "mute", "mic", NULL}},
+	{"f.brightness", TWM_F_BRIGHTNESS, 'w', {"up", "down", NULL}},
 	{"f.desktop", TWM_F_DESKTOP, 'n'},
 	{"f.send", TWM_F_SEND, 'n'},
 	{"f.separator", TWM_F_SEPARATOR, 0},
@@ -344,7 +355,22 @@ static bool parse_func(struct ctx *c, const struct twmrc_node *nodes, size_t n,
 		size_t want = functions[i].arg ? 2 : 1;
 		if (n != want) {
 			ERR(c, "%s %s", nodes[0].text, functions[i].arg == 's' ? "wants a quoted name" :
-				functions[i].arg == 'n' ? "wants a number" : "takes no arguments");
+				functions[i].arg == 'n' ? "wants a number" :
+				functions[i].arg == 'w' ? "wants a word after it" : "takes no arguments");
+			return false;
+		}
+		if (functions[i].arg == 'w') {
+			char list[64] = "";
+			for (int k = 0; functions[i].words[k]; k++) {
+				if (node_word(&nodes[1], functions[i].words[k])) {
+					out->num = k;
+					out->arg = xstrdup(functions[i].words[k]);
+					return true;
+				}
+				strncat(list, k ? ", " : "", sizeof(list) - strlen(list) - 1);
+				strncat(list, functions[i].words[k], sizeof(list) - strlen(list) - 1);
+			}
+			ERR(c, "%s wants one of: %s", nodes[0].text, list);
 			return false;
 		}
 		if (functions[i].arg == 's') {
@@ -614,6 +640,8 @@ static void k_icons_on_root(struct ctx *c) { set_bool(c, &c->cfg->icons_on_root)
 static void k_xwayland(struct ctx *c) { set_bool(c, &c->cfg->xwayland); }
 static void k_notifications(struct ctx *c) { set_bool(c, &c->cfg->notifications); }
 static void k_close_box(struct ctx *c) { set_bool(c, &c->cfg->close_box); }
+static void k_volume_step(struct ctx *c) { set_int(c, &c->cfg->volume_step, 1, 50); }
+static void k_brightness_step(struct ctx *c) { set_int(c, &c->cfg->brightness_step, 1, 50); }
 static void k_tp_tap(struct ctx *c) { set_bool(c, &c->cfg->tp_tap); }
 static void k_tp_tap_drag(struct ctx *c) { set_bool(c, &c->cfg->tp_tap_drag); }
 static void k_tp_natural(struct ctx *c) { set_bool(c, &c->cfg->tp_natural_scroll); }
@@ -1009,6 +1037,8 @@ static const struct {
 	{"XWayland", k_xwayland},
 	{"Notifications", k_notifications},
 	{"CloseBox", k_close_box},
+	{"VolumeStep", k_volume_step},
+	{"BrightnessStep", k_brightness_step},
 	{"TouchpadTap", k_tp_tap},
 	{"TouchpadTapDrag", k_tp_tap_drag},
 	{"TouchpadNaturalScroll", k_tp_natural},

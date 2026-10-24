@@ -32,6 +32,7 @@
 #include "logview.h"
 #include "menu.h"
 #include "panner.h"
+#include "media.h"
 #include "portal.h"
 #include "prompt.h"
 #include "setwin.h"
@@ -188,6 +189,7 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	}
 	rootline_init(server);
 	prompt_init(server);
+	media_init(server);
 	output_init(server);
 	rc_init(server, opts->config_path);
 	remember_init(server);
@@ -241,6 +243,7 @@ void server_run(struct twm_server *server) {
 void server_finish(struct twm_server *server) {
 	server->shutting_down = true;
 	prompt_finish(server);
+	media_finish(server);
 	portal_finish(server);
 	if (server->startup_pid > 0) {
 		kill(server->startup_pid, SIGTERM);

@@ -163,6 +163,44 @@ void rootline_stick(struct twm_server *server, uint64_t key, enum rootline_kind 
 	}
 }
 
+void rootline_set(struct twm_server *server, uint64_t key, enum rootline_kind kind,
+		const char *source, const char *text, int ttl_ms) {
+	struct twm_rootline *rl = server->rootline;
+	if (!rl || !key) {
+		return;
+	}
+	wlr_log(WLR_DEBUG, "%s: %s", source, text);
+	struct rootline_msg *newest = rl->count ?
+		&rl->msgs[(rl->head + ROOTLINE_KEEP - 1) % ROOTLINE_KEEP] : NULL;
+	uint64_t now = now_ms();
+	if (newest && newest->key == key && newest->expires_ms > now) {
+		/* the same line, newest still: changed where it stands */
+		snprintf(newest->text, sizeof(newest->text), "%s", text);
+		newest->kind = kind;
+		newest->when = time(NULL);
+		newest->expires_ms = now + (uint64_t)ttl_ms;
+		rootline_update(server);
+		return;
+	}
+	/* older lines came since (or it went): the old one goes, a new one comes */
+	for (size_t i = 0; i < ROOTLINE_KEEP; i++) {
+		if (rl->msgs[i].key == key) {
+			rl->msgs[i].key = 0;
+			rl->msgs[i].expires_ms = 1;
+		}
+	}
+	struct rootline_msg *m = &rl->msgs[rl->head];
+	rl->head = (rl->head + 1) % ROOTLINE_KEEP;
+	if (rl->count < ROOTLINE_KEEP) {
+		rl->count++;
+	}
+	*m = (struct rootline_msg){.kind = kind, .when = time(NULL), .expires_ms = now + (uint64_t)ttl_ms,
+		.key = key};
+	snprintf(m->source, sizeof(m->source), "%s", source);
+	snprintf(m->text, sizeof(m->text), "%s", text);
+	rootline_update(server);
+}
+
 void rootline_unstick(struct twm_server *server, uint64_t key) {
 	struct twm_rootline *rl = server->rootline;
 	if (!rl || !key) {

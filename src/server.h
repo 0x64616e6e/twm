@@ -153,6 +153,7 @@ struct twm_server {
 	struct wl_list prompt_queue;
 	struct wlr_scene_rect *prompt_dim;
 	struct portal *portal; /* portal.c: D-Bus, when there is a session bus */
+	struct wl_list media_jobs; /* media.c: volume and brightness lines running */
 
 	/* CAP-*: who is capturing the screen */
 	struct wlr_screencopy_manager_v1 *screencopy;

@@ -10,6 +10,7 @@
 #include "hints.h"
 #include "histview.h"
 #include "imgr.h"
+#include "media.h"
 #include "logview.h"
 #include "menu.h"
 #include "rc.h"
@@ -121,6 +122,16 @@ void action_run(struct twm_server *server, const struct twm_func *func,
 		} else if (view) {
 			view->impl->close(view);
 		}
+		return;
+	case TWM_F_VOLUME: { /* LVL-1 */
+		static const enum level_action a[] = {
+			LEVEL_VOLUME_UP, LEVEL_VOLUME_DOWN, LEVEL_VOLUME_MUTE, LEVEL_MIC_MUTE,
+		};
+		media_level(server, a[func->num & 3]);
+		return;
+	}
+	case TWM_F_BRIGHTNESS: /* LVL-1 */
+		media_level(server, func->num ? LEVEL_DIMMER : LEVEL_BRIGHTER);
 		return;
 	case TWM_F_RUN: /* IMG-13 */
 		imgr_run(server);

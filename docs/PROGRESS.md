@@ -27,6 +27,11 @@ an ELAN touchpad and touchscreen), started from Draftpaper's login screen.
 - Running apps (IMG-13): the installed applications (`.desktop` entries) in
   the Icon Manager's RUN results, run directly; `M-d` (and `run…`) brings
   the Icon Manager up to type into.
+- Volume and brightness keys (LVL-1 … LVL-4), through the system's own
+  tools (wpctl, pactl, amixer, mixer; brightnessctl, sysfs, backlight), the
+  new level as one root line that changes in place; `VolumeStep`,
+  `BrightnessStep`.
+- Squeeze acts on a whole tab group (GRP-9); folding moved to M-B3.
 - FreeBSD 15.1 tested in a VM; CI green on Arch, Debian and FreeBSD.
 
 **Tests**: `shot-apps_close` runs an app found by name and checks the close

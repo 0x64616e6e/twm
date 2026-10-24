@@ -838,6 +838,26 @@ accent can change:
   socket takes `touch down|move|up …`, which twm turns into events of a
   touchscreen of its own, through the same path a real one's take.
 
+### LVL — volume and brightness
+
+- **LVL-1** `[owner, after M7]` The media keys work: `XF86AudioRaiseVolume`,
+  `XF86AudioLowerVolume`, `XF86AudioMute`, `XF86AudioMicMute` run
+  `f.volume up|down|mute|mic`; `XF86MonBrightnessUp/Down` run
+  `f.brightness up|down`. A press moves `VolumeStep` or `BrightnessStep`
+  percent (default 5); volume stops at 100 %, brightness above black.
+- **LVL-2** `[owner, after M7]` *Decided:* twm adds no audio or backlight
+  library; it runs the system's own tool, the first it finds: PipeWire's
+  `wpctl`, PulseAudio's `pactl`, ALSA's `amixer`, FreeBSD's `mixer`;
+  `brightnessctl`, a writable `/sys/class/backlight`, FreeBSD's `backlight`.
+  The line runs in the background and twm reads the new level back from it;
+  it never waits on it.
+- **LVL-3** `[owner, after M7]` With no tool for it, the root line says what
+  is missing, in `accent`.
+- **LVL-4** `[owner, after M7]` The new level is one root line —
+  `volume  55%  ■■■■■■■■■■■·········`, `mic  muted`, `brightness …` — that
+  changes in place while the key is pressed again and goes 3 s after the
+  last press (ROOT-7: no pop-up, no on-screen display).
+
 ### SET — settings, as a file
 
 - **SET-1** `[M7 · B8]` A Settings window, `settings — ~/.twmrc`, edits the
@@ -960,6 +980,7 @@ Pointer (FRM-12, OUT-8, OUT-9, ROOT-4): see those requirements.
 | `M-,` (`"M-comma"`) | `f.settings` | decided (M7) |
 | `M-d` | `f.run` | decided (IMG-13) |
 | `M-w`, `M-S-w` | `f.delete`, `f.destroy` | decided (FRM-19) |
+| volume, mute, mic and brightness keys | `f.volume …`, `f.brightness …` | decided (LVL-1) |
 | `M-1`…`M-9`, `M-S-1`…`M-S-9` | desktop switch / send | decided |
 
 ---
@@ -1079,6 +1100,8 @@ each milestone; CFG-3 says an unlisted key is an error.
 | `Touchscreen` | `on` | on/off | INP-3 |
 | `NoDefaultBindings` | — | no value | CFG-14 |
 | `CloseBox` | `on` | on/off | FRM-19 |
+| `VolumeStep` | `5` | percent, 1–50 | LVL-1 |
+| `BrightnessStep` | `5` | percent, 1–50 | LVL-1 |
 | `ButtonN = context : function` | see KEY | contexts: root, title, iconify, resize, close, window, icon, iconmgr | FRM-12 |
 | `"key" : function` | see KEY | | KEY |
 | `Menu` | `"main"` per MNU-4 | | MNU-7 |

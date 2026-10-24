@@ -51,6 +51,8 @@ enum twm_func_kind {
 	TWM_F_DESTROY,   /* kill the client (FRM-19, twm's f.destroy) */
 	TWM_F_RUN,       /* the Icon Manager, filtering: run an app (IMG-13) */
 	TWM_F_FOLD,      /* a group's tabs folded into one (GRP-6) */
+	TWM_F_VOLUME,    /* num: up, down, mute, mic (LVL-1) */
+	TWM_F_BRIGHTNESS, /* num: up, down (LVL-1) */
 	TWM_F_DESKTOP, /* num */
 	TWM_F_SEND,    /* num */
 	TWM_F_SEPARATOR,
@@ -177,6 +179,7 @@ struct twm_config {
 	bool xwayland;
 	bool notifications; /* M6: serve org.freedesktop.Notifications if free */
 	bool close_box;     /* FRM-19 */
+	int volume_step, brightness_step; /* LVL-1: percent a key press moves */
 
 	/* INP-*: touchpad and touchscreen */
 	bool tp_tap, tp_tap_drag, tp_natural_scroll, tp_dwt;

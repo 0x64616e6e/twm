@@ -42,6 +42,10 @@ void rootline_post(struct twm_server *server, enum rootline_kind kind,
 void rootline_stick(struct twm_server *server, uint64_t key, enum rootline_kind kind,
 	const char *source, const char *text);
 void rootline_unstick(struct twm_server *server, uint64_t key);
+/* A keyed line that changes in place while it is the newest (a volume being
+ * turned), gone `ttl_ms` after its last change. */
+void rootline_set(struct twm_server *server, uint64_t key, enum rootline_kind kind,
+	const char *source, const char *text, int ttl_ms);
 /* Redraw after an output, theme or timeout change. */
 void rootline_update(struct twm_server *server);
 

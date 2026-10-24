@@ -26,6 +26,9 @@ fi
 export WLR_RENDERER=pixman
 # The test program finds twm itself here (for `twm --reload`, configs).
 export TWM_BIN="$twm" TWM_TEST_HOME="$HOME"
+# Stand-ins for system tools (a fake wpctl, LVL-*) go here, first on twm's PATH.
+mkdir -p "$rt/bin"
+export TWM_TEST_BIN="$rt/bin" PATH="$rt/bin:$PATH"
 
 $bus "$twm" --headless 1920x1080 --no-xwayland --exit-with-startup --test \
 	-s "exec '$prog' '$out'"

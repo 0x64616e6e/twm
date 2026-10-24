@@ -844,7 +844,10 @@ accent can change:
   metadata. B13's scheme (3 bits a module, read row by row) has no error
   correction or framing; a spike decides the real encoding and its byte
   budget before any shot carries it. Until then the chunk is the only
-  carrier.
+  carrier. *Spike done (docs/spikes/mark.md):* the size channel doesn't
+  survive downscale and JPEG; shade alone (2 bits a module) does at 10–12
+  px cells; a 500 px mark holds ~47–73 raw bytes, so the mark should carry
+  the look's delta from the defaults with Reed–Solomon parity, not text.
 
 ### GRT — the greeter and the lock
 

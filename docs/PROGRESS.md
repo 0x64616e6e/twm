@@ -47,6 +47,15 @@ an ELAN touchpad and touchscreen), started from Draftpaper's login screen.
   request (counts and outputs, never titles).
 - The root card (CARD-1 … CARD-3): `RootCard { at <corner> fields … }`,
   drawn on the root under every window, once a second; B1 opens twmfetch.
+- Screenshots (SHOT-1 … SHOT-4): `Print` saves the output to
+  `~/Pictures/Screenshots`, `M-Print` a fetch shot to `/tmp` with the card
+  drawn in and the `.twmrc` in a text chunk; rendered by twm into its own
+  buffer, compressed by its own deflate (no zlib) in a child process.
+- Sharing a look (SHR-1 … SHR-3): `twmfetch <image>` or a PNG dropped on
+  the root; appearance keys only, merged with comments kept, checked, and
+  shown as pending edits in the Settings window.
+- Drag and drop between clients works now (it was never answered before),
+  with the drag icon on a layer hit testing skips.
 - FreeBSD 15.1 tested in a VM; CI green on Arch, Debian and FreeBSD.
 
 **Tests**: `shot-apps_close` runs an app found by name and checks the close

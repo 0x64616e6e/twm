@@ -442,6 +442,9 @@ void card_init(struct twm_server *server) {
 	c->pool_fd = -1;
 	c->timer = wl_event_loop_add_timer(server->loop, tick, c);
 	server->card = c;
+	if (server->config && (server->config->card_fields & TWM_CARD_POOL)) {
+		pool_start(c); /* once, so a fetch shot's card has it (SHOT-2) */
+	}
 	card_configure(server);
 }
 

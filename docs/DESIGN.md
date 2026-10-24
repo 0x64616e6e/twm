@@ -801,8 +801,8 @@ accent can change:
 - **SHOT-2** `[owner, after M7 · B9]` `M-Print` (`f.fetchshot`) is the fetch
   shot: the same capture with the root card drawn in for that frame (where
   `RootCard` puts it, bottom-left if it's off), written to
-  `/tmp/twmfetch-YYYYMMDD-HHMMSS.png` with the `.twmrc` in a PNG `tEXt` chunk
-  (`twm:twmrc`, and `twm:version`). *Decided — the design document:* `/tmp`
+  `/tmp/twmfetch-YYYYMMDD-HHMMSS.png` (`$TMPDIR` if set) with the `.twmrc` in a PNG text chunk
+  (`iTXt`, UTF-8: `twm:twmrc`, and `twm:version`). *Decided — the design document:* `/tmp`
   is the point: kept only if moved out.
 - **SHOT-3** `[owner, after M7]` *Decided:* a shot is the whole output as
   you see it — it is your own key press. While a trusted prompt or the lock

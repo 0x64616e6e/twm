@@ -43,6 +43,7 @@
 #include "rootline.h"
 #include "server.h"
 #include "card.h"
+#include "dnd.h"
 #include "settings.h"
 #include "text.h"
 #include "view.h"
@@ -209,6 +210,7 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	logview_init(server);
 	setwin_init(server);
 	card_init(server);
+	dnd_init(server);
 #if HAVE_XWAYLAND
 	if (opts->xwayland && server->config->xwayland) {
 		xwayland_init(server);
@@ -247,6 +249,7 @@ void server_finish(struct twm_server *server) {
 	prompt_finish(server);
 	media_finish(server);
 	card_finish(server);
+	dnd_finish(server);
 	portal_finish(server);
 	if (server->startup_pid > 0) {
 		kill(server->startup_pid, SIGTERM);
@@ -307,8 +310,13 @@ struct twm_hit server_hit_at(struct twm_server *server, double lx, double ly,
 		struct wlr_surface **surface, double *sx, double *sy) {
 	*surface = NULL;
 	double nx = 0, ny = 0;
-	struct wlr_scene_node *node =
-		wlr_scene_node_at(&server->scene->tree.node, lx, ly, &nx, &ny);
+	struct wlr_scene_node *node = NULL;
+	/* top layer first, the drag icon's never: it sits under the pointer */
+	for (int i = TWM_LAYER_COUNT - 1; i >= 0 && !node; i--) {
+		if (i != TWM_LAYER_DRAG) {
+			node = wlr_scene_node_at(&server->layers[i]->node, lx, ly, &nx, &ny);
+		}
+	}
 	if (!node) {
 		return server->root_hit;
 	}

@@ -1,5 +1,5 @@
 # Unit tests: pure modules, no compositor (D-5).
-foreach name : ['theme', 'draw', 'squeeze', 'geometry', 'intent', 'twmrc', 'settings', 'geomem', 'snap', 'history', 'group', 'rcedit', 'apps', 'levels', 'fetch']
+foreach name : ['theme', 'draw', 'squeeze', 'geometry', 'intent', 'twmrc', 'settings', 'geomem', 'snap', 'history', 'group', 'rcedit', 'apps', 'levels', 'fetch', 'png', 'look']
   test('unit-' + name, executable(
     'test_' + name,
     'unit/test_@0@.c'.format(name),
@@ -20,9 +20,9 @@ run_shot = find_program('run-shot.sh')
 foreach name : ['m0_root', 'm1_anatomy', 'm2_config', 'm3_snap', 'm4_imgr', 'm4_menu', 'm5_groups', 'm6_calm', 'm7_settings', 'apps_close', 'levels', 'zoom', 'fetch']
   prog = executable(
     'shot_' + name,
-    'shot/@0@.c'.format(name),
+    'shot/@0@.c'.format(name), '../src/png.c',
     link_with: test_client,
-    include_directories: [config_inc, include_directories('client')],
+    include_directories: [config_inc, include_directories('client', '../src')],
     dependencies: [wayland_client, client_protos, xkbcommon] + (have_portal ? [sdbus] : []),
   )
   test('shot-' + name, run_shot,

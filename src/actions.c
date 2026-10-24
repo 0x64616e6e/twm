@@ -17,6 +17,7 @@
 #include "rootline.h"
 #include "view.h"
 #include "zoom.h"
+#include "shot.h"
 
 void action_run_in_terminal(struct twm_server *server, const char *cmd) {
 	const char *term = server->config->terminal;
@@ -166,6 +167,12 @@ void action_run(struct twm_server *server, const struct twm_func *func,
 			view_set_fullscreen(front, !front->fullscreen, NULL);
 		}
 		return;
+	case TWM_F_SCREENSHOT: /* SHOT-1 */
+	case TWM_F_FETCHSHOT: { /* SHOT-2 */
+		char path[4096];
+		shot_take(server, func->kind == TWM_F_FETCHSHOT, path, sizeof(path));
+		return;
+	}
 	case TWM_F_FOLD: /* GRP-6: the tabs into the one in front, and out */
 		if (view && view->group) {
 			group_set_folded(view->group, !view->group->folded);

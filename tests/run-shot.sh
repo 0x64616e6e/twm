@@ -13,7 +13,7 @@ trap 'rm -rf "$rt"' EXIT INT TERM
 chmod 700 "$rt"
 export XDG_RUNTIME_DIR="$rt"
 # Never read the developer's own ~/.twmrc or geometry memory.
-export HOME="$rt/home" XDG_STATE_HOME="$rt/state"
+export HOME="$rt/home" XDG_STATE_HOME="$rt/state" TMPDIR="$rt"
 mkdir -p "$HOME" "$XDG_STATE_HOME"
 unset WAYLAND_DISPLAY WAYLAND_SOCKET DISPLAY TWMRC TWM_SOCK
 # Never the developer's session bus: a private one when dbus-daemon exists

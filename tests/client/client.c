@@ -29,6 +29,12 @@ struct tc {
 	struct wl_shm *shm;
 	struct wl_seat *seat;
 	struct wl_touch *touch;
+	struct wl_pointer *pointer;
+	uint32_t button_serial; /* the last press this client saw */
+	struct wl_data_device_manager *ddm;
+	struct wl_data_device *ddev;
+	char drag_uri[1024];
+	int drag_sends;
 	struct tc_touch touched; /* what wl_touch reported */
 	struct wl_output *output;
 	struct xdg_wm_base *wm_base;
@@ -220,8 +226,44 @@ static const struct wl_touch_listener touch_listener = {
 	.frame = touch_frame, .cancel = touch_cancel,
 };
 
+static void pointer_enter(void *data, struct wl_pointer *p, uint32_t serial,
+		struct wl_surface *surface, wl_fixed_t x, wl_fixed_t y) {
+}
+
+static void pointer_leave(void *data, struct wl_pointer *p, uint32_t serial,
+		struct wl_surface *surface) {
+}
+
+static void pointer_motion(void *data, struct wl_pointer *p, uint32_t time, wl_fixed_t x,
+		wl_fixed_t y) {
+}
+
+static void pointer_button(void *data, struct wl_pointer *p, uint32_t serial, uint32_t time,
+		uint32_t button, uint32_t state) {
+	struct tc *tc = data;
+	if (state == WL_POINTER_BUTTON_STATE_PRESSED) {
+		tc->button_serial = serial;
+	}
+}
+
+static void pointer_axis(void *data, struct wl_pointer *p, uint32_t time, uint32_t axis,
+		wl_fixed_t value) {
+}
+
+static const struct wl_pointer_listener pointer_listener = {
+	.enter = pointer_enter,
+	.leave = pointer_leave,
+	.motion = pointer_motion,
+	.button = pointer_button,
+	.axis = pointer_axis,
+};
+
 static void seat_capabilities(void *data, struct wl_seat *seat, uint32_t caps) {
 	struct tc *tc = data;
+	if ((caps & WL_SEAT_CAPABILITY_POINTER) && !tc->pointer) {
+		tc->pointer = wl_seat_get_pointer(seat);
+		wl_pointer_add_listener(tc->pointer, &pointer_listener, tc);
+	}
 	if ((caps & WL_SEAT_CAPABILITY_TOUCH) && !tc->touch) {
 		tc->touch = wl_seat_get_touch(seat);
 		wl_touch_add_listener(tc->touch, &touch_listener, tc);
@@ -292,6 +334,8 @@ static void registry_global(void *data, struct wl_registry *reg, uint32_t name,
 	} else if (strcmp(iface, wl_output_interface.name) == 0 && !tc->output) {
 		tc->output = wl_registry_bind(reg, name, &wl_output_interface, min_u32(version, 4));
 		wl_output_add_listener(tc->output, &output_listener, tc);
+	} else if (strcmp(iface, wl_data_device_manager_interface.name) == 0) {
+		tc->ddm = wl_registry_bind(reg, name, &wl_data_device_manager_interface, 1);
 	} else if (strcmp(iface, xdg_wm_base_interface.name) == 0) {
 		tc->wm_base = wl_registry_bind(reg, name, &xdg_wm_base_interface, min_u32(version, 2));
 		xdg_wm_base_add_listener(tc->wm_base, &wm_base_listener, tc);
@@ -1023,4 +1067,273 @@ uint32_t tc_blend(uint32_t top, double alpha, uint32_t bottom) {
 		out |= (uint32_t)v << shift;
 	}
 	return out;
+}
+
+/* --- drag and drop, as a source (SHR-1) --- */
+
+static void source_target(void *data, struct wl_data_source *s, const char *mime) {
+}
+
+static void source_send(void *data, struct wl_data_source *s, const char *mime, int32_t fd) {
+	struct tc *tc = data;
+	tc->drag_sends++;
+	if (strcmp(mime, "text/uri-list") == 0) {
+		char line[1100];
+		int n = snprintf(line, sizeof(line), "%s\r\n", tc->drag_uri);
+		if (write(fd, line, (size_t)n) < 0) {
+			perror("drag send");
+		}
+	}
+	close(fd);
+}
+
+static void source_cancelled(void *data, struct wl_data_source *s) {
+	wl_data_source_destroy(s);
+}
+
+static const struct wl_data_source_listener source_listener = {
+	.target = source_target,
+	.send = source_send,
+	.cancelled = source_cancelled,
+};
+
+bool tc_drag_uri(struct tc *tc, struct tc_window *win, const char *uri, double x0, double y0,
+		double x1, double y1) {
+	if (!tc->ddm || !tc->pointer) {
+		return false;
+	}
+	if (!tc->ddev) {
+		tc->ddev = wl_data_device_manager_get_data_device(tc->ddm, tc->seat);
+	}
+	snprintf(tc->drag_uri, sizeof(tc->drag_uri), "%s", uri);
+	tc_pointer_move(tc, x0, y0);
+	tc_wait(tc, 40);
+	tc->button_serial = 0;
+	tc_pointer_button(tc, TC_BTN_LEFT, true);
+	for (int i = 0; i < 50 && !tc->button_serial; i++) {
+		tc_wait(tc, 10);
+	}
+	if (!tc->button_serial) {
+		fprintf(stderr, "tc_drag_uri: no press reached the window\n");
+		tc_pointer_button(tc, TC_BTN_LEFT, false);
+		return false;
+	}
+	struct wl_data_source *src = wl_data_device_manager_create_data_source(tc->ddm);
+	wl_data_source_add_listener(src, &source_listener, tc);
+	wl_data_source_offer(src, "text/uri-list");
+	wl_data_device_start_drag(tc->ddev, src, win->surface, NULL, tc->button_serial);
+	wl_display_roundtrip(tc->display);
+	for (int i = 1; i <= 8; i++) {
+		tc_pointer_move(tc, x0 + (x1 - x0) * i / 8, y0 + (y1 - y0) * i / 8);
+		tc_wait(tc, 20);
+	}
+	tc_pointer_button(tc, TC_BTN_LEFT, false);
+	tc_wait(tc, 300);
+	if (!tc->drag_sends) {
+		fprintf(stderr, "tc_drag_uri: dropped, but no one asked for the data\n");
+	}
+	return tc->drag_sends > 0;
+}
+
+/* --- reading back twm's own PNGs (fixed-Huffman and stored deflate) --- */
+
+struct bitrd {
+	const uint8_t *d;
+	size_t n, pos; /* bit position */
+};
+
+static int rbit(struct bitrd *b) {
+	if (b->pos / 8 >= b->n) {
+		return -1;
+	}
+	int v = b->d[b->pos / 8] >> (b->pos % 8) & 1;
+	b->pos++;
+	return v;
+}
+
+static int rbits(struct bitrd *b, int n) {
+	int v = 0;
+	for (int i = 0; i < n; i++) {
+		int x = rbit(b);
+		if (x < 0) {
+			return -1;
+		}
+		v |= x << i;
+	}
+	return v;
+}
+
+static int fixed_litlen(struct bitrd *b) {
+	int code = 0;
+	for (int len = 1; len <= 9; len++) {
+		int x = rbit(b);
+		if (x < 0) {
+			return -1;
+		}
+		code = code << 1 | x;
+		if (len == 7 && code <= 23) {
+			return 256 + code;
+		}
+		if (len == 8 && code >= 0x30 && code <= 0xBF) {
+			return code - 0x30;
+		}
+		if (len == 8 && code >= 0xC0 && code <= 0xC7) {
+			return 280 + code - 0xC0;
+		}
+		if (len == 9 && code >= 0x190) {
+			return 144 + code - 0x190;
+		}
+	}
+	return -1;
+}
+
+static uint8_t *inflate_own(const uint8_t *d, size_t n, size_t want) {
+	static const int lb[29] = {3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51,
+		59, 67, 83, 99, 115, 131, 163, 195, 227, 258};
+	static const int le[29] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4,
+		4, 5, 5, 5, 5, 0};
+	static const int db[30] = {1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385,
+		513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577};
+	static const int de[30] = {0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10,
+		10, 11, 11, 12, 12, 13, 13};
+	uint8_t *out = malloc(want ? want : 1);
+	size_t o = 0;
+	struct bitrd b = {d + 2, n > 6 ? n - 6 : 0, 0}; /* past the zlib header */
+	for (int last = 0; !last && out;) {
+		last = rbit(&b);
+		int type = rbits(&b, 2);
+		if (last < 0 || type < 0) {
+			break;
+		}
+		if (type == 0) {
+			b.pos = (b.pos + 7) / 8 * 8;
+			size_t at = b.pos / 8;
+			if (at + 4 > b.n) {
+				break;
+			}
+			size_t len = (size_t)b.d[at] | (size_t)b.d[at + 1] << 8;
+			at += 4;
+			if (at + len > b.n || o + len > want) {
+				break;
+			}
+			memcpy(out + o, b.d + at, len);
+			o += len;
+			b.pos = (at + len) * 8;
+		} else if (type == 1) {
+			for (;;) {
+				int sym = fixed_litlen(&b);
+				if (sym < 0 || sym == 256) {
+					break;
+				}
+				if (sym < 256) {
+					if (o < want) {
+						out[o++] = (uint8_t)sym;
+					}
+					continue;
+				}
+				int li = sym - 257;
+				if (li > 28) {
+					break;
+				}
+				int len = lb[li] + rbits(&b, le[li]);
+				int dc = 0;
+				for (int k = 0; k < 5; k++) {
+					dc = dc << 1 | rbit(&b);
+				}
+				if (dc > 29) {
+					break;
+				}
+				size_t dist = (size_t)(db[dc] + rbits(&b, de[dc]));
+				for (int k = 0; k < len && o < want && dist <= o; k++, o++) {
+					out[o] = out[o - dist];
+				}
+			}
+		} else {
+			break; /* dynamic codes: not twm's */
+		}
+	}
+	if (out && o != want) {
+		free(out);
+		return NULL;
+	}
+	return out;
+}
+
+static uint32_t be32(const uint8_t *p) {
+	return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3];
+}
+
+bool tc_png_load(const char *path, struct tc_image *img) {
+	FILE *f = fopen(path, "rb");
+	if (!f) {
+		return false;
+	}
+	fseek(f, 0, SEEK_END);
+	long sz = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	uint8_t *d = sz > 0 ? malloc((size_t)sz) : NULL;
+	size_t n = d ? fread(d, 1, (size_t)sz, f) : 0;
+	fclose(f);
+	if (!d || n < 33 || memcmp(d + 1, "PNG", 3) != 0) {
+		free(d);
+		return false;
+	}
+	uint32_t w = 0, h = 0;
+	uint8_t *z = malloc(n);
+	size_t zn = 0;
+	for (size_t o = 8; o + 12 <= n;) {
+		uint32_t len = be32(d + o);
+		if (len > n - o - 12) {
+			break;
+		}
+		if (memcmp(d + o + 4, "IHDR", 4) == 0) {
+			w = be32(d + o + 8);
+			h = be32(d + o + 12);
+		} else if (memcmp(d + o + 4, "IDAT", 4) == 0) {
+			memcpy(z + zn, d + o + 8, len);
+			zn += len;
+		}
+		o += 12 + len;
+	}
+	free(d);
+	size_t row = (size_t)w * 3;
+	uint8_t *raw = w && h ? inflate_own(z, zn, (row + 1) * h) : NULL;
+	free(z);
+	if (!raw) {
+		return false;
+	}
+	img->width = (int)w;
+	img->height = (int)h;
+	img->pixels = malloc((size_t)w * h * 4);
+	uint8_t *prev = calloc(row, 1), *cur = malloc(row);
+	for (uint32_t y = 0; y < h; y++) {
+		const uint8_t *src = raw + y * (row + 1);
+		int ft = src[0];
+		for (size_t i = 0; i < row; i++) {
+			int a = i >= 3 ? cur[i - 3] : 0, up = prev[i], c = i >= 3 ? prev[i - 3] : 0;
+			int x = src[1 + i], pred = 0;
+			if (ft == 1) {
+				pred = a;
+			} else if (ft == 2) {
+				pred = up;
+			} else if (ft == 3) {
+				pred = (a + up) / 2;
+			} else if (ft == 4) {
+				int p = a + up - c, pa = abs(p - a), pb = abs(p - up), pc = abs(p - c);
+				pred = pa <= pb && pa <= pc ? a : pb <= pc ? up : c;
+			}
+			cur[i] = (uint8_t)(x + pred);
+		}
+		for (uint32_t x = 0; x < w; x++) {
+			img->pixels[y * w + x] = 0xFF000000u | (uint32_t)cur[x * 3] << 16 |
+				(uint32_t)cur[x * 3 + 1] << 8 | cur[x * 3 + 2];
+		}
+		uint8_t *t = prev;
+		prev = cur;
+		cur = t;
+	}
+	free(prev);
+	free(cur);
+	free(raw);
+	return true;
 }

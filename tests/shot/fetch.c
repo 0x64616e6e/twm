@@ -8,7 +8,10 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <dirent.h>
+#include <time.h>
 #include "client.h"
+#include "png.h"
 
 #define GROUND 0x0D0E0B
 #define ACCENT 0xFFB000
@@ -84,13 +87,79 @@ static int run(const char *line, char *buf, size_t len) {
 	return WEXITSTATUS(st);
 }
 
+
+/* The newest file in `dir` starting with `prefix`, modified at or after
+ * `since`; waits up to 3 s for it. */
+static bool newest(struct tc *tc, const char *dir, const char *prefix, time_t since,
+		char *out, size_t len) {
+	for (int waited = 0; waited < 3000; waited += 50) {
+		DIR *d = opendir(dir);
+		time_t best = 0;
+		out[0] = '\0';
+		struct dirent *e;
+		while (d && (e = readdir(d))) {
+			if (strncmp(e->d_name, prefix, strlen(prefix)) != 0 || strstr(e->d_name, ".part")) {
+				continue;
+			}
+			char p[4096];
+			snprintf(p, sizeof(p), "%s/%s", dir, e->d_name);
+			struct stat st;
+			if (stat(p, &st) == 0 && st.st_mtime >= since && st.st_mtime >= best) {
+				best = st.st_mtime;
+				snprintf(out, len, "%s", p);
+			}
+		}
+		if (d) {
+			closedir(d);
+		}
+		if (out[0]) {
+			return true;
+		}
+		tc_wait(tc, 50);
+	}
+	return false;
+}
+
+static char *file_text(const char *path) {
+	FILE *f = fopen(path, "rb");
+	if (!f) {
+		return NULL;
+	}
+	static char buf[1 << 16];
+	size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+	fclose(f);
+	buf[n] = '\0';
+	return buf;
+}
+
+static char *png_text_of(const char *path, const char *key) {
+	FILE *f = fopen(path, "rb");
+	if (!f) {
+		return NULL;
+	}
+	fseek(f, 0, SEEK_END);
+	long n = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	uint8_t *d = malloc((size_t)n);
+	size_t got = fread(d, 1, (size_t)n, f);
+	fclose(f);
+	char *t = png_text_get(d, got, key);
+	free(d);
+	return t;
+}
+
+static void write_settings(struct tc *tc) {
+	tc_chord(tc, 2, 29 /* KEY_LEFTCTRL */, 31 /* KEY_S */); /* SET: Ctrl-S writes */
+	tc_wait(tc, 300);
+}
+
 int main(int argc, char *argv[]) {
 	const char *out = argc > 1 ? argv[1] : "fetch.png";
 	const char *home = getenv("TWM_TEST_HOME");
 	const char *bin = getenv("TWM_TEST_BIN");
 	struct tc *tc = tc_connect();
 	struct tc_image img = {0};
-	char buf[16384], cmd[8192];
+	char buf[16384], cmd[20000];
 
 	/* twmfetch sits beside twm in the build */
 	char fetch[4096];
@@ -176,6 +245,106 @@ int main(int argc, char *argv[]) {
 	write_rc("RootCard off\n");
 	reload();
 	tc_wait(tc, 200);
+
+	/* --- SHOT-1: Print saves the output as it is --- */
+	const char *mine = "Accent #7FD1AE\n\"M-Return\" : !\"foot\"\n";
+	write_rc(mine);
+	reload();
+	tc_wait(tc, 200);
+	time_t start = time(NULL);
+	char pics[4096], plain[8192], fshot[8192];
+	snprintf(pics, sizeof(pics), "%s/Pictures/Screenshots", home);
+	tc_pointer_move(tc, 900, 500);
+	tc_chord(tc, 1, 99 /* KEY_SYSRQ: Print */);
+	tc_expect("SHOT-1", newest(tc, pics, "twm-", start, plain, sizeof(plain)),
+		"Print: a file in ~/Pictures/Screenshots (%s)", plain);
+	tc_wait(tc, 300);
+	struct tc_image got = {0};
+	tc_expect("SHOT-1", tc_png_load(plain, &got) && got.width == W && got.height == H &&
+		near(tc_pixel(&got, 1500, 600), GROUND, 8), "the whole output, 1920×1080, as it was");
+	tc_image_free(&got);
+	char *t = png_text_of(plain, "twm:twmrc");
+	tc_expect("SHOT-1", t == NULL, "a plain screenshot carries no look");
+	free(t);
+
+	/* --- SHOT-2: M-Print, the fetch shot: the card drawn in, the .twmrc carried --- */
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, 99);
+	tc_expect("SHOT-2", newest(tc, getenv("TMPDIR"), "twmfetch-", start, fshot, sizeof(fshot)),
+		"M-Print: a fetch shot in $TMPDIR (%s)", fshot);
+	tc_wait(tc, 300);
+	t = png_text_of(fshot, "twm:twmrc");
+	tc_expect("SHOT-2", t && strcmp(t, mine) == 0, "it carries the .twmrc, byte for byte");
+	free(t);
+	tc_expect("SHOT-2", tc_png_load(fshot, &got) &&
+		count_lit(&got, 80, H - 300, 700, H - 80) > 800 &&
+		count_box(&got, 80, H - 300, 700, H - 80, 0x7FD1AE, 40) > 40,
+		"and the root card, in the running accent, though RootCard is off");
+	tc_image_free(&got);
+	shot(tc, &img, out, "after-fetchshot");
+	tc_expect("SHOT-2", count_lit(&img, 80, H - 300, 700, H - 80) < 50,
+		"on screen the card stays away");
+
+	/* --- SHR-1, SHR-3: twmfetch <image>: the look, as pending edits --- */
+	write_rc("Accent #FFB000\n\"M-Return\" : !\"foot\"\nFocusPolicy click\n");
+	reload();
+	tc_wait(tc, 200);
+	snprintf(cmd, sizeof(cmd), "'%s' '%s'", fetch, fshot);
+	st = run(cmd, buf, sizeof(buf));
+	tc_expect("SHR-3", st == 0 && strstr(buf, "look from twmfetch-") && strstr(buf, "1 key taken") &&
+		strstr(buf, "1 left out"), "twmfetch <shot>: %.*s", (int)strcspn(buf, "\n"), buf);
+	tc_wait(tc, 150);
+	char rcpath[8192];
+	snprintf(rcpath, sizeof(rcpath), "%s/.twmrc", home);
+	tc_expect("SHR-3", strstr(file_text(rcpath), "#FFB000") != NULL,
+		"nothing written yet: the diff is in the Settings window");
+	shot(tc, &img, out, "absorb-pending");
+	write_settings(tc);
+	const char *now_rc = file_text(rcpath);
+	tc_expect("SHR-3", strstr(now_rc, "#7FD1AE") && !strstr(now_rc, "#FFB000") &&
+		strstr(now_rc, "FocusPolicy click") && strstr(now_rc, "!\"foot\""),
+		"Write: the accent taken, everything else kept");
+
+	/* --- SHR-2: a hostile image can only propose a look --- */
+	char evil[8192];
+	snprintf(evil, sizeof(evil), "%s/evil.png", home);
+	uint32_t px = 0xFF000000;
+	struct png_text et[] = {{"twm:twmrc",
+		"Accent #FF8A65\n\"M-Return\" : !\"touch $HOME/pwned\"\nButton1 = root : f.quit\n"
+		"Terminal \"touch $HOME/pwned\"\n"}};
+	png_write(evil, &px, 1, 1, 4, et, 1);
+	snprintf(cmd, sizeof(cmd), "'%s' '%s'", fetch, evil);
+	st = run(cmd, buf, sizeof(buf));
+	tc_expect("SHR-2", st == 0 && strstr(buf, "1 key taken") && strstr(buf, "3 left out"),
+		"a hostile image: %.*s", (int)strcspn(buf, "\n"), buf);
+	tc_wait(tc, 150);
+	write_settings(tc);
+	now_rc = file_text(rcpath);
+	tc_expect("SHR-2", strstr(now_rc, "#FF8A65") && !strstr(now_rc, "pwned") &&
+		!strstr(now_rc, "f.quit") && strstr(now_rc, "!\"foot\""),
+		"only its accent arrives; no command, binding or terminal");
+
+	/* --- SHR-1: an image without a look says so --- */
+	snprintf(cmd, sizeof(cmd), "'%s' '%s'", fetch, plain);
+	st = run(cmd, buf, sizeof(buf));
+	tc_expect("SHR-1", st == 1 && strstr(buf, "carries no look"), "a plain screenshot: %.*s",
+		(int)strcspn(buf, "\n"), buf);
+
+	/* --- SHR-1: a fetch shot dropped on the bare root --- */
+	tc_pointer_move(tc, 300, 300);
+	struct tc_window *src = tc_window_create(tc, &(struct tc_window_opts){
+		.title = "files", .app_id = "files", .width = 300, .height = 200, .color = 0x3060C0});
+	tc_pointer_click(tc, TC_BTN_LEFT);
+	tc_wait(tc, 150);
+	char uri[8300];
+	snprintf(uri, sizeof(uri), "file://%s", fshot);
+	bool sent = tc_drag_uri(tc, src, uri, 450, 400, 200, 950); /* bare root, clear of Settings */
+	tc_expect("SHR-1", sent, "dropped on the root, twm asks the source for its files");
+	tc_wait(tc, 300);
+	write_settings(tc);
+	now_rc = file_text(rcpath);
+	tc_expect("SHR-1", strstr(now_rc, "#7FD1AE") && !strstr(now_rc, "#FF8A65"),
+		"and takes the look the image carries");
+	tc_window_destroy(src);
 
 	tc_disconnect(tc);
 	return tc_report();

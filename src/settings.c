@@ -93,6 +93,8 @@ const char config_default_twmrc[] =
 	"\"M-d\"      : f.run\n"
 	"\"M-Up\"     : f.fullzoom\n"
 	"\"M-S-f\"    : f.fullscreen\n"
+	"\"Print\"    : f.screenshot\n"
+	"\"M-Print\"  : f.fetchshot\n"
 	"\"XF86AudioRaiseVolume\"  : f.volume up\n"
 	"\"XF86AudioLowerVolume\"  : f.volume down\n"
 	"\"XF86AudioMute\"         : f.volume mute\n"
@@ -317,6 +319,8 @@ static const struct {
 	{"f.horizoom", TWM_F_HORIZOOM, 0},
 	{"f.fullzoom", TWM_F_FULLZOOM, 0},
 	{"f.fullscreen", TWM_F_FULLSCREEN, 0},
+	{"f.screenshot", TWM_F_SCREENSHOT, 0},
+	{"f.fetchshot", TWM_F_FETCHSHOT, 0},
 	{"f.desktop", TWM_F_DESKTOP, 'n'},
 	{"f.send", TWM_F_SEND, 'n'},
 	{"f.separator", TWM_F_SEPARATOR, 0},

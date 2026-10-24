@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 struct twm_server;
+struct look;
 
 /*
  * The Settings window (SET-1 … SET-9, B8): `settings — ~/.twmrc`. Controls
@@ -16,6 +17,8 @@ void setwin_init(struct twm_server *server);
 void setwin_finish(struct twm_server *server);
 /* f.settings: show it (focused), or hide it if it has the focus. */
 void setwin_toggle(struct twm_server *server);
+/* SHR-3: a shared look's keys as pending edits, the diff in view. */
+void setwin_propose(struct twm_server *server, const struct look *look);
 /* The file may have changed (any reload attempt, SET-8). */
 void setwin_file_changed(struct twm_server *server);
 

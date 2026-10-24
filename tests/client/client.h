@@ -99,6 +99,13 @@ bool tc_touched_window(struct tc *tc, struct tc_window *win);
  * "touch move ID X Y", "touch up ID" on a touchscreen of twm's own. */
 int tc_twm_request(const char *request, char *reply, size_t len);
 
+/* SHR-1: drag `uri` as text/uri-list from `win` (pressed at x0,y0) and drop
+ * it at x1,y1. True once the compositor asked for the data. */
+bool tc_drag_uri(struct tc *tc, struct tc_window *win, const char *uri, double x0, double y0,
+	double x1, double y1);
+/* Decode a PNG twm wrote (fixed-Huffman deflate, RGB). */
+bool tc_png_load(const char *path, struct tc_image *img);
+
 /* Virtual pointer, layout coordinates of the single output. */
 void tc_pointer_move(struct tc *tc, double x, double y);
 void tc_pointer_button(struct tc *tc, uint32_t button, bool pressed);

@@ -47,6 +47,7 @@ enum twm_layer {
 	TWM_LAYER_TRUSTED,
 	TWM_LAYER_OVERLAY, /* outlines, readouts, snap guides */
 	TWM_LAYER_MENU,
+	TWM_LAYER_DRAG, /* a drag's icon: never hit-tested */
 	TWM_LAYER_COUNT,
 };
 
@@ -214,6 +215,8 @@ struct twm_server {
 	struct wl_listener request_set_selection;
 	struct wl_listener request_set_primary_selection;
 	struct wl_listener pointer_focus_change;
+	struct wl_listener request_start_drag, start_drag, drag_destroy; /* dnd.c */
+	struct wlr_scene_tree *drag_icon;
 
 	/* INP-*: pointers and touchscreens (libinput's settings), the touchscreen */
 	struct wl_list devices; /* twm_device.link */

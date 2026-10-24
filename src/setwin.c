@@ -20,6 +20,7 @@
 #include "rootline.h"
 #include "settings.h"
 #include "setwin.h"
+#include "look.h"
 #include "text.h"
 #include "view.h"
 
@@ -110,10 +111,10 @@ struct ctl {
 };
 
 struct edit {
-	int ctl; /* the control that made it */
+	int ctl; /* the control that made it; -1: a shared look (SHR-3) */
 	char key[32];
 	char row[16];
-	char value[256];
+	char value[512];
 };
 
 struct edit_set {
@@ -521,8 +522,8 @@ static void drop_noops(struct setwin *sw) {
 			struct twmrc_doc *d1, *d2;
 			struct twm_config *c1 = config_build(with, strlen(with), &d1);
 			struct twm_config *c2 = config_build(without, strlen(without), &d2);
-			drop = !twmrc_count(d1, TWMRC_ERROR) && !twmrc_count(d2, TWMRC_ERROR) &&
-				facet_equal(&ctls[sw->edits.e[i].ctl], c1, c2);
+			drop = sw->edits.e[i].ctl >= 0 && !twmrc_count(d1, TWMRC_ERROR) &&
+				!twmrc_count(d2, TWMRC_ERROR) && facet_equal(&ctls[sw->edits.e[i].ctl], c1, c2);
 			config_free(c1);
 			config_free(c2);
 			twmrc_free(d1);
@@ -1749,6 +1750,47 @@ void setwin_file_changed(struct twm_server *server) {
 		}
 	}
 	free(old);
+}
+
+void setwin_propose(struct twm_server *server, const struct look *look) {
+	struct setwin *sw = sw_of(server);
+	if (!sw || look->n == 0) {
+		return;
+	}
+	setwin_file_changed(server);
+	snapshot(sw);
+	for (int i = 0; i < look->n; i++) {
+		const struct look_edit *le = &look->e[i];
+		struct edit *e = NULL;
+		for (int k = 0; k < sw->edits.n; k++) {
+			if (strcmp(sw->edits.e[k].key, le->key) == 0) {
+				e = &sw->edits.e[k]; /* the look's value replaces a pending one */
+				e->row[0] = '\0';
+			}
+		}
+		if (!e && sw->edits.n < MAX_EDITS) {
+			e = &sw->edits.e[sw->edits.n++];
+		}
+		if (!e) {
+			break;
+		}
+		e->ctl = -1;
+		for (size_t c = 0; c < sizeof(ctls) / sizeof(ctls[0]); c++) {
+			if (ctls[c].key && !ctls[c].row && strcmp(ctls[c].key, le->key) == 0) {
+				e->ctl = (int)c;
+			}
+		}
+		snprintf(e->key, sizeof(e->key), "%s", le->key);
+		e->row[0] = '\0';
+		snprintf(e->value, sizeof(e->value), "%s", le->value);
+	}
+	recompute(sw);
+	if (!sw->iv->view.shown) {
+		internal_view_show(sw->iv);
+	}
+	view_raise(&sw->iv->view);
+	view_focus(&sw->iv->view);
+	redraw(sw);
 }
 
 void setwin_toggle(struct twm_server *server) {

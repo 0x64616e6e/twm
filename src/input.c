@@ -18,6 +18,7 @@
 #include <wayland-server-core.h>
 #include "actions.h"
 #include "card.h"
+#include "dnd.h"
 #include "capture.h"
 #include "frame.h"
 #include "grab.h"
@@ -381,6 +382,7 @@ void input_pointer_moved(struct twm_server *server, uint32_t time_msec) {
 	if (server->prompt) {
 		return; /* TRU-4: nothing under the pointer reacts */
 	}
+	dnd_motion(server);
 	if (grab_active(server)) {
 		grab_motion(server);
 		return;
@@ -569,6 +571,9 @@ void input_button(struct twm_server *server, struct wlr_input_device *device,
 	} else if (!pressed && (server->consumed_buttons & bit)) {
 		server->consumed_buttons &= ~bit;
 		consumed = true;
+	}
+	if (!consumed && !pressed && server->seat->drag) {
+		dnd_release(server); /* SHR-1: a drop on the bare root */
 	}
 	if (!consumed) {
 		wlr_seat_pointer_notify_button(server->seat, event->time_msec,

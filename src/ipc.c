@@ -11,6 +11,8 @@
 #include "ipc.h"
 #include "ipcclient.h"
 #include "info.h"
+#include "shot.h"
+#include "share.h"
 #include "prompt.h"
 #include "rc.h"
 #include "server.h"
@@ -116,6 +118,12 @@ static bool handle_request(struct ipc_client *c, char *req) {
 		rc_reload(c->server, true, out, sizeof(out));
 	} else if (strncmp(req, "choose", 6) == 0 && (req[6] == '\t' || req[6] == '\n')) {
 		return start_choose(c, req);
+	} else if (strcmp(req, "fetchshot") == 0 || strcmp(req, "screenshot") == 0) {
+		char path[4096]; /* SHOT-*, FET-5: the file's path, or why not */
+		bool ok = shot_take(c->server, req[0] == 'f', path, sizeof(path));
+		snprintf(out, sizeof(out), "%s%s\n", ok ? "" : "error: ", path);
+	} else if (strncmp(req, "absorb\t", 7) == 0) {
+		share_absorb(c->server, req + 7, out, sizeof(out)); /* SHR-1 */
 	} else if (strcmp(req, "info") == 0) {
 		info_write(c->server, out, sizeof(out)); /* FET-3 */
 	} else if (strncmp(req, "touch ", 6) == 0) {

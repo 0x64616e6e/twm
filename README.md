@@ -69,6 +69,7 @@ FreeBSD; `-Dportal=disabled` to build without). The UI font is IBM Plex Mono.
 | `Esc`, `Return` | cancel / commit an outline |
 | `M-Up` | zoom: fill the screen, frame kept (`f.zoom`, `f.horizoom` for height or width only); again to go back |
 | `M-S-f` | fullscreen, and back; apps' own maximize and fullscreen buttons do the same |
+| `Print`, `M-Print` | a screenshot to `~/Pictures/Screenshots`; a fetch shot to `/tmp`, with the root card drawn in and your `.twmrc` inside |
 | `M-space` | raise or lower |
 | B1 on the bare desktop, `M-m` | the root menu |
 | type at the Icon Manager | find a window (or a command); Return goes there, `M-Return` brings it here |
@@ -137,7 +138,17 @@ Touchscreen            on
 `twmfetch` prints this machine's facts and the ones only Tom's WM knows
 (open frames, tab groups, desktops, outputs, whether your `.twmrc` passes
 its check) beside the logo, in your theme's colors. `--json` for scripts,
-`--short` for a prompt, `--logo off` for the facts alone.
+`--short` for a prompt, `--logo off` for the facts alone. A plain run also
+leaves a fetch shot in `/tmp`: a screenshot that carries your look.
+
+Someone else's fetch shot gives you their look: `twmfetch their-shot.png`,
+or drop the image on the bare desktop. Only appearance keys are taken
+(accent, font, title height, squeeze, the root's look); bindings, menus and
+anything that runs a command never are. The Settings window opens with the
+diff; Write applies it and `M-z` takes it back.
+
+`RootCard { at bottom-left fields host uptime load pool mem frames }` draws
+the same facts on the desktop, under every window.
 
 ## Privacy and prompts
 

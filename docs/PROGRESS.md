@@ -21,9 +21,17 @@ an ELAN touchpad and touchscreen), started from Draftpaper's login screen.
   "Touchpad & touch" section in Settings.
 - The touchscreen (INP-3 … INP-6): touch for apps that take it, and
   elsewhere a finger is the pointer; mapped to the built-in panel.
+- A close box on the tab (FRM-19): B1 closes, B3 kills (twm's
+  f.destroy); `M-w` / `M-S-w`; `close` and `kill` in the root menu;
+  `CloseBox off` for B0's tab.
+- Running apps (IMG-13): the installed applications (`.desktop` entries) in
+  the Icon Manager's RUN results, run directly; `M-d` (and `run…`) brings
+  the Icon Manager up to type into.
 - FreeBSD 15.1 tested in a VM; CI green on Arch, Debian and FreeBSD.
 
-**Tests**: a shadowed client fills its frame with no shadow showing; a touch
+**Tests**: `shot-apps_close` runs an app found by name and checks the close
+box: B1 asks the window to close, B3 cuts another client off and leaves the
+test's own alone, `CloseBox off` narrows the tab; a shadowed client fills its frame with no shadow showing; a touch
 reaches a window at the finger, and a finger drags a title like the pointer
 without the app seeing it (`--test`'s own touchscreen, INP-6); the Settings
 section is driven by keys.

@@ -19,7 +19,10 @@
 #define ON_ACCENT 0x0E0F0C
 #define TH 26
 
-/* Menu "main" at (MX, MY): header 32, list padding 4, items 30, rules 9. */
+/* Menu "main" at (MX, MY): header 32, list padding 4, items 30, rules 9.
+ * Rows: xterm 0, browser 30, files 60, run… 90, rule 120, move 129, resize 159,
+ * squeeze 189, iconify 219, raise / lower 249, close 279, kill 309, rule 339,
+ * desktops 348, settings 378, reload 408, exit 438. */
 #define MX 500
 #define MY 120
 #define ITEM_Y(row_offset) (MY + 32 + 4 + (row_offset))
@@ -70,7 +73,7 @@ int main(int argc, char *argv[]) {
 	tc_pointer_click(tc, TC_BTN_LEFT);
 	tc_wait(tc, 40);
 	/* MNU-2: the item under the pointer is in accent (B0: squeeze). */
-	tc_pointer_move(tc, MX + 100, ITEM_Y(159) + 15);
+	tc_pointer_move(tc, MX + 100, ITEM_Y(189) + 15);
 	tc_wait(tc, 40);
 	shot(tc, &img);
 	tc_image_write_png(&img, out);
@@ -85,18 +88,18 @@ int main(int argc, char *argv[]) {
 		"first item label");
 	tc_expect("MNU-3", count_box(&img, MX + 200, ITEM_Y(0), MX + 246, ITEM_Y(30), DIM, 40) > 15,
 		"shortcut column (M-\xe2\x86\xb5)");
-	tc_expect_pixel("MNU-2", &img, MX + 20, ITEM_Y(90) + 4, HAIRLINE, 2);   /* separator */
-	tc_expect_pixel("MNU-2", &img, MX + 5, ITEM_Y(159) + 3, ACCENT, 2);     /* selected */
-	tc_expect("MNU-2", count_box(&img, MX + 14, ITEM_Y(159), MX + 120, ITEM_Y(189),
+	tc_expect_pixel("MNU-2", &img, MX + 20, ITEM_Y(120) + 4, HAIRLINE, 2);   /* separator */
+	tc_expect_pixel("MNU-2", &img, MX + 5, ITEM_Y(189) + 3, ACCENT, 2);     /* selected */
+	tc_expect("MNU-2", count_box(&img, MX + 14, ITEM_Y(189), MX + 120, ITEM_Y(219),
 		ON_ACCENT, 30) > 20, "selected label on accent");
-	tc_expect("MNU-3", count_box(&img, MX + 220, ITEM_Y(159), MX + 246, ITEM_Y(189),
+	tc_expect("MNU-3", count_box(&img, MX + 220, ITEM_Y(189), MX + 246, ITEM_Y(219),
 		ON_ACCENT, 30) > 10, "squeeze reads B3");
 
 	/* MNU-6: keys drive it; Esc closes. */
 	tc_chord(tc, 1, TC_KEY_DOWN);
 	tc_wait(tc, 30);
 	shot(tc, &img);
-	tc_expect_pixel("MNU-6", &img, MX + 5, ITEM_Y(189) + 3, ACCENT, 2);     /* iconify */
+	tc_expect_pixel("MNU-6", &img, MX + 5, ITEM_Y(219) + 3, ACCENT, 2);     /* iconify */
 	tc_chord(tc, 1, TC_KEY_ESC);
 	tc_wait(tc, 30);
 	shot(tc, &img);
@@ -107,7 +110,7 @@ int main(int argc, char *argv[]) {
 	tc_pointer_move(tc, MX, MY);
 	tc_pointer_button(tc, TC_BTN_LEFT, true);
 	for (int i = 1; i <= 4; i++) {
-		tc_pointer_move(tc, MX + 25 * i, MY + (ITEM_Y(189) + 15 - MY) * i / 4);
+		tc_pointer_move(tc, MX + 25 * i, MY + (ITEM_Y(219) + 15 - MY) * i / 4);
 	}
 	tc_pointer_button(tc, TC_BTN_LEFT, false);
 	tc_wait(tc, 30);
@@ -127,7 +130,7 @@ int main(int argc, char *argv[]) {
 	 * follows the pointer, a click puts it down. */
 	tc_pointer_move(tc, MX, MY);
 	tc_pointer_click(tc, TC_BTN_LEFT);
-	tc_pointer_move(tc, MX + 100, ITEM_Y(99) + 15);
+	tc_pointer_move(tc, MX + 100, ITEM_Y(129) + 15);
 	tc_pointer_click(tc, TC_BTN_LEFT);
 	tc_pointer_move(tc, 1100, 613);
 	tc_pointer_click(tc, TC_BTN_LEFT);                                       /* select */
@@ -145,10 +148,10 @@ int main(int argc, char *argv[]) {
 	 * switches. Opened with M-m this time (MNU-6). */
 	tc_pointer_move(tc, MX, MY);
 	tc_chord(tc, 2, TC_KEY_LEFTMETA, TC_KEY_M);
-	tc_pointer_move(tc, MX + 100, ITEM_Y(258) + 15);
+	tc_pointer_move(tc, MX + 100, ITEM_Y(348) + 15);
 	tc_wait(tc, 30);
 	shot(tc, &img);
-	int sx = MX + 260 - 1, sy = ITEM_Y(258) - 32 - 4;
+	int sx = MX + 260 - 1, sy = ITEM_Y(348) - 32 - 4;
 	tc_expect_pixel("MNU-7", &img, sx + 3, sy + 3, GRAPHITE, 2);             /* submenu */
 	tc_expect("MNU-7", count_box(&img, sx + 10, sy + 8, sx + 110, sy + 26, MUTED, 40) > 20,
 		"DESKTOPS header");

@@ -106,12 +106,20 @@ static struct twm_font *title_font(struct twm_server *server, int weight, float 
 	return font_get(t->ui_font, t->font_size, weight, scale);
 }
 
+/* FRM-19: windows with buttons get a close box, unless CloseBox is off;
+ * a trusted prompt (TRU-2) is answered, not closed. */
+static bool has_close(struct twm_view *view) {
+	return view->server->config && view->server->config->close_box && !view->utility &&
+		!view->trusted;
+}
+
 int frame_min_width(struct twm_frame *frame) {
 	float scale = output_max_scale(frame->view->server);
 	struct twm_font *font = title_font(frame->view->server, TWM_WEIGHT_SEMIBOLD, scale);
 	struct tab_metrics m = metrics_for(frame, font, scale);
 	bool utility = frame->view->utility;
-	return tab_min_width(&m, !utility, !utility && view_resizable(frame->view));
+	return tab_min_width(&m, !utility, !utility && view_resizable(frame->view),
+		has_close(frame->view));
 }
 
 /* HNT-3: a selected hint shows as the tab of B4's "j": graphite, ink text,
@@ -163,6 +171,7 @@ static void draw_group_tab(struct twm_frame *frame, enum frame_state state, floa
 		.active = g ? group_index(view) : 0,
 		.hatch = state == FRAME_FOCUSED && t->title_highlight && !view->hint_selected,
 		.resize = view_resizable(view),
+		.close = has_close(view),
 		.folded = g && g->folded,
 		.slot_index = frame->slot_index,
 		.slot_width = frame->slot_width,
@@ -248,6 +257,13 @@ static void draw_group_tab(struct twm_frame *frame, enum frame_state state, floa
 		}
 		draw_fill(img, c->sep, X(s->sep_x), 0, stroke, dh);
 	}
+	if (l->close.width) {
+		draw_fill(img, cl.bg, X(l->close.x), 0, X(l->close.width), dh);
+		draw_glyph(img, TWM_GLYPH_CLOSE, X(l->close.x + glyph_off), X(glyph_off), scale, cl.fg);
+	}
+	if (l->sep_close.width) {
+		draw_fill(img, cl.sep, X(l->sep_close.x), 0, stroke, dh);
+	}
 	if (l->resize.width) {
 		draw_fill(img, cl.bg, X(l->resize.x), 0, X(l->resize.width), dh);
 		draw_glyph(img, TWM_GLYPH_RESIZE, X(l->resize.x + glyph_off), X(glyph_off), scale, cl.fg);
@@ -278,6 +294,7 @@ static void draw_tab(struct twm_frame *frame, const char *title, enum frame_stat
 		.hatch = (state == FRAME_FOCUSED && t->title_highlight) || frame->view->trusted,
 		.iconify = !frame->view->utility,
 		.resize = !frame->view->utility && !frame->view->trusted && view_resizable(frame->view),
+		.close = has_close(frame->view),
 		.justify = config_justify(server->config, frame->view->impl->get_app_id(frame->view),
 			frame->view->impl->get_title(frame->view)), /* FRM-4 */
 		.marker_width = frame->view->capturing ? marker_width(server, scale) : 0,
@@ -315,6 +332,10 @@ static void draw_tab(struct twm_frame *frame, const char *title, enum frame_stat
 		int inset = t->hatch_inset;
 		draw_hatch(img, X(l->hatch.x), X(inset), X(l->hatch.x + l->hatch.width) - X(l->hatch.x),
 			X(t->title_height - inset) - X(inset), scale, c.hatch);
+	}
+	if (l->close.width) {
+		draw_fill(img, c.sep, X(l->sep_close.x), 0, stroke, dh);
+		draw_glyph(img, TWM_GLYPH_CLOSE, X(l->close.x + glyph_off), X(glyph_off), scale, c.fg);
 	}
 	if (l->resize.width) {
 		draw_fill(img, c.sep, X(l->sep_right.x), 0, stroke, dh);
@@ -527,6 +548,9 @@ enum twm_hit_kind frame_part_at(struct twm_frame *frame, double lx, double ly) {
 		if (g->resize.width && gx >= g->resize.x && gx < g->resize.x + g->resize.width) {
 			return TWM_HIT_RESIZE;
 		}
+		if (g->close.width && gx >= g->close.x && gx < g->close.x + g->close.width) {
+			return TWM_HIT_CLOSE;
+		}
 		return TWM_HIT_TITLE;
 	}
 	int x = (int)floor(lx) - frame->view->x - frame->layout.x;
@@ -535,6 +559,8 @@ enum twm_hit_kind frame_part_at(struct twm_frame *frame, double lx, double ly) {
 		return TWM_HIT_ICONIFY;
 	case TAB_PART_RESIZE:
 		return TWM_HIT_RESIZE;
+	case TAB_PART_CLOSE:
+		return TWM_HIT_CLOSE;
 	default:
 		return TWM_HIT_TITLE;
 	}

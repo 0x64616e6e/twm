@@ -122,6 +122,16 @@ void draw_glyph(pixman_image_t *img, enum twm_glyph glyph, int x, int y,
 		draw_box(img, argb, x, y, sc(8, scale), sc(8, scale), t);
 		draw_box(img, argb, x, y, sc(4, scale), sc(4, scale), t);
 		break;
+	case TWM_GLYPH_CLOSE: {
+		/* Two diagonals corner to corner, a stroke wide (no curves, P-2's
+		 * plainness; it matches the 1 px glyph lines). */
+		int n = sc(12, scale);
+		for (int i = 0; i < n; i++) {
+			draw_fill(img, argb, x + i, y + i, t, 1);
+			draw_fill(img, argb, x + n - t - i, y + i, t, 1);
+		}
+		break;
+	}
 	case TWM_GLYPH_LOCK:
 		/* Square shackle over a filled body: no curves (CAP-4). */
 		draw_box(img, argb, x + sc(3, scale), y, sc(9, scale) - sc(3, scale),

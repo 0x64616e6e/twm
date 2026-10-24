@@ -30,6 +30,7 @@ struct tab_input {
 	bool hatch;       /* focused and TitleHighlight on (FRM-10) */
 	bool iconify;     /* utility frames have no buttons (FRM-18) */
 	bool resize;      /* false for fixed-size clients (FRM-6) */
+	bool close;       /* FRM-19: the close box, before the resize box */
 	enum twm_justify justify;
 	int marker_width; /* CAP-1: the capture marker segment, 0 = none */
 };
@@ -41,7 +42,7 @@ struct tab_span {
 struct tab_layout {
 	int x;        /* tab left edge, relative to the frame */
 	int width;
-	struct tab_span iconify, sep_left, text, marker, hatch, sep_right, resize;
+	struct tab_span iconify, sep_left, text, marker, hatch, sep_close, close, sep_right, resize;
 	bool truncated; /* title cut to fit (FRM-5) */
 };
 
@@ -49,13 +50,14 @@ void tab_layout_compute(const struct tab_metrics *m, const struct tab_input *in,
 	struct tab_layout *out);
 
 /* Narrowest frame whose tab still shows both buttons and an ellipsis. */
-int tab_min_width(const struct tab_metrics *m, bool iconify, bool resize);
+int tab_min_width(const struct tab_metrics *m, bool iconify, bool resize, bool close);
 
 enum tab_part {
 	TAB_PART_NONE,
 	TAB_PART_ICONIFY,
 	TAB_PART_TITLE,
 	TAB_PART_RESIZE,
+	TAB_PART_CLOSE,
 };
 
 /* Which part of the tab is at x (relative to the tab's left edge). */
@@ -78,6 +80,7 @@ struct tab_group_input {
 	int active;
 	bool hatch;     /* focused and TitleHighlight on */
 	bool resize;
+	bool close;     /* FRM-19: one close box, for the tab in front */
 	bool folded;    /* GRP-6: only the active tab */
 	int slot_index; /* -1, or the insertion point 0..n (GRP-2) */
 	int slot_width;
@@ -94,7 +97,7 @@ struct tab_group_span {
 
 struct tab_group_layout {
 	int x, width;
-	struct tab_span iconify, sep_left, resize;
+	struct tab_span iconify, sep_left, close, sep_close, resize;
 	struct tab_group_span tabs[TAB_GROUP_MAX + 1];
 	int ntabs;
 };

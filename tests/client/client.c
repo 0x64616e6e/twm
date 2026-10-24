@@ -57,6 +57,7 @@ struct tc_window {
 	int pending_width, pending_height;
 	bool activated, pending_activated;
 	bool configured;
+	int closes;
 };
 
 /* --- shm --- */
@@ -432,6 +433,8 @@ static void toplevel_configure(void *data, struct xdg_toplevel *t, int32_t w, in
 }
 
 static void toplevel_close(void *data, struct xdg_toplevel *t) {
+	struct tc_window *win = data;
+	win->closes++; /* FRM-19: asked to close; it decides */
 }
 
 static void toplevel_configure_bounds(void *data, struct xdg_toplevel *t, int32_t w, int32_t h) {
@@ -661,6 +664,14 @@ void tc_roundtrip(struct tc *tc) {
 	wl_display_roundtrip(tc->display);
 }
 
+int tc_window_closes(struct tc_window *win) {
+	return win->closes;
+}
+
+bool tc_connected(struct tc *tc) {
+	return wl_display_get_error(tc->display) == 0;
+}
+
 void tc_wait(struct tc *tc, int ms) {
 	struct timespec start;
 	clock_gettime(CLOCK_MONOTONIC, &start);
@@ -670,6 +681,12 @@ void tc_wait(struct tc *tc, int ms) {
 		long elapsed = (now.tv_sec - start.tv_sec) * 1000 +
 			(now.tv_nsec - start.tv_nsec) / 1000000;
 		if (elapsed >= ms) {
+			break;
+		}
+		if (wl_display_get_error(tc->display)) {
+			long left = ms - elapsed; /* cut off: nothing more comes */
+			struct timespec ts = {left / 1000, (left % 1000) * 1000000L};
+			nanosleep(&ts, NULL);
 			break;
 		}
 		while (wl_display_prepare_read(tc->display) != 0) {

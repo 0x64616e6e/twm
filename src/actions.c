@@ -9,6 +9,7 @@
 #include "group.h"
 #include "hints.h"
 #include "histview.h"
+#include "imgr.h"
 #include "logview.h"
 #include "menu.h"
 #include "rc.h"
@@ -112,6 +113,17 @@ void action_run(struct twm_server *server, const struct twm_func *func,
 		if (view) {
 			view->impl->close(view);
 		}
+		return;
+	case TWM_F_DESTROY: /* FRM-19: twm's f.destroy */
+		if (view && view->impl->kill) {
+			rootline_post(server, ROOTLINE_INFO, "twm", "killed %s", view_title(view));
+			view->impl->kill(view);
+		} else if (view) {
+			view->impl->close(view);
+		}
+		return;
+	case TWM_F_RUN: /* IMG-13 */
+		imgr_run(server);
 		return;
 	case TWM_F_ICONIFY: /* FRM-13; from an icon it deiconifies */
 		if (view) {

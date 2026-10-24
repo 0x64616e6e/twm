@@ -1,5 +1,6 @@
 #include "config.h"
 #if HAVE_XWAYLAND
+#include <signal.h>
 #include <stdlib.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
@@ -87,6 +88,17 @@ static void xw_close(struct twm_view *view) {
 	wlr_xwayland_surface_close(xw_view(view)->xsurface);
 }
 
+/* Every X client shares XWayland's connection, so cutting it would take
+ * them all: the X client's own process is killed instead (FRM-19). */
+static void xw_kill(struct twm_view *view) {
+	struct wlr_xwayland_surface *xs = xw_view(view)->xsurface;
+	if (xs->pid > 0) {
+		kill(xs->pid, SIGKILL);
+	} else {
+		wlr_xwayland_surface_close(xs);
+	}
+}
+
 static struct twm_size_limits xw_get_size_limits(struct twm_view *view) {
 	struct twm_size_limits limits = {0};
 	xcb_size_hints_t *hints = xw_view(view)->xsurface->size_hints;
@@ -128,6 +140,7 @@ static const struct twm_view_impl xw_impl = {
 	.set_activated = xw_set_activated,
 	.configure = xw_configure,
 	.close = xw_close,
+	.kill = xw_kill,
 	.get_size_limits = xw_get_size_limits,
 	.get_parent = xw_get_parent,
 	.get_user_position = xw_get_user_position,

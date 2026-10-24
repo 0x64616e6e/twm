@@ -1,5 +1,6 @@
 # Pure modules (D-5): no wlroots, unit-tested on their own.
 twm_core_src = files(
+  'apps.c',
   'draw.c',
   'geomem.c',
   'geometry.c',

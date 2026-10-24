@@ -40,6 +40,7 @@ const char config_default_twmrc[] =
 	"Panner           { desktops 4 }\n"
 	"XWayland         on\n"
 	"Notifications    on\n"
+	"CloseBox         on\n"
 	"\n"
 	"TouchpadTap                 on\n"
 	"TouchpadTapDrag             on\n"
@@ -58,6 +59,8 @@ const char config_default_twmrc[] =
 	"Button1 = iconify : f.iconify\n"
 	"Button1 = resize  : f.resize\n"
 	"Button2 = resize  : f.resize\n"
+	"Button1 = close   : f.delete\n"
+	"Button3 = close   : f.destroy\n"
 	"Button1 = M : window : f.move\n"
 	"Button3 = M : window : f.resize\n"
 	"Button1 = icon    : f.iconify\n"
@@ -81,6 +84,9 @@ const char config_default_twmrc[] =
 	"\"M-S-m\"    : f.move\n"
 	"\"M-S-h\"    : f.history\n"
 	"\"M-comma\"  : f.settings\n"
+	"\"M-w\"      : f.delete\n"
+	"\"M-S-w\"    : f.destroy\n"
+	"\"M-d\"      : f.run\n"
 	"\"M-1\" : f.desktop 1\n\"M-2\" : f.desktop 2\n\"M-3\" : f.desktop 3\n"
 	"\"M-4\" : f.desktop 4\n\"M-5\" : f.desktop 5\n\"M-6\" : f.desktop 6\n"
 	"\"M-7\" : f.desktop 7\n\"M-8\" : f.desktop 8\n\"M-9\" : f.desktop 9\n"
@@ -92,12 +98,15 @@ const char config_default_twmrc[] =
 	"  \"xterm\"          f.terminal\n"
 	"  \"browser\"        !\"${BROWSER:-firefox}\"\n"
 	"  \"files\"          !\"xdg-open \\\"$HOME\\\"\"\n"
+	"  \"run…\"           f.run\n"
 	"  \"\"               f.separator\n"
 	"  \"move\"           f.move\n"
 	"  \"resize\"         f.resize\n"
 	"  \"squeeze\"        f.squeeze\n"
 	"  \"iconify\"        f.iconify\n"
 	"  \"raise / lower\"  f.raiselower\n"
+	"  \"close\"          f.delete\n"
+	"  \"kill\"           f.destroy\n"
 	"  \"\"               f.separator\n"
 	"  \"desktops\"       f.menu \"desktops\"\n"
 	"  \"settings\"       f.settings\n"
@@ -284,6 +293,8 @@ static const struct {
 	{"f.nexttab", TWM_F_NEXTTAB, 0},
 	{"f.history", TWM_F_HISTORY, 0},
 	{"f.settings", TWM_F_SETTINGS, 0},
+	{"f.destroy", TWM_F_DESTROY, 0},
+	{"f.run", TWM_F_RUN, 0},
 	{"f.desktop", TWM_F_DESKTOP, 'n'},
 	{"f.send", TWM_F_SEND, 'n'},
 	{"f.separator", TWM_F_SEPARATOR, 0},
@@ -439,7 +450,8 @@ static void add_key(struct ctx *c) {
 }
 
 static const char *const context_names[] = {
-	"root", "title", "iconify", "resize", "window", "border", "icon", "iconmgr", NULL,
+	/* in enum twm_context's order */
+	"root", "title", "iconify", "resize", "close", "window", "border", "icon", "iconmgr", NULL,
 };
 
 static void add_button(struct ctx *c) {
@@ -599,6 +611,7 @@ static void k_remember(struct ctx *c) { set_bool(c, &c->cfg->remember_geometry);
 static void k_icons_on_root(struct ctx *c) { set_bool(c, &c->cfg->icons_on_root); }
 static void k_xwayland(struct ctx *c) { set_bool(c, &c->cfg->xwayland); }
 static void k_notifications(struct ctx *c) { set_bool(c, &c->cfg->notifications); }
+static void k_close_box(struct ctx *c) { set_bool(c, &c->cfg->close_box); }
 static void k_tp_tap(struct ctx *c) { set_bool(c, &c->cfg->tp_tap); }
 static void k_tp_tap_drag(struct ctx *c) { set_bool(c, &c->cfg->tp_tap_drag); }
 static void k_tp_natural(struct ctx *c) { set_bool(c, &c->cfg->tp_natural_scroll); }
@@ -993,6 +1006,7 @@ static const struct {
 	{"TitleHighlight", k_title_highlight},
 	{"XWayland", k_xwayland},
 	{"Notifications", k_notifications},
+	{"CloseBox", k_close_box},
 	{"TouchpadTap", k_tp_tap},
 	{"TouchpadTapDrag", k_tp_tap_drag},
 	{"TouchpadNaturalScroll", k_tp_natural},

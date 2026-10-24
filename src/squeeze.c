@@ -3,7 +3,7 @@
 /* A hatch narrower than this no longer reads as a texture. */
 #define TAB_MIN_HATCH 8
 
-static int fixed_width(const struct tab_metrics *m, bool iconify, bool resize) {
+static int fixed_width(const struct tab_metrics *m, bool iconify, bool resize, bool close) {
 	int w = 2 * m->pad;
 	if (iconify) {
 		w += m->title_height + m->separator;
@@ -11,17 +11,20 @@ static int fixed_width(const struct tab_metrics *m, bool iconify, bool resize) {
 	if (resize) {
 		w += m->separator + m->title_height;
 	}
+	if (close) {
+		w += m->separator + m->title_height;
+	}
 	return w;
 }
 
-int tab_min_width(const struct tab_metrics *m, bool iconify, bool resize) {
-	return fixed_width(m, iconify, resize) + m->ellipsis_width;
+int tab_min_width(const struct tab_metrics *m, bool iconify, bool resize, bool close) {
+	return fixed_width(m, iconify, resize, close) + m->ellipsis_width;
 }
 
 void tab_layout_compute(const struct tab_metrics *m, const struct tab_input *in,
 		struct tab_layout *out) {
 	*out = (struct tab_layout){0};
-	int fixed = fixed_width(m, in->iconify, in->resize) + in->marker_width;
+	int fixed = fixed_width(m, in->iconify, in->resize, in->close) + in->marker_width;
 	int hatch = in->hatch ? m->hatch_width + m->hatch_gap : 0;
 	int text = in->text_width;
 
@@ -72,12 +75,20 @@ void tab_layout_compute(const struct tab_metrics *m, const struct tab_input *in,
 		out->hatch = (struct tab_span){x, hatch - m->hatch_gap};
 		x += hatch;
 	}
+	/* The boxes on the right, from the tab's right end (with `off`, the
+	 * frame's): the resize box last, the close box before it (FRM-19). */
+	int right = width;
 	if (in->resize) {
-		/* With `off`, the resize box sits at the frame's right edge. */
-		x = width - m->title_height - m->separator;
-		out->sep_right = (struct tab_span){x, m->separator};
-		x += m->separator;
-		out->resize = (struct tab_span){x, m->title_height};
+		right -= m->title_height;
+		out->resize = (struct tab_span){right, m->title_height};
+		right -= m->separator;
+		out->sep_right = (struct tab_span){right, m->separator};
+	}
+	if (in->close) {
+		right -= m->title_height;
+		out->close = (struct tab_span){right, m->title_height};
+		right -= m->separator;
+		out->sep_close = (struct tab_span){right, m->separator};
 	}
 	out->width = width;
 
@@ -109,6 +120,9 @@ enum tab_part tab_part_at(const struct tab_layout *l, int x) {
 	if (in_span(l->resize, x)) {
 		return TAB_PART_RESIZE;
 	}
+	if (in_span(l->close, x)) {
+		return TAB_PART_CLOSE;
+	}
 	return TAB_PART_TITLE;
 }
 
@@ -127,6 +141,9 @@ void tab_group_layout_compute(const struct tab_metrics *m, const struct tab_grou
 	int fixed = m->title_height + m->separator + slot;
 	if (in->resize) {
 		fixed += m->title_height;
+	}
+	if (in->close) {
+		fixed += m->title_height + (in->resize ? m->separator : 0);
 	}
 	for (int i = 0; i < n; i++) {
 		if (shown[i]) {
@@ -196,6 +213,14 @@ void tab_group_layout_compute(const struct tab_metrics *m, const struct tab_grou
 		t.sep_x = x + w;
 		out->tabs[out->ntabs++] = t;
 		x += w + m->separator;
+	}
+	if (in->close) {
+		out->close = (struct tab_span){x, m->title_height};
+		x += m->title_height;
+		if (in->resize) {
+			out->sep_close = (struct tab_span){x, m->separator};
+			x += m->separator;
+		}
 	}
 	if (in->resize) {
 		out->resize = (struct tab_span){x, m->title_height};

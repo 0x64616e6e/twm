@@ -31,6 +31,8 @@ struct twm_view_impl {
 	/* Client box in layout coordinates. */
 	void (*configure)(struct twm_view *view, int x, int y, int w, int h);
 	void (*close)(struct twm_view *view);
+	/* f.destroy: end the client, whatever it wants (FRM-19); NULL = close. */
+	void (*kill)(struct twm_view *view);
 	struct twm_size_limits (*get_size_limits)(struct twm_view *view);
 	/* Parent window for transients, or NULL (OUT-15). */
 	struct twm_view *(*get_parent)(struct twm_view *view);

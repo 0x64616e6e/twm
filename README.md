@@ -59,6 +59,9 @@ FreeBSD; `-Dportal=disabled` to build without). The UI font is IBM Plex Mono.
 |-------|------|
 | click | places a new window (its outline hangs from the pointer); B2-drag sizes it |
 | B1 on a title | raise and focus; drag to move |
+| B1 on the × box, `M-w` | close the window (the app may ask to save) |
+| B3 on the × box, `M-S-w` | kill it (like twm's f.destroy) |
+| `M-d` | run an app: type part of its name, Return |
 | B2 on a title, `M-B1` in a window | move (outline, commits on release) |
 | B1/B2 on the resize box, `M-B3` in a window | resize |
 | `M-S-m`, `M-r` | move / resize the focused window with the arrow keys |

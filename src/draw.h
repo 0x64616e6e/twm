@@ -33,6 +33,7 @@ enum twm_glyph {
 	TWM_GLYPH_ICONIFY, /* §2.4: outline square, filled centre */
 	TWM_GLYPH_RESIZE,  /* §2.4: three nested squares from the top-left */
 	TWM_GLYPH_LOCK,    /* TRU-2: the trusted frame's tab, iconify slot */
+	TWM_GLYPH_CLOSE,   /* FRM-19: two diagonals, a cross */
 };
 
 /* A 12 logical px glyph with its top-left at device (x, y). */

@@ -48,6 +48,8 @@ enum twm_func_kind {
 	TWM_F_NEXTTAB,
 	TWM_F_HISTORY,
 	TWM_F_SETTINGS,
+	TWM_F_DESTROY,   /* kill the client (FRM-19, twm's f.destroy) */
+	TWM_F_RUN,       /* the Icon Manager, filtering: run an app (IMG-13) */
 	TWM_F_DESKTOP, /* num */
 	TWM_F_SEND,    /* num */
 	TWM_F_SEPARATOR,
@@ -64,6 +66,7 @@ enum twm_context {
 	TWM_CTX_TITLE,
 	TWM_CTX_ICONIFY,
 	TWM_CTX_RESIZE,
+	TWM_CTX_CLOSE,  /* FRM-19: the close box */
 	TWM_CTX_WINDOW,
 	TWM_CTX_BORDER,
 	TWM_CTX_ICON,
@@ -172,6 +175,7 @@ struct twm_config {
 	uint32_t quiet; /* bit n-1 = desktop n */
 	bool xwayland;
 	bool notifications; /* M6: serve org.freedesktop.Notifications if free */
+	bool close_box;     /* FRM-19 */
 
 	/* INP-*: touchpad and touchscreen */
 	bool tp_tap, tp_tap_drag, tp_natural_scroll, tp_dwt;

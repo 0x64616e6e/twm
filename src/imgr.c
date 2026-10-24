@@ -9,6 +9,7 @@
 #include <time.h>
 #include <unistd.h>
 #include "actions.h"
+#include "apps.h"
 #include "desktop.h"
 #include "draw.h"
 #include "group.h"
@@ -61,12 +62,13 @@ struct im_hit {
 	uint64_t view_id;
 };
 
-enum result_kind { RES_WINDOW, RES_MENU, RES_EXEC };
+enum result_kind { RES_WINDOW, RES_MENU, RES_APP, RES_EXEC };
 
 struct result {
 	enum result_kind kind;
 	uint64_t view_id;          /* RES_WINDOW */
 	const struct twm_func *func; /* RES_MENU: points into the config */
+	size_t app;                /* RES_APP: index into the apps */
 	char text[128];
 	char meta[48];
 	size_t match;              /* byte offset of the match in text */
@@ -83,6 +85,8 @@ struct imgr {
 	char **execs;
 	size_t nexecs;
 	time_t execs_at;
+	struct app_list apps; /* IMG-13: the installed applications */
+	time_t apps_at;
 	uint32_t config_gen; /* results hold pointers into the config */
 };
 
@@ -183,6 +187,24 @@ static int window_rank(const char *title, const char *f) {
 	return !m ? -1 : (m == title ? 0 : 1); /* prefix matches first */
 }
 
+/* IMG-13: the .desktop entries, read again after a minute (installs). */
+static void scan_apps(struct imgr *im) {
+	time_t now = time(NULL);
+	if (im->apps_at && now - im->apps_at < EXEC_RESCAN_S) {
+		return;
+	}
+	apps_free(&im->apps);
+	char home[4096] = "";
+	const char *dh = getenv("XDG_DATA_HOME");
+	if (dh && *dh == '/') {
+		snprintf(home, sizeof(home), "%s", dh);
+	} else if (getenv("HOME")) {
+		snprintf(home, sizeof(home), "%s/.local/share", getenv("HOME"));
+	}
+	apps_scan(&im->apps, home, getenv("XDG_DATA_DIRS"), "twm");
+	im->apps_at = now;
+}
+
 static void compute_results(struct imgr *im) {
 	struct twm_server *server = im->server;
 	im->nresults = im->nwindows = 0;
@@ -245,6 +267,29 @@ static void compute_results(struct imgr *im) {
 			snprintf(r->text, sizeof(r->text), "%s", it->label);
 			r->match = (size_t)(ci_strstr(r->text, f) - r->text);
 			snprintf(r->meta, sizeof(r->meta), "menu %s", cfg->menus[m].name);
+			nrun++;
+		}
+	}
+	/* the installed applications, by name: prefix matches first */
+	scan_apps(im);
+	for (int pass = 0; pass < 2 && *f; pass++) {
+		for (size_t i = 0; i < im->apps.n && nrun < MAX_RUN; i++) {
+			const struct app *a = &im->apps.apps[i];
+			const char *at = ci_strstr(a->name, f);
+			if (!at || (pass == 0) != (at == a->name)) {
+				continue;
+			}
+			struct result *r = &im->results[im->nresults++];
+			*r = (struct result){.kind = RES_APP, .app = i};
+			snprintf(r->text, sizeof(r->text), "%s", a->name);
+			r->match = (size_t)(at - a->name);
+			if (a->terminal) {
+				char term[32];
+				sscanf(cfg->terminal, "%31s", term);
+				snprintf(r->meta, sizeof(r->meta), "in %s", term);
+			} else {
+				snprintf(r->meta, sizeof(r->meta), "%s", a->generic ? a->generic : "app");
+			}
 			nrun++;
 		}
 	}
@@ -709,6 +754,18 @@ static void activate(struct imgr *im, size_t i, bool bring) {
 		action_run(server, r.func, &ctx);
 		break;
 	}
+	case RES_APP: {
+		/* IMG-13: as its entry says, in the terminal only if it asks to be */
+		if (r.app < im->apps.n) {
+			const struct app *a = &im->apps.apps[r.app];
+			if (a->terminal) {
+				action_run_in_terminal(server, a->command);
+			} else {
+				server_spawn(server, a->command);
+			}
+		}
+		break;
+	}
 	case RES_EXEC: {
 		/* IMG-9: the typed line if it starts with the command, else the
 		 * command alone, in the terminal. */
@@ -896,7 +953,20 @@ void imgr_finish(struct twm_server *server) {
 	internal_view_destroy(server->imgr);
 	server->imgr = NULL;
 	free_execs(im);
+	apps_free(&im->apps);
 	free(im);
+}
+
+void imgr_run(struct twm_server *server) {
+	struct twm_internal_view *iv = server->imgr;
+	if (!iv || wl_list_empty(&server->outputs)) {
+		return;
+	}
+	if (!iv->view.shown) {
+		internal_view_show(iv);
+	}
+	view_raise(&iv->view);
+	view_focus(&iv->view); /* typing filters now (IMG-6) */
 }
 
 void imgr_refresh(struct twm_server *server) {

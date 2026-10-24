@@ -60,6 +60,7 @@ enum twm_hit_kind {
 	TWM_HIT_TITLE,
 	TWM_HIT_ICONIFY,
 	TWM_HIT_RESIZE,
+	TWM_HIT_CLOSE, /* FRM-19 */
 	TWM_HIT_BORDER,
 	TWM_HIT_ICON, /* a root icon (ROOT-9) */
 	TWM_HIT_LAYER, /* a layer-shell surface (GEN-2) */

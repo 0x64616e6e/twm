@@ -75,7 +75,7 @@ int main(void) {
 	CHECK_EQ("FRM-5", l.text.width, 300 - (26 + 1 + 28 + 1 + 26) - 80);
 
 	/* FRM-5: narrower still, the hatch shrinks after the title is at "…". */
-	int min = tab_min_width(&m, true, true);
+	int min = tab_min_width(&m, true, true, false);
 	tab_layout_compute(&m, &(struct tab_input){
 		.frame_width = min, .text_width = 500, .hatch = true, .iconify = true,
 		.resize = true, .justify = TWM_JUSTIFY_LEFT}, &l);

@@ -203,6 +203,7 @@ static int get_tp_scroll(const struct twm_config *c) { return c->tp_scroll; }
 static int get_tp_click(const struct twm_config *c) { return c->tp_click; }
 static int get_tp_accel(const struct twm_config *c) { return c->tp_accel; }
 static int get_touchscreen(const struct twm_config *c) { return c->touchscreen; }
+static int get_close_box(const struct twm_config *c) { return c->close_box; }
 /* -1 … 1 as a percentage, for the slider */
 static int get_tp_speed(const struct twm_config *c) { return (int)lround(c->tp_speed * 100); }
 
@@ -381,6 +382,8 @@ static const struct ctl ctls[] = {
 		{"neighbouring edges", "screen thirds", "output centre"},
 		{"edges", "thirds", "center"}, 3, .get = get_snap, .format = fmt_snap},
 	{SEC_FRAMES, "Accent", "Accent", NULL, CK_SWATCH, .get = get_accent, .format = fmt_accent},
+	{SEC_FRAMES, "Close box", "CloseBox", NULL, CK_CHECK, {"B1 closes, B3 kills"}, .nopts = 1,
+		.get = get_close_box, .format = fmt_onoff},
 	/* Focus */
 	{SEC_FOCUS, "Focus", "FocusPolicy", NULL, CK_SEG, {"sloppy", "click"}, {"sloppy", "click"},
 		2, .get = get_focus_policy, .format = fmt_word},
@@ -924,7 +927,8 @@ static void func_text(const struct twm_func *f, char *out, size_t len) {
 }
 
 static const char *const context_names[] = {
-	"root", "title", "iconify", "resize", "window", "border", "icon", "iconmgr",
+	/* in enum twm_context's order */
+	"root", "title", "iconify", "resize", "close", "window", "border", "icon", "iconmgr",
 };
 
 /* Row `i` of a list control: left and right text; false past the end. */
@@ -946,7 +950,7 @@ static bool list_row(struct setwin *sw, const struct ctl *c, size_t i, char *l, 
 			return false;
 		}
 		snprintf(l, ll, "Button%u = %s%s", cfg->buttons[i].button,
-			cfg->buttons[i].mods ? "M : " : "", context_names[cfg->buttons[i].context & 7]);
+			cfg->buttons[i].mods ? "M : " : "", context_names[cfg->buttons[i].context % (sizeof(context_names) / sizeof(context_names[0]))]);
 		func_text(&cfg->buttons[i].func, r, rl);
 		*builtin = cfg->buttons[i].builtin;
 		return true;

@@ -112,7 +112,8 @@ int main(int argc, char *argv[]) {
 	char rc[4096];
 	snprintf(rc, sizeof(rc), "%s/.twmrc", getenv("TWM_TEST_HOME"));
 	FILE *f = fopen(rc, "w");
-	fputs("Snap off\n", f);
+	/* B0's tab exactly: no close box (FRM-19 adds one by default) */
+	fputs("Snap off\nCloseBox off\n", f);
 	fclose(f);
 	tc_wait(tc, 400);
 

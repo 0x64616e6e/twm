@@ -249,6 +249,17 @@ accent can change:
   apply. *Decided (M3):* they are drawn by twm but are ordinary windows:
   focus, stacking, moves, bindings and remembered geometry work as for any
   client.
+- **FRM-19** `[owner, after M7]` A close box, the owner's addition to B0's
+  tab: a title-height box with a cross (two 1 px diagonals, no curves) after
+  the hatch and before the resize box, behind a 1 px separator, in the tab's
+  colors; fixed-size windows end with it. A group row has one, for the tab
+  in front. B1 on it closes (`f.delete`: the app is asked, and may ask to
+  save); B3 kills (`f.destroy`, twm's: a Wayland client's connection is cut,
+  as XKillClient did; an X11 app's process gets SIGKILL, since every X client
+  shares XWayland's connection). Context `close` for button bindings.
+  `CloseBox off` gives B0's tab back. Utility frames and trusted prompts
+  have none. Keys: `M-w` closes, `M-S-w` kills; the root menu has `close`
+  and `kill` (they ask for a window, MNU-5). A kill writes a root line.
 - **FRM-19** `[M1 · P-2]` Frames are axis-aligned and pixel-snapped, opaque,
   with no shadow, radius or blur.
 
@@ -561,6 +572,15 @@ accent can change:
   <name>`; executables show as `name …` (B5) and list by prefix. A `%s` in
   `Terminal` stands for the command (`"xterm -e %s"`); without one the
   command is appended (`"foot"` → `foot htop`).
+- **IMG-13** `[owner, after M7]` `RUN` offers the installed applications too:
+  the `.desktop` entries under `$XDG_DATA_HOME` and `$XDG_DATA_DIRS`
+  (`applications/`, the first of an id winning), between the menu entries and
+  the executables, by Name, prefix matches first; the meta is the entry's
+  GenericName (else `app`). They run as their Exec says, field codes left
+  out, and in the Terminal only with `Terminal=true`. Left out: NoDisplay,
+  Hidden, a missing TryExec, OnlyShowIn without `twm` or NotShowIn with it.
+  Read again after a minute. `f.run` (`M-d`, the menu's `run…`) brings up
+  the Icon Manager, focused, ready to type into.
 
 ### MNU — root menu
 
@@ -581,6 +601,8 @@ accent can change:
 - **MNU-4** `[M4 · B0]` Default `main` menu: xterm · browser · files |
   move · resize · squeeze · iconify · raise / lower | desktops ▸ ·
   reload .twmrc · exit. *M7:* `settings` after `desktops ▸` (SET-10).
+  *After M7:* `run…` after `files` (IMG-13), `close` and `kill` after
+  `raise / lower` (FRM-19).
 - **MNU-5** `[M4]` Window functions run from a menu ask for a target: the
   cursor becomes a crosshair, the next B1 on a window applies, `Esc` cancels
   (twm). *Decided (M4):* a move or resize started this way (or from the
@@ -931,6 +953,8 @@ Pointer (FRM-12, OUT-8, OUT-9, ROOT-4): see those requirements.
 | `M-S-m` | `f.move` (keyboard) | decided |
 | `M-S-h` | `f.history` | decided |
 | `M-,` (`"M-comma"`) | `f.settings` | decided (M7) |
+| `M-d` | `f.run` | decided (IMG-13) |
+| `M-w`, `M-S-w` | `f.delete`, `f.destroy` | decided (FRM-19) |
 | `M-1`…`M-9`, `M-S-1`…`M-S-9` | desktop switch / send | decided |
 
 ---
@@ -1049,7 +1073,8 @@ each milestone; CFG-3 says an unlisted key is an error.
 | `TouchpadAccel` | `adaptive` | adaptive/flat | INP-1 |
 | `Touchscreen` | `on` | on/off | INP-3 |
 | `NoDefaultBindings` | — | no value | CFG-14 |
-| `ButtonN = context : function` | see KEY | contexts: root, title, iconify, resize, window, icon, iconmgr | FRM-12 |
+| `CloseBox` | `on` | on/off | FRM-19 |
+| `ButtonN = context : function` | see KEY | contexts: root, title, iconify, resize, close, window, icon, iconmgr | FRM-12 |
 | `"key" : function` | see KEY | | KEY |
 | `Menu` | `"main"` per MNU-4 | | MNU-7 |
 

@@ -67,6 +67,10 @@ void tc_window_size(struct tc_window *win, int *w, int *h);
 /* Change size on its own, as foot does when its font changes (OUT-17);
  * later configures with a size still win, as they do for foot. */
 void tc_window_resize_self(struct tc_window *win, int w, int h);
+/* How often the compositor asked the window to close (xdg_toplevel.close). */
+int tc_window_closes(struct tc_window *win);
+/* False once the compositor has cut the connection (f.destroy). */
+bool tc_connected(struct tc *tc);
 /* Ask to be activated without a token (URG-2 in M1). */
 void tc_window_request_activation(struct tc_window *win);
 

@@ -59,6 +59,14 @@ static void xdg_close(struct twm_view *view) {
 	wlr_xdg_toplevel_send_close(xdg_view(view)->toplevel);
 }
 
+/* twm's f.destroy was XKillClient: the client's connection is cut. */
+static void xdg_kill(struct twm_view *view) {
+	struct wl_resource *r = xdg_view(view)->toplevel->resource;
+	if (r) {
+		wl_client_destroy(wl_resource_get_client(r));
+	}
+}
+
 static struct twm_size_limits xdg_get_size_limits(struct twm_view *view) {
 	struct wlr_xdg_toplevel_state *s = &xdg_view(view)->toplevel->current;
 	return (struct twm_size_limits){
@@ -83,6 +91,7 @@ static const struct twm_view_impl xdg_impl = {
 	.set_activated = xdg_set_activated,
 	.configure = xdg_configure,
 	.close = xdg_close,
+	.kill = xdg_kill,
 	.get_size_limits = xdg_get_size_limits,
 	.get_parent = xdg_get_parent,
 };

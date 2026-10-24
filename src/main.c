@@ -7,6 +7,7 @@
 #include "ipc.h"
 #include "rc.h"
 #include "server.h"
+#include "lock.h"
 
 static const char usage[] =
 	"Usage: twm [options]\n"
@@ -19,6 +20,7 @@ static const char usage[] =
 	"      --check [file]       Check a config and exit (0: ok, 1: errors).\n"
 	"      --reload             Ask the running twm to reload its config.\n"
 	"      --lock               Lock the running twm's session.\n"
+	"      --greeter            Be the sign-in screen for greetd (GRT-1).\n"
 	"      --choose [who]       Pick one stdin line in a trusted prompt (portal\n"
 	"                           chooser); print it. [who]: who is asking.\n"
 	"  -s, --startup <cmd>      Run <cmd> with /bin/sh once twm is up.\n"
@@ -39,6 +41,7 @@ enum {
 	OPT_RELOAD,
 	OPT_CHOOSE,
 	OPT_LOCK,
+	OPT_GREETER,
 };
 
 static bool parse_size(const char *s, int *w, int *h) {
@@ -71,6 +74,7 @@ int main(int argc, char *argv[]) {
 		{"reload", no_argument, NULL, OPT_RELOAD},
 		{"choose", no_argument, NULL, OPT_CHOOSE},
 		{"lock", no_argument, NULL, OPT_LOCK},
+		{"greeter", no_argument, NULL, OPT_GREETER},
 		{0},
 	};
 
@@ -121,6 +125,9 @@ int main(int argc, char *argv[]) {
 		case OPT_LOCK:
 			lock = true;
 			break;
+		case OPT_GREETER:
+			opts.greeter = true;
+			break;
 		default:
 			fputs(usage, stderr);
 			return 2;
@@ -166,11 +173,22 @@ int main(int argc, char *argv[]) {
 		return 2;
 	}
 
+	if (opts.greeter) {
+		/* GRT-8: no XWayland, nobody's .twmrc: the default theme */
+		opts.xwayland = false;
+		if (!opts.config_path) {
+			opts.config_path = "/dev/null";
+		}
+	}
+
 	wlr_log_init(debug ? WLR_DEBUG : WLR_INFO, NULL);
 
 	struct twm_server server = {0};
 	int ret = 1;
 	if (server_init(&server, &opts) && server_start(&server)) {
+		if (opts.greeter) {
+			lock_greet(&server); /* GRT-1 */
+		}
 		server_run(&server);
 		ret = server.exit_code;
 	}

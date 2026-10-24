@@ -1,5 +1,5 @@
 # Unit tests: pure modules, no compositor (D-5).
-foreach name : ['theme', 'draw', 'squeeze', 'geometry', 'intent', 'twmrc', 'settings', 'geomem', 'snap', 'history', 'group', 'rcedit', 'apps', 'levels', 'fetch', 'png', 'look']
+foreach name : ['theme', 'draw', 'squeeze', 'geometry', 'intent', 'twmrc', 'settings', 'geomem', 'snap', 'history', 'group', 'rcedit', 'apps', 'levels', 'fetch', 'png', 'look', 'greeter']
   test('unit-' + name, executable(
     'test_' + name,
     'unit/test_@0@.c'.format(name),
@@ -17,7 +17,7 @@ test_client = static_library(
 )
 run_shot = find_program('run-shot.sh')
 
-foreach name : ['m0_root', 'm1_anatomy', 'm2_config', 'm3_snap', 'm4_imgr', 'm4_menu', 'm5_groups', 'm6_calm', 'm7_settings', 'apps_close', 'levels', 'zoom', 'fetch', 'lock']
+foreach name : ['m0_root', 'm1_anatomy', 'm2_config', 'm3_snap', 'm4_imgr', 'm4_menu', 'm5_groups', 'm6_calm', 'm7_settings', 'apps_close', 'levels', 'zoom', 'fetch', 'lock', 'greeter']
   prog = executable(
     'shot_' + name,
     'shot/@0@.c'.format(name), '../src/png.c',
@@ -25,9 +25,16 @@ foreach name : ['m0_root', 'm1_anatomy', 'm2_config', 'm3_snap', 'm4_imgr', 'm4_
     include_directories: [config_inc, include_directories('client', '../src')],
     dependencies: [wayland_client, client_protos, xkbcommon] + (have_portal ? [sdbus] : []),
   )
+  env = []
+  if name == 'greeter'
+    # GRT-1: twm as greetd's greeter, two accounts, the sessions in data/greeter
+    env = ['TWM_EXTRA_ARGS=--greeter', 'TWM_TEST_GREETER_USERS=tom ana',
+      'XDG_DATA_DIRS=' + meson.current_source_dir() / 'data' / 'greeter']
+  endif
   test('shot-' + name, run_shot,
     args: [twm_exe, prog, meson.current_build_dir() / name + '.png'],
     depends: [twm_exe, prog],
+    env: env,
     suite: 'shot',
     timeout: 60,
   )

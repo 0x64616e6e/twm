@@ -902,6 +902,19 @@ accent can change:
   logind (or `zzz`). The menu also gets "lock". `twm --lock` locks the
   running session. Ctrl-Alt-Fn switches virtual terminal, locked or not:
   the lock is twm's state, so it holds on every VT.
+- **GRT-10** `[owner, after M7]` *Decided — the greeter's keys and
+  choices:* ↑↓ choose the user (a new greetd conversation each time), Tab
+  and Shift-Tab the session, Return answers, Esc clears; B1 on a user row
+  or the session button does the same. With no account to list, the name
+  is typed first. Only `wayland-sessions` are listed: greetd starts an X11
+  session only through a wrapper, and twm has no X11 mode. The session's
+  `Exec` goes to greetd as words, with `XDG_SESSION_TYPE`,
+  `XDG_SESSION_DESKTOP` and `XDG_CURRENT_DESKTOP` (from `DesktopNames`).
+  The default session is the user's last, else Tom's WM, else the first.
+  The card says how many accounts and sessions there are; there is no
+  badge and the bottom line shows the keys. The greeter watches no file
+  and serves no portal. `--test` takes `TWM_TEST_GREETER_USERS` and does
+  not exit once the session starts, so the test can read its results.
 - **GRT-8** `[owner, after M7]` *Decided:* the boot greeter replaces
   Draftpaper's on the owner's machine; greetd's previous config is kept
   beside it, so going back is one line. The greeter runs without XWayland

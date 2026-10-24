@@ -61,6 +61,10 @@ an ELAN touchpad and touchscreen), started from Draftpaper's login screen.
   a child; while locked windows are hidden, input goes to the lock alone,
   urgency waits, prompts queue, no shots. `IdleScreen` turns outputs off;
   idle-inhibit and ext-idle-notify for clients. Ctrl-Alt-Fn switches VT.
+- The greeter (GRT-1, GRT-3, GRT-10): `twm --greeter` for greetd, B12's
+  sign-in panel in the trusted frame: accounts, PAM's questions relayed
+  from greetd, sessions from `wayland-sessions`, the last choices
+  remembered; it starts the session through greetd and exits.
 - Drag and drop between clients works now (it was never answered before),
   with the drag icon on a layer hit testing skips.
 - FreeBSD 15.1 tested in a VM; CI green on Arch, Debian and FreeBSD.

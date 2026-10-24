@@ -135,6 +135,20 @@ TouchpadClick          clickfinger
 Touchscreen            on
 ```
 
+## The greeter
+
+twm is also a sign-in screen for [greetd](https://sr.ht/~kennylevinsen/greetd/):
+the same trusted frame as the lock, the accounts and sessions to choose from
+(↑↓ and Tab), greetd doing the PAM part. In `/etc/greetd/config.toml`:
+
+```
+[default_session]
+command = "twm --greeter"
+user = "_greetd"
+```
+
+It remembers who signed in last and each user's session.
+
 ## twmfetch
 
 `twmfetch` prints this machine's facts and the ones only Tom's WM knows

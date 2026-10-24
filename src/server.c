@@ -215,7 +215,9 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	dnd_init(server);
 	lock_init(server);
 #if HAVE_PORTAL
-	sleep_init(server);
+	if (!opts->greeter) {
+		sleep_init(server);
+	}
 #endif
 #if HAVE_XWAYLAND
 	if (opts->xwayland && server->config->xwayland) {
@@ -238,7 +240,9 @@ bool server_start(struct twm_server *server) {
 	}
 	setenv("WAYLAND_DISPLAY", server->socket, true);
 	ipc_init(server);
-	portal_init(server);
+	if (!server->opts.greeter) {
+		portal_init(server); /* GRT-8: not for the greeter */
+	}
 	wlr_log(WLR_INFO, "twm running on WAYLAND_DISPLAY=%s", server->socket);
 	if (server->opts.startup_cmd) {
 		server->startup_pid = spawn(server->opts.startup_cmd, NULL);

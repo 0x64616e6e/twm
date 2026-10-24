@@ -23,6 +23,10 @@ bool lock_active(struct twm_server *server);
 /* A key pressed while locked (real devices only). */
 void lock_key(struct twm_server *server, xkb_keysym_t sym, const char *utf8, uint32_t mods,
 	bool caps);
+/* GRT-1: twm --greeter: the sign-in screen, greetd underneath. */
+void lock_greet(struct twm_server *server);
+/* GRT-3: a press on the greeter (layout coordinates). */
+void lock_button(struct twm_server *server, double lx, double ly);
 /* Any input: the idle timers start over, dark outputs light up. */
 void lock_activity(struct twm_server *server);
 /* The config or the outputs changed. */

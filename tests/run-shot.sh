@@ -32,5 +32,8 @@ export TWM_TEST_LOCK_PASSWORD=hunter2
 mkdir -p "$rt/bin"
 export TWM_TEST_BIN="$rt/bin" PATH="$rt/bin:$PATH"
 
-$bus "$twm" --headless 1920x1080 --no-xwayland --exit-with-startup --test \
+# GRT-1: a test may ask for more flags (--greeter); greetd's socket goes here.
+export GREETD_SOCK="$rt/greetd.sock"
+# shellcheck disable=SC2086
+$bus "$twm" --headless 1920x1080 --no-xwayland --exit-with-startup --test ${TWM_EXTRA_ARGS:-} \
 	-s "exec '$prog' '$out'"

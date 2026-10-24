@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=Tom's WM
+Exec=twm-session
+DesktopNames=twm
+Type=Application

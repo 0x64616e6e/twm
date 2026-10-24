@@ -587,6 +587,9 @@ void input_button(struct twm_server *server, struct wlr_input_device *device,
 	bool consumed;
 	lock_activity(server);
 	if (server->locked) {
+		if (pressed && !synthetic_device(device)) {
+			lock_button(server, server->cursor->x, server->cursor->y); /* GRT-3 */
+		}
 		return; /* GRT-7: no client sees a button */
 	}
 	if (server->prompt) {

@@ -301,7 +301,9 @@ void rc_init(struct twm_server *server, const char *path_override) {
 	server->config_text = src;
 	server->config_applied = time(NULL);
 	rc_apply(server, NULL);
-	watch_init(server, server->config_path);
+	if (!server->opts.greeter) {
+		watch_init(server, server->config_path); /* GRT-8: the greeter has no file */
+	}
 }
 
 void rc_finish(struct twm_server *server) {

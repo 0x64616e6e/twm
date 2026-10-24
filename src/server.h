@@ -85,6 +85,7 @@ struct twm_options {
 	int headless_width, headless_height; /* 0 = autocreate a backend */
 	bool test_mode; /* --test: the startup command is a trusted test harness */
 	bool session;   /* not nested, not headless: twm is the desktop session */
+	bool greeter;   /* GRT-1: twm --greeter, under greetd */
 };
 
 struct twm_server {

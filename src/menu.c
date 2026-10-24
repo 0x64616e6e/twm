@@ -54,7 +54,7 @@ static bool is_window_func(enum twm_func_kind k) {
 	switch (k) {
 	case TWM_F_MOVE: case TWM_F_RESIZE: case TWM_F_RAISEMOVE: case TWM_F_SQUEEZE:
 	case TWM_F_ICONIFY: case TWM_F_RAISE: case TWM_F_LOWER: case TWM_F_RAISELOWER:
-	case TWM_F_FOCUS: case TWM_F_DELETE: case TWM_F_DESTROY: case TWM_F_SEND:
+	case TWM_F_FOCUS: case TWM_F_DELETE: case TWM_F_DESTROY: case TWM_F_SEND: case TWM_F_FOLD:
 		return true;
 	default:
 		return false;

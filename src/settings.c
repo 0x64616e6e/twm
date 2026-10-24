@@ -56,6 +56,7 @@ const char config_default_twmrc[] =
 	"Button1 = title   : f.raisemove\n"
 	"Button2 = title   : f.move\n"
 	"Button3 = title   : f.squeeze\n"
+	"Button3 = M : title : f.fold\n"
 	"Button1 = iconify : f.iconify\n"
 	"Button1 = resize  : f.resize\n"
 	"Button2 = resize  : f.resize\n"
@@ -295,6 +296,7 @@ static const struct {
 	{"f.settings", TWM_F_SETTINGS, 0},
 	{"f.destroy", TWM_F_DESTROY, 0},
 	{"f.run", TWM_F_RUN, 0},
+	{"f.fold", TWM_F_FOLD, 0},
 	{"f.desktop", TWM_F_DESKTOP, 'n'},
 	{"f.send", TWM_F_SEND, 'n'},
 	{"f.separator", TWM_F_SEPARATOR, 0},

@@ -159,15 +159,39 @@ int main(int argc, char *argv[]) {
 	tc_wait(tc, 40);
 	tc_expect("GRP-4", tc_window_activated(c), "M-Tab: the next tab (man) in front");
 
-	/* --- GRP-6: B3 folds the row into the active tab; B3 again fans out --- */
+	/* --- GRP-9: B3 on the row squeezes the whole group, as on one window --- */
 	tc_pointer_move(tc, 100 + 27 + 20, 163);
 	tc_pointer_click(tc, TC_BTN_RIGHT);
+	tc_wait(tc, 40);
+	shot(tc, &img);
+	snprintf(path, sizeof(path), "%.*s-squeezed.png", (int)strlen(out) - 4, out);
+	tc_image_write_png(&img, path);
+	tc_expect("GRP-9", !near(tc_pixel(&img, 500, 400), SURFACE, 0) &&
+		row_end(&img, 100, 150) == three_tabs, "squeezed: the body gone, every tab still in the row");
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, TC_KEY_TAB);           /* another tab to the front */
+	tc_wait(tc, 40);
+	shot(tc, &img);
+	tc_expect("GRP-9", !near(tc_pixel(&img, 500, 400), SURFACE, 0), "still squeezed with another tab in front");
+	tc_pointer_click(tc, TC_BTN_RIGHT);
+	tc_wait(tc, 40);
+	shot(tc, &img);
+	tc_expect_pixel("GRP-9", &img, 500, 400, SURFACE, 0);   /* B3 again: the body back */
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, TC_KEY_TAB);           /* round to man in front again */
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, TC_KEY_TAB);
+	tc_wait(tc, 40);
+
+	/* --- GRP-6: M-B3 folds the row into the active tab; again fans out --- */
+	tc_key(tc, TC_KEY_LEFTMETA, true);
+	tc_pointer_click(tc, TC_BTN_RIGHT);
+	tc_key(tc, TC_KEY_LEFTMETA, false);
 	tc_wait(tc, 40);
 	shot(tc, &img);
 	int folded = row_end(&img, 100, 150);
 	tc_expect("GRP-6", folded < three_tabs - 100, "folded: one tab (%d < %d)", folded, three_tabs);
 	tc_expect_pixel("GRP-6", &img, 500, 400, SURFACE, 0);   /* the body stays */
+	tc_key(tc, TC_KEY_LEFTMETA, true);
 	tc_pointer_click(tc, TC_BTN_RIGHT);
+	tc_key(tc, TC_KEY_LEFTMETA, false);
 	tc_wait(tc, 40);
 	shot(tc, &img);
 	tc_expect("GRP-6", row_end(&img, 100, 150) == three_tabs, "fanned out again");

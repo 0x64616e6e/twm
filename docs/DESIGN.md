@@ -661,7 +661,12 @@ accent can change:
   nothing happens); the whole group moves with B1-drag, `M-B1` or `M-S-m`.
 - **GRP-6** `[M5 · B2]` B3 on a group's tab row folds every tab into the
   active one; B3 again fans them out. (On a group, B3 folds instead of
-  squeezing; FRM-14.)
+  squeezing; FRM-14.) *After M7, at the owner's request:* folding moved to
+  M-B3 (`f.fold`); B3 squeezes, GRP-9.
+- **GRP-9** `[owner, after M7]` Squeeze (B3 on the row, `f.squeeze`) acts on
+  the whole group, as on one window (FRM-14): the body goes, the row with
+  every tab stays; another tab brought to the front is squeezed too, and B3
+  again opens the group. Undo takes it back (HIS-1).
 - **GRP-7** `[M5]` Move, resize and iconify act on the whole group. The Icon
   Manager shows one row (IMG-3).
 - **GRP-8** `[M5]` *Decided:* joining and leaving are recorded (HIS-1);

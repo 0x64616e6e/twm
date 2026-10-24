@@ -50,6 +50,7 @@ enum twm_func_kind {
 	TWM_F_SETTINGS,
 	TWM_F_DESTROY,   /* kill the client (FRM-19, twm's f.destroy) */
 	TWM_F_RUN,       /* the Icon Manager, filtering: run an app (IMG-13) */
+	TWM_F_FOLD,      /* a group's tabs folded into one (GRP-6) */
 	TWM_F_DESKTOP, /* num */
 	TWM_F_SEND,    /* num */
 	TWM_F_SEPARATOR,

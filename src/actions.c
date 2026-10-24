@@ -130,11 +130,18 @@ void action_run(struct twm_server *server, const struct twm_func *func,
 			view_set_iconified(view, !view->iconified);
 		}
 		return;
-	case TWM_F_SQUEEZE: /* FRM-14; on a group it folds the tabs (GRP-6) */
-		if (view && view->group) {
-			group_set_folded(view->group, !view->group->folded);
+	case TWM_F_SQUEEZE: /* FRM-14; a group squeezes whole (GRP-9) */
+		if (view && view->group && view->group->active) {
+			/* the tab in front is the group's frame; the others take its
+			 * state when they come to the front (group.c hand_over) */
+			view_set_squeezed(view->group->active, !view->group->active->squeezed);
 		} else if (view) {
 			view_set_squeezed(view, !view->squeezed);
+		}
+		return;
+	case TWM_F_FOLD: /* GRP-6: the tabs into the one in front, and out */
+		if (view && view->group) {
+			group_set_folded(view->group, !view->group->folded);
 		}
 		return;
 	case TWM_F_DESKTOP: /* DSK-1 */

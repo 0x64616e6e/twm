@@ -48,8 +48,11 @@ static void position_content(struct twm_view *view) {
 	}
 	int dx, dy;
 	view_client_offset(view, &dx, &dy);
-	wlr_scene_node_set_position(&view->content->node,
-		dx - view->geom_x, dy - view->geom_y);
+	/* Only the frame's offset: wlroots' scene tree for an xdg surface already
+	 * shifts it by its window geometry (a client-side shadow falls outside),
+	 * and subtracting geom_x/geom_y again put apps with shadows (Firefox,
+	 * Electron) up and to the left of their frames by the shadow's width. */
+	wlr_scene_node_set_position(&view->content->node, dx, dy);
 }
 
 void view_set_content(struct twm_view *view, struct wlr_scene_tree *content) {

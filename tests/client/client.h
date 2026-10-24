@@ -50,6 +50,9 @@ struct tc_window_opts {
 	uint32_t color; /* 0xRRGGBB */
 	bool fixed_size; /* min == max == width x height (FRM-6) */
 	bool request_ssd;
+	/* A client-side shadow this wide around the window, in magenta, outside
+	 * its xdg window geometry (as GTK and Chromium draw theirs). */
+	int shadow;
 };
 
 struct tc *tc_connect(void);

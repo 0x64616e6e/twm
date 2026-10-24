@@ -296,6 +296,24 @@ int main(int argc, char *argv[]) {
 	tc_window_size(g == a ? b : a, &ow, &oh);
 	tc_expect("GRP-7", gw > 818 && gw == ow && gh == oh,
 		"M-B3 on the group: every tab takes the new size (%dx%d, other %dx%d)", gw, gh, ow, oh);
+
+	/* --- FRM-2, P-2: a client that draws its own shadow (GTK, Chromium) --- */
+	/* Its window geometry (300x150) fills the frame exactly; the 24 px
+	 * magenta shadow around it is never drawn. */
+	struct tc_window *sh = place(tc, 300, 820, (struct tc_window_opts){
+		.title = "shadowed", .app_id = "shadowed", .width = 300, .height = 150,
+		.color = SURFACE, .shadow = 24});
+	tc_wait(tc, 60);
+	shot(tc, &img);
+	snprintf(path, sizeof(path), "%.*s-shadow.png", (int)strlen(out) - 4, out);
+	tc_image_write_png(&img, path);
+	tc_expect_pixel("FRM-2", &img, 300, 820 + TH + 75, ACCENT, 2);          /* left border */
+	tc_expect_pixel("FRM-2", &img, 301, 820 + TH + 1, SURFACE, 0);          /* content's corner */
+	tc_expect_pixel("FRM-2", &img, 300 + 300, 820 + TH + 150, SURFACE, 0);  /* and the other */
+	tc_expect_pixel("FRM-2", &img, 300 + 301, 820 + TH + 75, ACCENT, 2);    /* right border */
+	tc_expect("P-2", count_box(&img, 250, 770, 650, 1060, 0xFF00FF, 30) == 0,
+		"no client shadow drawn (%d magenta px)", count_box(&img, 250, 770, 650, 1060, 0xFF00FF, 30));
+	tc_window_destroy(sh);
 	tc_image_free(&img);
 
 	tc_window_destroy(d);

@@ -79,6 +79,37 @@ static int create_shm_file(size_t size) {
 	return -1;
 }
 
+#define TC_SHADOW_RGB 0xFF00FF
+
+/* w x h of `rgb` inside a `shadow`-wide margin of TC_SHADOW_RGB. */
+static struct wl_buffer *shadowed_buffer(struct tc *tc, int w, int h, uint32_t rgb, int shadow) {
+	int bw = w + 2 * shadow, bh = h + 2 * shadow;
+	int stride = bw * 4;
+	size_t size = (size_t)stride * (size_t)bh;
+	int fd = create_shm_file(size);
+	if (fd < 0) {
+		return NULL;
+	}
+	uint32_t *data = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (data == MAP_FAILED) {
+		close(fd);
+		return NULL;
+	}
+	for (int y = 0; y < bh; y++) {
+		for (int x = 0; x < bw; x++) {
+			bool inside = x >= shadow && x < shadow + w && y >= shadow && y < shadow + h;
+			data[(size_t)y * (size_t)bw + (size_t)x] = 0xFF000000u | (inside ? rgb : TC_SHADOW_RGB);
+		}
+	}
+	munmap(data, size);
+	struct wl_shm_pool *pool = wl_shm_create_pool(tc->shm, fd, (int32_t)size);
+	struct wl_buffer *buf = wl_shm_pool_create_buffer(pool, 0, bw, bh, stride,
+		WL_SHM_FORMAT_XRGB8888);
+	wl_shm_pool_destroy(pool);
+	close(fd);
+	return buf;
+}
+
 static struct wl_buffer *solid_buffer(struct tc *tc, int w, int h, uint32_t rgb) {
 	int stride = w * 4;
 	size_t size = (size_t)stride * (size_t)h;
@@ -253,9 +284,15 @@ static void window_commit_buffer(struct tc_window *win) {
 	if (win->buffer) {
 		wl_buffer_destroy(win->buffer);
 	}
-	win->buffer = solid_buffer(win->tc, win->width, win->height, win->opts.color);
+	int s = win->opts.shadow;
+	if (s > 0) {
+		win->buffer = shadowed_buffer(win->tc, win->width, win->height, win->opts.color, s);
+		xdg_surface_set_window_geometry(win->xdg_surface, s, s, win->width, win->height);
+	} else {
+		win->buffer = solid_buffer(win->tc, win->width, win->height, win->opts.color);
+	}
 	wl_surface_attach(win->surface, win->buffer, 0, 0);
-	wl_surface_damage_buffer(win->surface, 0, 0, win->width, win->height);
+	wl_surface_damage_buffer(win->surface, 0, 0, win->width + 2 * s, win->height + 2 * s);
 	wl_surface_commit(win->surface);
 }
 

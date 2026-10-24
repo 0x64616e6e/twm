@@ -95,9 +95,27 @@ void xdg_set_decoration(struct wlr_xdg_toplevel *toplevel,
 	}
 }
 
+/*
+ * P-2: no shadows, not even a client's. What a client draws outside its
+ * window geometry (GTK's and Chromium's shadows, rounded corners' bleed) is
+ * cut off. Only the window's own surfaces: its popups (menus) may reach past
+ * its edge, and they hang beside it in the same tree.
+ */
+static void clip_to_geometry(struct twm_xdg_view *xv) {
+	struct wlr_scene_tree *content = xv->view.content;
+	if (!content || wl_list_empty(&content->children)) {
+		return;
+	}
+	/* wlr_scene_xdg_surface_create made the surface's tree first. */
+	struct wlr_scene_node *surface_tree = wl_container_of(content->children.next, surface_tree, link);
+	struct wlr_box geo = xv->toplevel->base->geometry;
+	wlr_scene_subsurface_tree_set_clip(surface_tree, wlr_box_empty(&geo) ? NULL : &geo);
+}
+
 static void update_geometry(struct twm_xdg_view *xv) {
 	struct wlr_box *geo = &xv->toplevel->base->geometry;
 	view_update_geometry(&xv->view, geo->x, geo->y, geo->width, geo->height);
+	clip_to_geometry(xv);
 }
 
 static void handle_map(struct wl_listener *listener, void *data) {

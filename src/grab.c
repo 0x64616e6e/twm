@@ -19,6 +19,7 @@
 #include "remember.h"
 #include "settings.h"
 #include "view.h"
+#include "zoom.h"
 
 #define DRAG_THRESHOLD 4 /* FRM-12: B1 drag on a title */
 
@@ -228,10 +229,16 @@ static void begin(struct twm_server *server, struct twm_view *view, uint32_t but
 
 void grab_begin_pending_move(struct twm_server *server, struct twm_view *view,
 		uint32_t button) {
+	if (view->fullscreen) {
+		return; /* ZOM-7: leave fullscreen first */
+	}
 	begin(server, view, button, TWM_GRAB_PENDING_MOVE);
 }
 
 void grab_begin_move(struct twm_server *server, struct twm_view *view, uint32_t button) {
+	if (view->fullscreen) {
+		return; /* ZOM-7: leave fullscreen first */
+	}
 	begin(server, view, button, TWM_GRAB_MOVE);
 	histview_changed(server);
 	wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "move");
@@ -239,6 +246,9 @@ void grab_begin_move(struct twm_server *server, struct twm_view *view, uint32_t 
 }
 
 void grab_begin_tab(struct twm_server *server, struct twm_view *member, uint32_t button) {
+	if (member->fullscreen || (member->group && member->group->active->fullscreen)) {
+		return;
+	}
 	begin(server, member, button, TWM_GRAB_TAB);
 	histview_changed(server);
 }
@@ -253,6 +263,9 @@ void grab_begin_icon(struct twm_server *server, struct twm_view *view, uint32_t 
 
 void grab_begin_resize(struct twm_server *server, struct twm_view *view,
 		uint32_t button, uint32_t edges) {
+	if (view->fullscreen) {
+		return; /* ZOM-7: leave fullscreen first */
+	}
 	begin(server, view, button, TWM_GRAB_RESIZE);
 	server->grab.edges = edges;
 	histview_changed(server);
@@ -361,6 +374,10 @@ static void commit(struct twm_server *server) {
 		}
 		end_grab(server);
 		return;
+	}
+	if (g->mode == TWM_GRAB_MOVE || g->mode == TWM_GRAB_RESIZE) {
+		view_end_zoom(view); /* ZOM-2: moved by hand, it stays where it lands */
+		after.zoom = TWM_ZOOM_NONE;
 	}
 	switch (g->mode) {
 	case TWM_GRAB_MOVE:

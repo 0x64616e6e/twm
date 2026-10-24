@@ -25,6 +25,8 @@ enum hist_op {
 	HIST_UNGROUP,
 	HIST_SEND,
 	HIST_WRITE,
+	HIST_ZOOM,       /* ZOM-7 */
+	HIST_FULLSCREEN,
 };
 
 struct hist_state {
@@ -33,6 +35,9 @@ struct hist_state {
 	int desktop;
 	bool iconified, squeezed;
 	uint64_t group_with; /* another member of its group; 0 = alone */
+	int zoom;        /* enum twm_zoom (ZOM-1); 0 = none */
+	bool fullscreen; /* ZOM-3 */
+	int nx, ny, nw, nh; /* the normal geometry while zoomed or fullscreen (ZOM-2) */
 };
 
 bool hist_state_equal(struct hist_state a, struct hist_state b);

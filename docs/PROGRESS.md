@@ -32,6 +32,16 @@ an ELAN touchpad and touchscreen), started from Draftpaper's login screen.
   new level as one root line that changes in place; `VolumeStep`,
   `BrightnessStep`.
 - Squeeze acts on a whole tab group (GRP-9); folding moved to M-B3.
+- Zoom and fullscreen (ZOM-1 … ZOM-9): twm's `f.zoom`, `f.horizoom` and
+  `f.fullzoom` (`M-Up`), framed, over the usable area; `f.fullscreen`
+  (`M-S-f`), the client alone over its output, above the bars while
+  focused and stepping back when not. App requests (xdg maximize and
+  fullscreen, X11 `_NET_WM_STATE` including vertical-only and
+  horizontal-only maximize) map onto them, and windows that open
+  maximized or fullscreen skip click-to-place. Undo takes them back;
+  remembered geometry never stores a zoomed one. A fullscreen window that
+  captures the screen carries an alert line along the top and the SCREEN
+  marker at the top-right corner (ZOM-6, CAP-2).
 - FreeBSD 15.1 tested in a VM; CI green on Arch, Debian and FreeBSD.
 
 **Tests**: `shot-apps_close` runs an app found by name and checks the close
@@ -39,10 +49,15 @@ box: B1 asks the window to close, B3 cuts another client off and leaves the
 test's own alone, `CloseBox off` narrows the tab; a shadowed client fills its frame with no shadow showing; a touch
 reaches a window at the finger, and a finger drags a title like the pointer
 without the app seeing it (`--test`'s own touchscreen, INP-6); the Settings
-section is driven by keys.
+section is driven by keys. `shot-zoom` drives each zoom by key and by
+app request, checks the client's size and the states it is told, undo, a
+fullscreen window stepping back under a newly focused one and coming
+forward again, a window that opens maximized, and the marker over a
+capturing fullscreen client.
 
 **Not verified**: the touchpad settings and the touchscreen on the real
 devices (the tests have neither); an app that takes touch on the real panel.
+X11 maximize and fullscreen (the tests run without XWayland).
 
 ## M7 — Settings, as a file (2026-10-24)
 

@@ -53,6 +53,10 @@ enum twm_func_kind {
 	TWM_F_FOLD,      /* a group's tabs folded into one (GRP-6) */
 	TWM_F_VOLUME,    /* num: up, down, mute, mic (LVL-1) */
 	TWM_F_BRIGHTNESS, /* num: up, down (LVL-1) */
+	TWM_F_ZOOM,       /* full height (ZOM-1) */
+	TWM_F_HORIZOOM,   /* full width */
+	TWM_F_FULLZOOM,   /* both */
+	TWM_F_FULLSCREEN, /* the client alone over its output (ZOM-3) */
 	TWM_F_DESKTOP, /* num */
 	TWM_F_SEND,    /* num */
 	TWM_F_SEPARATOR,

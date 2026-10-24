@@ -238,6 +238,8 @@ struct hist_state hist_state_of(struct twm_view *view) {
 	return (struct hist_state){
 		view->x, view->y, view->width, view->height,
 		view->desktop, view->iconified, view->squeezed, with,
+		view->zoom, view->fullscreen,
+		view->normal.x, view->normal.y, view->normal.width, view->normal.height,
 	};
 }
 

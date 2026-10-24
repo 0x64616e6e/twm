@@ -15,6 +15,7 @@
 #include "remember.h"
 #include "settings.h"
 #include "view.h"
+#include "zoom.h"
 
 void view_init(struct twm_view *view, struct twm_server *server,
 		enum twm_view_type type, const struct twm_view_impl *impl) {
@@ -48,6 +49,11 @@ static void position_content(struct twm_view *view) {
 	}
 	int dx, dy;
 	view_client_offset(view, &dx, &dy);
+	if (view->fullscreen) {
+		/* ZOM-3: a client smaller than its output is centred on black */
+		dx = view->fs_box.width > view->width ? (view->fs_box.width - view->width) / 2 : 0;
+		dy = view->fs_box.height > view->height ? (view->fs_box.height - view->height) / 2 : 0;
+	}
 	/* Only the frame's offset: wlroots' scene tree for an xdg surface already
 	 * shifts it by its window geometry (a client-side shadow falls outside),
 	 * and subtracting geom_x/geom_y again put apps with shadows (Firefox,
@@ -69,6 +75,10 @@ int view_title_height(struct twm_view *view) {
 
 void view_client_offset(struct twm_view *view, int *dx, int *dy) {
 	const struct twm_theme *t = &view->server->theme;
+	if (view->fullscreen) {
+		*dx = *dy = 0; /* ZOM-3: no frame */
+		return;
+	}
 	*dx = t->border_width;
 	*dy = view_title_height(view) + t->border_width;
 }
@@ -81,6 +91,9 @@ void view_frame_size(struct twm_server *server, int cw, int ch, int *fw, int *fh
 
 struct wlr_box view_frame_box(struct twm_view *view) {
 	const struct twm_theme *t = &view->server->theme;
+	if (view->fullscreen) {
+		return view->fs_box; /* ZOM-3 */
+	}
 	int th = view_title_height(view);
 	return (struct wlr_box){
 		.x = view->x, .y = view->y,
@@ -158,6 +171,12 @@ void view_map(struct twm_view *view) {
 		view->desktop = parent->desktop;
 		center_in(view, view_frame_box(parent));
 		view_show(view, server->focused == parent);
+		return;
+	}
+	/* ZOM-5: it asks to open maximized or fullscreen: no placing. */
+	if ((view->map_zoom != TWM_ZOOM_NONE || view->map_fullscreen) && zoom_open_requested(view)) {
+		view_show(view, false);
+		view_update_layer(view);
 		return;
 	}
 	/* OUT-15: an X11 window placed by the user keeps its position. */
@@ -247,6 +266,7 @@ void view_unmap(struct twm_view *view) {
 	wl_list_init(&view->link);
 	if (server->focused == view) {
 		server->focused = NULL;
+		view_update_layer(view);
 		struct twm_view *next = next_focus(server);
 		if (next) {
 			view_focus(next);
@@ -282,6 +302,7 @@ void view_move_resize(struct twm_view *view, int x, int y, int w, int h) {
 	int dx, dy;
 	view_client_offset(view, &dx, &dy);
 	view->impl->configure(view, x + dx, y + dy, w, h);
+	position_content(view); /* the frame may have come or gone (ZOM-3) */
 	group_sync_geometry(view, x, y, w, h); /* GRP-7 */
 }
 
@@ -320,7 +341,9 @@ void view_focus(struct twm_view *view) {
 		return; /* a launcher or locker has the keyboard (GEN-2) */
 	}
 	server->focused = view;
+	view_update_layer(view); /* ZOM-4 */
 	if (prev) {
+		view_update_layer(prev);
 		prev->impl->set_activated(prev, false);
 		view_update_frame(prev);
 		struct twm_internal_view *piv = internal_view_of(prev);

@@ -675,6 +675,64 @@ accent can change:
   with that tab in front. A group's tab row is cut to fit like a single tab
   (FRM-5): the longest titles give way first.
 
+### ZOM — zoom and fullscreen
+
+- **ZOM-1** `[owner, after M7]` twm's zooms, framed: `f.zoom` makes the
+  frame as tall as the output's usable area (exclusive zones left out,
+  GEN-2), keeping its x and width; `f.horizoom` as wide, keeping its y and
+  height; `f.fullzoom` both. The frame stays: title tab, border, buttons.
+  The same function again puts the window back where it was before any
+  zoom; another zoom function switches straight to that zoom.
+- **ZOM-2** `[owner, after M7]` *Decided:* the window remembers one
+  "normal" geometry while zoomed or fullscreen, and zooms are worked out
+  from it and the output each time, so `f.zoom` after `f.horizoom` gives a
+  tall window at its normal x, not a full one. Moving or resizing a zoomed
+  window by hand (outline, keys) ends the zoom where it lands. A squeezed
+  window opens before it zooms; an iconified one doesn't zoom. Remembered
+  geometry (OUT-16) stores the normal geometry, never a zoomed one.
+- **ZOM-3** `[owner, after M7]` `f.fullscreen` shows the window's client
+  alone over its whole output: no tab, no border, the output's box rather
+  than its usable area, above layer-shell bars. Again, it returns the
+  window to what it was (normal or zoomed). A client smaller than the
+  output (one that won't take the size) is centred on black.
+- **ZOM-4** `[owner, after M7]` *Decided:* a fullscreen window is above the
+  bars only while it has the focus. When the focus goes to another window
+  (sloppy focus on another output, `M-u`, the Icon Manager), it steps back
+  among the windows, just under the one that took the focus, still
+  frameless at the output's size, and comes forward again when focused.
+  (The Icon Manager is a window like the others: it may stay under it.) Nothing is hidden from the user by a window
+  they aren't using.
+- **ZOM-5** `[owner, after M7]` App requests: an xdg-shell maximize is
+  `f.fullzoom` and unmaximize puts it back; an X11 window asking for only
+  vertical or only horizontal maximize gets `f.zoom` or `f.horizoom`. A
+  fullscreen request (F11, a video's button) is `f.fullscreen`, on the
+  output it names if any. A window that maps already maximized or
+  fullscreen skips click-to-place and opens that way on the output under
+  the pointer. Clients are told the truth back: maximized for
+  `f.fullzoom`, tiled edges for the other zooms (xdg-shell v2+), fullscreen
+  for fullscreen.
+- **ZOM-6** `[owner, after M7]` *Decided — the SCREEN marker in fullscreen
+  (CAP-2):* a fullscreen window that captures the screen has no tab to
+  carry its marker, so twm draws one over it: a 2 px `alert` line along
+  the output's top edge, and the tab's marker itself (dot and `SCREEN`, as
+  in CAP-1, `graphite` ground) at the top-right corner, title-band high.
+  Both stay while it captures, and the pointer passes through them to the
+  window. Like every marker, it can't be turned off.
+- **ZOM-7** `[owner, after M7]` *Decided:* zooms and fullscreen are recorded
+  (HIS-1) — `zoom` and `fullscreen` in the history — and `M-z` takes them
+  back. A group zooms and goes fullscreen as one window (GRP-7): the state
+  belongs to the tab in front and passes to the next tab brought forward.
+  A fullscreen window can't be moved or resized by outline; leave
+  fullscreen first.
+- **ZOM-8** `[owner, after M7]` *Decided — trust:* fullscreen is the one
+  place a client draws without twm's frame around it, so it could paint
+  something that looks like a trusted prompt. Real prompts (TRU-1) take the
+  focus, so a fullscreen window steps back behind the dim (ZOM-4), and a
+  trusted prompt never appears with a fullscreen window in front of it.
+- **ZOM-9** `[owner, after M7]` Default keys: `M-Up` → `f.fullzoom`,
+  `M-S-f` → `f.fullscreen`. The root menu gets "zoom" and "fullscreen".
+  `f.zoom` and `f.horizoom` have no default key (twm had none either).
+
 ### HNT — hint mode
 
 - **HNT-1** `[M5 · B4]` `M-;` enters hint mode: every visible tab on the
@@ -980,6 +1038,7 @@ Pointer (FRM-12, OUT-8, OUT-9, ROOT-4): see those requirements.
 | `M-,` (`"M-comma"`) | `f.settings` | decided (M7) |
 | `M-d` | `f.run` | decided (IMG-13) |
 | `M-w`, `M-S-w` | `f.delete`, `f.destroy` | decided (FRM-19) |
+| `M-Up`, `M-S-f` | `f.fullzoom`, `f.fullscreen` | decided (ZOM-9) |
 | volume, mute, mic and brightness keys | `f.volume …`, `f.brightness …` | decided (LVL-1) |
 | `M-1`…`M-9`, `M-S-1`…`M-S-9` | desktop switch / send | decided |
 
@@ -1132,7 +1191,8 @@ One file, read top to bottom. Blank lines and comments are free.
   `f.move`, `f.resize`, `f.raisemove`, `f.squeeze`, `f.iconify`, `f.raise`,
   `f.lower`, `f.raiselower`, `f.focus`, `f.delete`, `f.reload`, `f.quit`,
   `f.hints`, `f.undo`, `f.redo`, `f.urgent`, `f.log`, `f.nexttab`,
-  `f.history`, `f.desktop N`, `f.send N`, `f.separator`. Functions whose
+  `f.history`, `f.desktop N`, `f.send N`, `f.separator`, `f.zoom`,
+  `f.horizoom`, `f.fullzoom`, `f.fullscreen` (ZOM-1, ZOM-3). Functions whose
   machinery belongs to a later milestone say so on the root line.
 
 The built-in defaults are themselves written in this syntax

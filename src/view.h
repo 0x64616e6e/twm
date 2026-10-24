@@ -19,6 +19,14 @@ enum twm_view_type {
 	TWM_VIEW_INTERNAL, /* drawn by twm (internal.c) */
 };
 
+/* ZOM-1: which zoom a window is in. */
+enum twm_zoom {
+	TWM_ZOOM_NONE,
+	TWM_ZOOM_VERT,    /* f.zoom: full height */
+	TWM_ZOOM_HORIZ,    /* f.horizoom: full width */
+	TWM_ZOOM_FULL, /* f.fullzoom */
+};
+
 struct twm_size_limits {
 	int min_width, min_height;
 	int max_width, max_height; /* 0 = unbounded */
@@ -38,6 +46,8 @@ struct twm_view_impl {
 	struct twm_view *(*get_parent)(struct twm_view *view);
 	/* A position the user asked for (X11 USPosition), client top-left. */
 	bool (*get_user_position)(struct twm_view *view, int *x, int *y);
+	/* Tell the client it is zoomed or fullscreen (ZOM-5); may be NULL. */
+	void (*set_state)(struct twm_view *view, enum twm_zoom zoom, bool fullscreen);
 };
 
 struct twm_frame;
@@ -82,6 +92,14 @@ struct twm_view {
 	char hint[4];       /* HNT-1: hint code while hint mode is on */
 	bool hint_selected; /* HNT-3 */
 	uint64_t focus_seq; /* when it last had focus (FOC-10) */
+
+	/* ZOM-*: zoom and fullscreen, and the geometry to go back to */
+	enum twm_zoom zoom;
+	bool fullscreen;
+	struct wlr_box normal; /* frame x/y, client width/height (ZOM-2) */
+	struct wlr_box fs_box; /* the output's box while fullscreen */
+	enum twm_zoom map_zoom; /* the shell: it maps maximized … (ZOM-5) */
+	bool map_fullscreen;    /* … or fullscreen */
 };
 
 void view_init(struct twm_view *view, struct twm_server *server,

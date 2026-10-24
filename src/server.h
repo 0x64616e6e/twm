@@ -39,6 +39,7 @@ enum twm_layer {
 	TWM_LAYER_WINDOWS,
 	TWM_LAYER_UTILITY,
 	TWM_LAYER_TOP,        /* layer shell: bars */
+	TWM_LAYER_FULLSCREEN, /* the focused fullscreen window (ZOM-4) */
 	TWM_LAYER_UNMANAGED, /* XWayland override-redirect: menus, tooltips */
 	TWM_LAYER_LAYER_OVERLAY, /* layer shell: launchers, OSDs */
 	TWM_LAYER_TRUSTED_DIM,

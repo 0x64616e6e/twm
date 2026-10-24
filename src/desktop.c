@@ -7,6 +7,7 @@
 #include "icons.h"
 #include "settings.h"
 #include "ui.h"
+#include "zoom.h"
 
 bool view_visible(struct twm_view *view) {
 	return view->shown && !view->iconified && !view_hidden_member(view) &&
@@ -201,6 +202,7 @@ void view_apply_state(struct twm_view *view, struct hist_state s) {
 			return;
 		}
 	}
+	zoom_apply_recorded(view, s); /* ZOM-7: before the geometry it implies */
 	view_move_resize(view, s.x, s.y, s.w, s.h);
 	if (!view->sticky && s.desktop >= 1 && s.desktop <= desktop_count(server)) {
 		view->desktop = s.desktop;

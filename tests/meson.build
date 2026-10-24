@@ -17,7 +17,7 @@ test_client = static_library(
 )
 run_shot = find_program('run-shot.sh')
 
-foreach name : ['m0_root', 'm1_anatomy', 'm2_config', 'm3_snap', 'm4_imgr', 'm4_menu', 'm5_groups', 'm6_calm', 'm7_settings', 'apps_close', 'levels']
+foreach name : ['m0_root', 'm1_anatomy', 'm2_config', 'm3_snap', 'm4_imgr', 'm4_menu', 'm5_groups', 'm6_calm', 'm7_settings', 'apps_close', 'levels', 'zoom']
   prog = executable(
     'shot_' + name,
     'shot/@0@.c'.format(name),

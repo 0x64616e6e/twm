@@ -454,12 +454,81 @@ static void update_border(struct twm_frame *frame, enum frame_state state, float
 	}
 }
 
+static bool never_input(struct wlr_scene_buffer *buffer, double *sx, double *sy) {
+	return false; /* ZOM-6: the pointer passes through the marker */
+}
+
+/* ZOM-3, ZOM-6: no frame; black behind; the marker over the client while it
+ * captures (CAP-2: it can't be turned off). */
+static void update_fullscreen(struct twm_frame *frame, float scale) {
+	struct twm_view *view = frame->view;
+	struct twm_server *server = view->server;
+	const struct twm_theme *t = &server->theme;
+	bool fs = view->fullscreen;
+	wlr_scene_node_set_enabled(&frame->tree->node, !fs);
+	wlr_scene_node_set_enabled(&frame->backdrop->node, fs);
+	if (fs) {
+		wlr_scene_rect_set_size(frame->backdrop, view->fs_box.width, view->fs_box.height);
+	}
+	bool mark = fs && view->capturing;
+	if (!mark) {
+		if (frame->fs_line) {
+			wlr_scene_node_set_enabled(&frame->fs_line->node, false);
+			wlr_scene_node_set_enabled(&frame->fs_marker->node, false);
+		}
+		return;
+	}
+	if (!frame->fs_line) {
+		frame->fs_line = wlr_scene_buffer_create(view->tree, NULL);
+		frame->fs_marker = wlr_scene_buffer_create(view->tree, NULL);
+		frame->fs_line->point_accepts_input = never_input;
+		frame->fs_marker->point_accepts_input = never_input;
+		frame->drawn_fs.valid = false;
+	}
+	int w = view->fs_box.width, th = t->title_height, line = 2;
+	int mw = marker_width(server, scale);
+	if (!frame->drawn_fs.valid || frame->drawn_fs.width != w || frame->drawn_fs.scale != scale ||
+			frame->drawn_fs.gen != server->theme_gen) {
+#define X(v) ((int)lroundf((float)(v) * scale))
+		struct twm_pixbuf *lb = pixbuf_create(X(w), X(line));
+		if (lb) {
+			draw_fill(lb->image, rgba_argb32(rgba_hex(t->alert, 1)), 0, 0, X(w), X(line));
+			wlr_scene_buffer_set_buffer(frame->fs_line, &lb->base);
+			pixbuf_drop(lb);
+		}
+		struct twm_pixbuf *mb = pixbuf_create(X(mw), X(th));
+		if (mb) {
+			draw_marker_segment(mb->image, server, 0, mw, scale);
+			wlr_scene_buffer_set_buffer(frame->fs_marker, &mb->base);
+			pixbuf_drop(mb);
+		}
+#undef X
+		wlr_scene_buffer_set_dest_size(frame->fs_line, w, line);
+		wlr_scene_buffer_set_dest_size(frame->fs_marker, mw, th);
+		frame->drawn_fs.width = w;
+		frame->drawn_fs.scale = scale;
+		frame->drawn_fs.gen = server->theme_gen;
+		frame->drawn_fs.valid = true;
+	}
+	wlr_scene_node_set_position(&frame->fs_line->node, 0, 0);
+	wlr_scene_node_set_position(&frame->fs_marker->node, w - mw, line);
+	wlr_scene_node_set_enabled(&frame->fs_line->node, true);
+	wlr_scene_node_set_enabled(&frame->fs_marker->node, true);
+	/* above the client, which may have made its surface tree anew */
+	wlr_scene_node_raise_to_top(&frame->fs_line->node);
+	wlr_scene_node_raise_to_top(&frame->fs_marker->node);
+}
+
 void frame_update(struct twm_frame *frame) {
 	struct twm_view *view = frame->view;
 	struct twm_server *server = view->server;
 	const struct twm_theme *t = &server->theme;
 	enum frame_state state = frame_state_of(view);
 	float scale = output_max_scale(server);
+	update_fullscreen(frame, scale);
+	if (view->fullscreen) {
+		return;
+	}
 	const char *title = view_title(view);
 	int fw = view->width + 2 * t->border_width;
 	bool resize = view_resizable(view);
@@ -516,6 +585,11 @@ struct twm_frame *frame_create(struct twm_view *view) {
 	frame->tree = wlr_scene_tree_create(view->tree);
 	frame->tab_hit = (struct twm_hit){.kind = TWM_HIT_TITLE, .view = view};
 	frame->border_hit = (struct twm_hit){.kind = TWM_HIT_BORDER, .view = view};
+	/* below the client's surfaces, which come after the frame */
+	float black[4] = {0, 0, 0, 1};
+	frame->backdrop = wlr_scene_rect_create(view->tree, 0, 0, black);
+	wlr_scene_node_set_enabled(&frame->backdrop->node, false);
+	frame->backdrop->node.data = &view->client_hit; /* black is still the window */
 	frame->tab = wlr_scene_buffer_create(frame->tree, NULL);
 	frame->tab->node.data = &frame->tab_hit;
 	float none[4] = {0};
@@ -534,6 +608,11 @@ void frame_destroy(struct twm_frame *frame) {
 		return;
 	}
 	wlr_scene_node_destroy(&frame->tree->node);
+	wlr_scene_node_destroy(&frame->backdrop->node);
+	if (frame->fs_line) {
+		wlr_scene_node_destroy(&frame->fs_line->node);
+		wlr_scene_node_destroy(&frame->fs_marker->node);
+	}
 	free(frame->drawn.title);
 	free(frame);
 }

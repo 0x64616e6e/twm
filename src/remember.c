@@ -13,6 +13,7 @@
 #include "server.h"
 #include "settings.h"
 #include "view.h"
+#include "zoom.h"
 
 #define SAVE_DELAY_MS 1000 /* CFG-11: at most once a second */
 
@@ -119,7 +120,8 @@ void remember_record(struct twm_server *server, struct twm_view *view) {
 	if (!view->shown || !rememberable(server, view)) {
 		return;
 	}
-	struct twm_output *output = output_at(server, view->x, view->y);
+	struct wlr_box g = view_normal_geometry(view); /* ZOM-2: never a zoomed one */
+	struct twm_output *output = output_at(server, g.x, g.y);
 	if (!output && !wl_list_empty(&server->outputs)) {
 		output = wl_container_of(server->outputs.next, output, link);
 	}
@@ -127,7 +129,7 @@ void remember_record(struct twm_server *server, struct twm_view *view) {
 		return;
 	}
 	geomem_set(&server->geomem, view->impl->get_app_id(view), output->wlr_output->name,
-		view->x - output->box.x, view->y - output->box.y, view->width, view->height);
+		g.x - output->box.x, g.y - output->box.y, g.width, g.height);
 	server->geomem_dirty = true;
 	wl_event_source_timer_update(server->geomem_timer, SAVE_DELAY_MS);
 }

@@ -53,5 +53,14 @@ int main(void) {
 	history_age(100000, 0, age, sizeof(age));
 	CHECK("HIS-3", strcmp(age, "1d") == 0);
 	CHECK("HIS-1", strcmp(history_op_name(HIST_SQUEEZE), "squeeze") == 0);
+	CHECK("ZOM-7", strcmp(history_op_name(HIST_ZOOM), "zoom") == 0 &&
+		strcmp(history_op_name(HIST_FULLSCREEN), "fullscreen") == 0);
+	{
+		struct hist_state z = st(1), n = st(1);
+		z.zoom = 3;
+		CHECK("ZOM-7", !hist_state_equal(z, n)); /* a zoom is a change */
+		n.fullscreen = true;
+		CHECK("ZOM-7", !hist_state_equal(st(1), n));
+	}
 	return UNIT_RESULT();
 }

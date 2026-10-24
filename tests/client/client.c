@@ -58,6 +58,10 @@ struct tc_window {
 	bool activated, pending_activated;
 	bool configured;
 	int closes;
+	/* ZOM-5: the states in the last configure; tiled is a bit set: 1 left,
+	 * 2 right, 4 top, 8 bottom */
+	bool maximized, fullscreen, pending_maximized, pending_fullscreen;
+	int tiled, pending_tiled;
 };
 
 /* --- shm --- */
@@ -289,7 +293,7 @@ static void registry_global(void *data, struct wl_registry *reg, uint32_t name,
 		tc->output = wl_registry_bind(reg, name, &wl_output_interface, min_u32(version, 4));
 		wl_output_add_listener(tc->output, &output_listener, tc);
 	} else if (strcmp(iface, xdg_wm_base_interface.name) == 0) {
-		tc->wm_base = wl_registry_bind(reg, name, &xdg_wm_base_interface, 1);
+		tc->wm_base = wl_registry_bind(reg, name, &xdg_wm_base_interface, min_u32(version, 2));
 		xdg_wm_base_add_listener(tc->wm_base, &wm_base_listener, tc);
 	} else if (strcmp(iface, zwlr_screencopy_manager_v1_interface.name) == 0) {
 		tc->screencopy = wl_registry_bind(reg, name,
@@ -404,6 +408,9 @@ static void xdg_surface_configure(void *data, struct xdg_surface *xs, uint32_t s
 	int w = win->pending_width > 0 ? win->pending_width : win->opts.width;
 	int h = win->pending_height > 0 ? win->pending_height : win->opts.height;
 	win->activated = win->pending_activated;
+	win->maximized = win->pending_maximized;
+	win->fullscreen = win->pending_fullscreen;
+	win->tiled = win->pending_tiled;
 	if (!win->configured || w != win->width || h != win->height) {
 		win->width = w;
 		win->height = h;
@@ -424,10 +431,19 @@ static void toplevel_configure(void *data, struct xdg_toplevel *t, int32_t w, in
 	win->pending_width = w;
 	win->pending_height = h;
 	win->pending_activated = false;
+	win->pending_maximized = win->pending_fullscreen = false;
+	win->pending_tiled = 0;
 	uint32_t *state;
 	wl_array_for_each(state, states) {
-		if (*state == XDG_TOPLEVEL_STATE_ACTIVATED) {
-			win->pending_activated = true;
+		switch (*state) {
+		case XDG_TOPLEVEL_STATE_ACTIVATED: win->pending_activated = true; break;
+		case XDG_TOPLEVEL_STATE_MAXIMIZED: win->pending_maximized = true; break;
+		case XDG_TOPLEVEL_STATE_FULLSCREEN: win->pending_fullscreen = true; break;
+		case XDG_TOPLEVEL_STATE_TILED_LEFT: win->pending_tiled |= 1; break;
+		case XDG_TOPLEVEL_STATE_TILED_RIGHT: win->pending_tiled |= 2; break;
+		case XDG_TOPLEVEL_STATE_TILED_TOP: win->pending_tiled |= 4; break;
+		case XDG_TOPLEVEL_STATE_TILED_BOTTOM: win->pending_tiled |= 8; break;
+		default: break;
 		}
 	}
 }
@@ -475,6 +491,12 @@ struct tc_window *tc_window_create(struct tc *tc, const struct tc_window_opts *o
 		zxdg_toplevel_decoration_v1_set_mode(win->deco,
 			ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
 	}
+	if (opts->start_maximized) {
+		xdg_toplevel_set_maximized(win->toplevel);
+	}
+	if (opts->start_fullscreen) {
+		xdg_toplevel_set_fullscreen(win->toplevel, NULL);
+	}
 	wl_surface_commit(win->surface);
 	wl_display_roundtrip(tc->display);
 	wl_display_roundtrip(tc->display);
@@ -497,6 +519,30 @@ void tc_window_destroy(struct tc_window *win) {
 
 bool tc_window_activated(struct tc_window *win) {
 	return win->activated;
+}
+
+void tc_window_states(struct tc_window *win, bool *maximized, bool *fullscreen, int *tiled) {
+	*maximized = win->maximized;
+	*fullscreen = win->fullscreen;
+	*tiled = win->tiled;
+}
+
+void tc_window_set_maximized(struct tc_window *win, bool on) {
+	if (on) {
+		xdg_toplevel_set_maximized(win->toplevel);
+	} else {
+		xdg_toplevel_unset_maximized(win->toplevel);
+	}
+	wl_display_roundtrip(win->tc->display);
+}
+
+void tc_window_set_fullscreen(struct tc_window *win, bool on) {
+	if (on) {
+		xdg_toplevel_set_fullscreen(win->toplevel, NULL);
+	} else {
+		xdg_toplevel_unset_fullscreen(win->toplevel);
+	}
+	wl_display_roundtrip(win->tc->display);
 }
 
 void tc_window_size(struct tc_window *win, int *w, int *h) {

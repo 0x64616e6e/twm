@@ -16,6 +16,7 @@
 #include "rc.h"
 #include "rootline.h"
 #include "view.h"
+#include "zoom.h"
 
 void action_run_in_terminal(struct twm_server *server, const char *cmd) {
 	const char *term = server->config->terminal;
@@ -148,6 +149,21 @@ void action_run(struct twm_server *server, const struct twm_func *func,
 			view_set_squeezed(view->group->active, !view->group->active->squeezed);
 		} else if (view) {
 			view_set_squeezed(view, !view->squeezed);
+		}
+		return;
+	case TWM_F_ZOOM: /* ZOM-1 */
+		view_zoom(view, TWM_ZOOM_VERT);
+		return;
+	case TWM_F_HORIZOOM:
+		view_zoom(view, TWM_ZOOM_HORIZ);
+		return;
+	case TWM_F_FULLZOOM:
+		view_zoom(view, TWM_ZOOM_FULL);
+		return;
+	case TWM_F_FULLSCREEN: /* ZOM-3 */
+		if (view) {
+			struct twm_view *front = view->group && view->group->active ? view->group->active : view;
+			view_set_fullscreen(front, !front->fullscreen, NULL);
 		}
 		return;
 	case TWM_F_FOLD: /* GRP-6: the tabs into the one in front, and out */

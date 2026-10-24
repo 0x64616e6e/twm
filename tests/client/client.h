@@ -53,6 +53,8 @@ struct tc_window_opts {
 	/* A client-side shadow this wide around the window, in magenta, outside
 	 * its xdg window geometry (as GTK and Chromium draw theirs). */
 	int shadow;
+	/* ZOM-5: ask to open maximized / fullscreen, before the first commit */
+	bool start_maximized, start_fullscreen;
 };
 
 struct tc *tc_connect(void);
@@ -71,6 +73,11 @@ void tc_window_resize_self(struct tc_window *win, int w, int h);
 int tc_window_closes(struct tc_window *win);
 /* False once the compositor has cut the connection (f.destroy). */
 bool tc_connected(struct tc *tc);
+/* ZOM-5: what the last configure said; tiled bits 1 left, 2 right, 4 top,
+ * 8 bottom. And asking for maximize / fullscreen. */
+void tc_window_states(struct tc_window *win, bool *maximized, bool *fullscreen, int *tiled);
+void tc_window_set_maximized(struct tc_window *win, bool on);
+void tc_window_set_fullscreen(struct tc_window *win, bool on);
 /* Ask to be activated without a token (URG-2 in M1). */
 void tc_window_request_activation(struct tc_window *win);
 

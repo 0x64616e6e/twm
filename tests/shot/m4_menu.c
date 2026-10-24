@@ -21,14 +21,12 @@
 
 /* Menu "main" at (MX, MY): header 32, list padding 4, items 30, rules 9.
  * Rows: xterm 0, browser 30, files 60, run… 90, rule 120, move 129, resize 159,
- * squeeze 189, iconify 219, raise / lower 249, close 279, kill 309, rule 339,
- * desktops 348, settings 378, reload 408, exit 438. */
+ * squeeze 189, zoom 219, fullscreen 249, iconify 279, raise / lower 309,
+ * close 339, kill 369, rule 399, desktops 408, settings 438, reload 468,
+ * exit 498. */
 #define MX 500
 #define MY 120
 #define ITEM_Y(row_offset) (MY + 32 + 4 + (row_offset))
-/* Item tops: xterm 0, browser 30, files 60, rule 90, move 99, resize 129,
- * squeeze 159, iconify 189, raise/lower 219, rule 249, desktops 258,
- * reload 288, exit 318. */
 
 static int near(uint32_t a, uint32_t b, int tol) {
 	for (int s = 0; s <= 16; s += 8) {
@@ -99,7 +97,7 @@ int main(int argc, char *argv[]) {
 	tc_chord(tc, 1, TC_KEY_DOWN);
 	tc_wait(tc, 30);
 	shot(tc, &img);
-	tc_expect_pixel("MNU-6", &img, MX + 5, ITEM_Y(219) + 3, ACCENT, 2);     /* iconify */
+	tc_expect_pixel("MNU-6", &img, MX + 5, ITEM_Y(219) + 3, ACCENT, 2);     /* zoom */
 	tc_chord(tc, 1, TC_KEY_ESC);
 	tc_wait(tc, 30);
 	shot(tc, &img);
@@ -110,7 +108,7 @@ int main(int argc, char *argv[]) {
 	tc_pointer_move(tc, MX, MY);
 	tc_pointer_button(tc, TC_BTN_LEFT, true);
 	for (int i = 1; i <= 4; i++) {
-		tc_pointer_move(tc, MX + 25 * i, MY + (ITEM_Y(219) + 15 - MY) * i / 4);
+		tc_pointer_move(tc, MX + 25 * i, MY + (ITEM_Y(279) + 15 - MY) * i / 4);
 	}
 	tc_pointer_button(tc, TC_BTN_LEFT, false);
 	tc_wait(tc, 30);
@@ -148,10 +146,10 @@ int main(int argc, char *argv[]) {
 	 * switches. Opened with M-m this time (MNU-6). */
 	tc_pointer_move(tc, MX, MY);
 	tc_chord(tc, 2, TC_KEY_LEFTMETA, TC_KEY_M);
-	tc_pointer_move(tc, MX + 100, ITEM_Y(348) + 15);
+	tc_pointer_move(tc, MX + 100, ITEM_Y(408) + 15);
 	tc_wait(tc, 30);
 	shot(tc, &img);
-	int sx = MX + 260 - 1, sy = ITEM_Y(348) - 32 - 4;
+	int sx = MX + 260 - 1, sy = ITEM_Y(408) - 32 - 4;
 	tc_expect_pixel("MNU-7", &img, sx + 3, sy + 3, GRAPHITE, 2);             /* submenu */
 	tc_expect("MNU-7", count_box(&img, sx + 10, sy + 8, sx + 110, sy + 26, MUTED, 40) > 20,
 		"DESKTOPS header");

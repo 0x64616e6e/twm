@@ -67,6 +67,8 @@ FreeBSD; `-Dportal=disabled` to build without). The UI font is IBM Plex Mono.
 | B1/B2 on the resize box, `M-B3` in a window | resize |
 | `M-S-m`, `M-r` | move / resize the focused window with the arrow keys |
 | `Esc`, `Return` | cancel / commit an outline |
+| `M-Up` | zoom: fill the screen, frame kept (`f.zoom`, `f.horizoom` for height or width only); again to go back |
+| `M-S-f` | fullscreen, and back; apps' own maximize and fullscreen buttons do the same |
 | `M-space` | raise or lower |
 | B1 on the bare desktop, `M-m` | the root menu |
 | type at the Icon Manager | find a window (or a command); Return goes there, `M-Return` brings it here |

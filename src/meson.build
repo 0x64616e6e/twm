@@ -54,6 +54,7 @@ twm_src = twm_core_src + files(
   'view.c',
   'watch.c',
   'xdg.c',
+  'zoom.c',
 )
 if have_xwayland
   twm_src += files('xwayland.c')

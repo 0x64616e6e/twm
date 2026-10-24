@@ -3,6 +3,7 @@
 #include "group.h"
 #include "ui.h"
 #include "view.h"
+#include "zoom.h"
 
 size_t group_size(struct twm_group *g) {
 	return g ? (size_t)wl_list_length(&g->members) : 0;
@@ -71,6 +72,7 @@ static void hand_over(struct twm_view *from, struct twm_view *to) {
 	to->desktop = from->desktop;
 	to->sticky = from->sticky;
 	to->squeezed = from->squeezed;
+	zoom_hand_over(from, to); /* ZOM-7 */
 	if (to->x != from->x || to->y != from->y || to->width != from->width ||
 			to->height != from->height) {
 		view_move_resize(to, from->x, from->y, from->width, from->height);

@@ -4,12 +4,14 @@
 #include <stdlib.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
+#include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/log.h>
 #include <wlr/xwayland.h>
 #include "group.h"
 #include "view.h"
+#include "zoom.h"
 
 /* GEN-6: XWayland starts lazily, on the first X11 client. */
 
@@ -29,6 +31,8 @@ struct twm_xwayland_view {
 	struct wl_listener set_title;
 	struct wl_listener set_class;
 	struct wl_listener set_hints;
+	struct wl_listener request_maximize;
+	struct wl_listener request_fullscreen;
 };
 
 /* Override-redirect windows (menus, tooltips): no frame, X positions them. */
@@ -134,6 +138,22 @@ static bool xw_get_user_position(struct twm_view *view, int *x, int *y) {
 	return true;
 }
 
+/* ZOM-5: _NET_WM_STATE tells the truth back. */
+static void xw_set_state(struct twm_view *view, enum twm_zoom zoom, bool fullscreen) {
+	struct wlr_xwayland_surface *xs = xw_view(view)->xsurface;
+	wlr_xwayland_surface_set_maximized(xs, zoom == TWM_ZOOM_HORIZ || zoom == TWM_ZOOM_FULL,
+		zoom == TWM_ZOOM_VERT || zoom == TWM_ZOOM_FULL);
+	wlr_xwayland_surface_set_fullscreen(xs, fullscreen);
+}
+
+/* What the X client's _NET_WM_STATE asks for, as a zoom (ZOM-5). */
+static enum twm_zoom requested_zoom(struct wlr_xwayland_surface *xs) {
+	if (xs->maximized_vert && xs->maximized_horz) {
+		return TWM_ZOOM_FULL;
+	}
+	return xs->maximized_vert ? TWM_ZOOM_VERT : xs->maximized_horz ? TWM_ZOOM_HORIZ : TWM_ZOOM_NONE;
+}
+
 static const struct twm_view_impl xw_impl = {
 	.get_title = xw_get_title,
 	.get_app_id = xw_get_app_id,
@@ -144,6 +164,7 @@ static const struct twm_view_impl xw_impl = {
 	.get_size_limits = xw_get_size_limits,
 	.get_parent = xw_get_parent,
 	.get_user_position = xw_get_user_position,
+	.set_state = xw_set_state,
 };
 
 static void view_handle_map(struct wl_listener *listener, void *data) {
@@ -153,6 +174,8 @@ static void view_handle_map(struct wl_listener *listener, void *data) {
 	view_set_content(&xv->view,
 		wlr_scene_subsurface_tree_create(xv->view.tree, xs->surface));
 	view_update_geometry(&xv->view, 0, 0, xs->width, xs->height);
+	xv->view.map_zoom = requested_zoom(xs); /* ZOM-5 */
+	xv->view.map_fullscreen = xs->fullscreen;
 	view_map(&xv->view);
 }
 
@@ -205,7 +228,9 @@ static void view_handle_request_configure(struct wl_listener *listener, void *da
 	 * tabs share one size, so a grouped window keeps the group's. */
 	int dx, dy;
 	view_client_offset(&xv->view, &dx, &dy);
-	bool grouped = xv->view.group && group_size(xv->view.group) > 1;
+	/* ZOM-2: zoomed or fullscreen, it keeps the size twm gave it */
+	bool grouped = (xv->view.group && group_size(xv->view.group) > 1) ||
+		xv->view.zoom != TWM_ZOOM_NONE || xv->view.fullscreen;
 	wlr_xwayland_surface_configure(xv->xsurface, (int16_t)(xv->view.x + dx),
 		(int16_t)(xv->view.y + dy), grouped ? (uint16_t)xv->view.width : ev->width,
 		grouped ? (uint16_t)xv->view.height : ev->height);
@@ -217,6 +242,33 @@ static void view_handle_request_activate(struct wl_listener *listener, void *dat
 	wlr_log(WLR_DEBUG, "X11 window '%s' asked for focus", view_title(&xv->view));
 	if (xv->view.shown) {
 		view_set_urgent(&xv->view, true);
+	}
+}
+
+static void view_handle_request_maximize(struct wl_listener *listener, void *data) {
+	struct twm_xwayland_view *xv = wl_container_of(listener, xv, request_maximize);
+	struct twm_view *view = &xv->view;
+	if (!view->mapped || !view->shown) {
+		return; /* the map takes it */
+	}
+	enum twm_zoom want = requested_zoom(xv->xsurface);
+	if (want != view->zoom) {
+		view_zoom(view, want != TWM_ZOOM_NONE ? want : view->zoom);
+	}
+	if (view->zoom != want) {
+		xw_set_state(view, view->zoom, view->fullscreen); /* refused: say so */
+	}
+}
+
+static void view_handle_request_fullscreen(struct wl_listener *listener, void *data) {
+	struct twm_xwayland_view *xv = wl_container_of(listener, xv, request_fullscreen);
+	struct twm_view *view = &xv->view;
+	if (!view->mapped || !view->shown) {
+		return;
+	}
+	view_set_fullscreen(view, xv->xsurface->fullscreen, NULL);
+	if (view->fullscreen != xv->xsurface->fullscreen) {
+		xw_set_state(view, view->zoom, view->fullscreen);
 	}
 }
 
@@ -250,6 +302,8 @@ static void view_destroy(struct twm_xwayland_view *xv) {
 	wl_list_remove(&xv->set_title.link);
 	wl_list_remove(&xv->set_class.link);
 	wl_list_remove(&xv->set_hints.link);
+	wl_list_remove(&xv->request_maximize.link);
+	wl_list_remove(&xv->request_fullscreen.link);
 	xv->xsurface->data = NULL;
 	view_finish(&xv->view);
 	free(xv);
@@ -295,6 +349,10 @@ static void create_view(struct twm_server *server, struct wlr_xwayland_surface *
 	wl_signal_add(&xs->events.set_class, &xv->set_class);
 	xv->set_hints.notify = view_handle_set_hints;
 	wl_signal_add(&xs->events.set_hints, &xv->set_hints);
+	xv->request_maximize.notify = view_handle_request_maximize;
+	wl_signal_add(&xs->events.request_maximize, &xv->request_maximize);
+	xv->request_fullscreen.notify = view_handle_request_fullscreen;
+	wl_signal_add(&xs->events.request_fullscreen, &xv->request_fullscreen);
 	if (xs->surface) {
 		view_handle_associate(&xv->associate, NULL);
 	}

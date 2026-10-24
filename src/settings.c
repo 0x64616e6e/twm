@@ -90,6 +90,8 @@ const char config_default_twmrc[] =
 	"\"M-w\"      : f.delete\n"
 	"\"M-S-w\"    : f.destroy\n"
 	"\"M-d\"      : f.run\n"
+	"\"M-Up\"     : f.fullzoom\n"
+	"\"M-S-f\"    : f.fullscreen\n"
 	"\"XF86AudioRaiseVolume\"  : f.volume up\n"
 	"\"XF86AudioLowerVolume\"  : f.volume down\n"
 	"\"XF86AudioMute\"         : f.volume mute\n"
@@ -112,6 +114,8 @@ const char config_default_twmrc[] =
 	"  \"move\"           f.move\n"
 	"  \"resize\"         f.resize\n"
 	"  \"squeeze\"        f.squeeze\n"
+	"  \"zoom\"           f.fullzoom\n"
+	"  \"fullscreen\"     f.fullscreen\n"
 	"  \"iconify\"        f.iconify\n"
 	"  \"raise / lower\"  f.raiselower\n"
 	"  \"close\"          f.delete\n"
@@ -308,6 +312,10 @@ static const struct {
 	{"f.fold", TWM_F_FOLD, 0},
 	{"f.volume", TWM_F_VOLUME, 'w', {"up", "down", "mute", "mic", NULL}},
 	{"f.brightness", TWM_F_BRIGHTNESS, 'w', {"up", "down", NULL}},
+	{"f.zoom", TWM_F_ZOOM, 0},
+	{"f.horizoom", TWM_F_HORIZOOM, 0},
+	{"f.fullzoom", TWM_F_FULLZOOM, 0},
+	{"f.fullscreen", TWM_F_FULLSCREEN, 0},
 	{"f.desktop", TWM_F_DESKTOP, 'n'},
 	{"f.send", TWM_F_SEND, 'n'},
 	{"f.separator", TWM_F_SEPARATOR, 0},

@@ -1,13 +1,16 @@
 #include <stdlib.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
+#include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
+#include <wlr/util/edges.h>
 #include <wlr/util/log.h>
 #include "remember.h"
 #include "view.h"
 #include "group.h"
 #include "xdg.h"
+#include "zoom.h"
 
 struct twm_xdg_view {
 	struct twm_view view;
@@ -85,6 +88,27 @@ static struct twm_view *xdg_get_parent(struct twm_view *view) {
 	return view_of_toplevel(xdg_view(view)->toplevel->parent);
 }
 
+/* ZOM-5: say what it is: maximized for f.fullzoom, tiled edges for the
+ * other zooms, fullscreen for fullscreen. */
+static void xdg_set_state(struct twm_view *view, enum twm_zoom zoom, bool fullscreen) {
+	struct wlr_xdg_toplevel *tl = xdg_view(view)->toplevel;
+	if (!tl->base->initialized) {
+		return;
+	}
+	wlr_xdg_toplevel_set_maximized(tl, zoom == TWM_ZOOM_FULL);
+	wlr_xdg_toplevel_set_fullscreen(tl, fullscreen);
+	if (wl_resource_get_version(tl->resource) >= XDG_TOPLEVEL_STATE_TILED_LEFT_SINCE_VERSION) {
+		uint32_t edges = WLR_EDGE_NONE;
+		if (zoom == TWM_ZOOM_VERT || zoom == TWM_ZOOM_FULL) {
+			edges |= WLR_EDGE_TOP | WLR_EDGE_BOTTOM;
+		}
+		if (zoom == TWM_ZOOM_HORIZ || zoom == TWM_ZOOM_FULL) {
+			edges |= WLR_EDGE_LEFT | WLR_EDGE_RIGHT;
+		}
+		wlr_xdg_toplevel_set_tiled(tl, edges);
+	}
+}
+
 static const struct twm_view_impl xdg_impl = {
 	.get_title = xdg_get_title,
 	.get_app_id = xdg_get_app_id,
@@ -94,6 +118,7 @@ static const struct twm_view_impl xdg_impl = {
 	.kill = xdg_kill,
 	.get_size_limits = xdg_get_size_limits,
 	.get_parent = xdg_get_parent,
+	.set_state = xdg_set_state,
 };
 
 void xdg_set_decoration(struct wlr_xdg_toplevel *toplevel,
@@ -130,6 +155,9 @@ static void update_geometry(struct twm_xdg_view *xv) {
 static void handle_map(struct wl_listener *listener, void *data) {
 	struct twm_xdg_view *xv = wl_container_of(listener, xv, map);
 	xv->view.surface = xv->toplevel->base->surface;
+	/* ZOM-5: it may ask to open maximized or fullscreen */
+	xv->view.map_zoom = xv->toplevel->requested.maximized ? TWM_ZOOM_FULL : TWM_ZOOM_NONE;
+	xv->view.map_fullscreen = xv->toplevel->requested.fullscreen;
 	update_geometry(xv);
 	view_map(&xv->view);
 }
@@ -160,7 +188,15 @@ static void handle_commit(struct wl_listener *listener, void *data) {
 	if (base->initial_commit) {
 		/* The size it had last time (OUT-16), else the client's choice. */
 		int w = 0, h = 0;
-		remember_initial_size(xv->view.server, &xv->view, xv->toplevel->app_id, &w, &h);
+		struct wlr_xdg_toplevel_requested *rq = &xv->toplevel->requested;
+		if (zoom_initial_size(xv->view.server, rq->fullscreen, rq->maximized,
+				xv->view.server->theme.title_height, &w, &h)) {
+			/* ZOM-5: the size of what it asked for, from the first frame */
+			wlr_xdg_toplevel_set_fullscreen(xv->toplevel, rq->fullscreen);
+			wlr_xdg_toplevel_set_maximized(xv->toplevel, rq->maximized && !rq->fullscreen);
+		} else {
+			remember_initial_size(xv->view.server, &xv->view, xv->toplevel->app_id, &w, &h);
+		}
 		wlr_xdg_toplevel_set_size(xv->toplevel, w, h);
 		if (xv->decoration) {
 			wlr_xdg_toplevel_decoration_v1_set_mode(xv->decoration,
@@ -173,7 +209,8 @@ static void handle_commit(struct wl_listener *listener, void *data) {
 	}
 	struct wlr_box *geo = &base->geometry;
 	bool resized = geo->width != xv->view.width || geo->height != xv->view.height;
-	if (resized && own_size_change(xv, geo)) {
+	bool held = xv->view.zoom != TWM_ZOOM_NONE || xv->view.fullscreen;
+	if (resized && !held && own_size_change(xv, geo)) {
 		struct wlr_xdg_toplevel *tl = xv->toplevel;
 		struct twm_group *g = xv->view.group;
 		if (g && group_size(g) > 1 &&
@@ -206,8 +243,9 @@ static void handle_set_app_id(struct wl_listener *listener, void *data) {
 	view_update_frame(&xv->view);
 }
 
-static void handle_request_state(struct twm_xdg_view *xv) {
-	/* twm has no maximize or fullscreen yet; xdg-shell still wants a reply. */
+/* xdg-shell wants a configure in reply to every request, even a refused
+ * one; before mapping, the initial commit and the map take the request. */
+static void reply(struct twm_xdg_view *xv) {
 	if (xv->toplevel->base->initialized) {
 		wlr_xdg_surface_schedule_configure(xv->toplevel->base);
 	}
@@ -215,12 +253,27 @@ static void handle_request_state(struct twm_xdg_view *xv) {
 
 static void handle_request_maximize(struct wl_listener *listener, void *data) {
 	struct twm_xdg_view *xv = wl_container_of(listener, xv, request_maximize);
-	handle_request_state(xv);
+	struct twm_view *view = &xv->view;
+	if (view->mapped && view->shown) {
+		bool want = xv->toplevel->requested.maximized;
+		if (want && view->zoom != TWM_ZOOM_FULL) {
+			view_zoom(view, TWM_ZOOM_FULL); /* ZOM-5 */
+		} else if (!want && view->zoom != TWM_ZOOM_NONE) {
+			view_zoom(view, view->zoom);
+		}
+	}
+	reply(xv);
 }
 
 static void handle_request_fullscreen(struct wl_listener *listener, void *data) {
 	struct twm_xdg_view *xv = wl_container_of(listener, xv, request_fullscreen);
-	handle_request_state(xv);
+	struct twm_view *view = &xv->view;
+	if (view->mapped && view->shown) {
+		struct wlr_output *wo = xv->toplevel->requested.fullscreen_output;
+		view_set_fullscreen(view, xv->toplevel->requested.fullscreen,
+			wo ? wo->data : NULL); /* ZOM-5 */
+	}
+	reply(xv);
 }
 
 static void handle_destroy(struct wl_listener *listener, void *data) {

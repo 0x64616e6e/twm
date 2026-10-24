@@ -42,6 +42,16 @@ struct twm_frame {
 		uint32_t gen;
 		bool valid;
 	} drawn;
+	/* ZOM-3, ZOM-6: fullscreen — black behind a small client, and the
+	 * SCREEN marker drawn over it while it captures */
+	struct wlr_scene_rect *backdrop;
+	struct wlr_scene_buffer *fs_line, *fs_marker;
+	struct {
+		int width;
+		float scale;
+		uint32_t gen;
+		bool valid;
+	} drawn_fs;
 	struct {
 		enum frame_state state;
 		int width, height;

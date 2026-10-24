@@ -39,5 +39,8 @@ const char *auth_password_service(void);
 const char *auth_fingerprint_service(void);
 /* Whether PAM was built in. */
 bool auth_available(void);
+/* Whether a password can be checked from this process at all (GRT-12):
+ * not on FreeBSD's OpenPAM unless root. */
+bool auth_password_checkable(void);
 
 #endif

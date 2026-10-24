@@ -36,6 +36,20 @@ bool auth_available(void) {
 	return HAVE_PAM;
 }
 
+bool auth_password_checkable(void) {
+	if (!HAVE_PAM) {
+		return false;
+	}
+#if defined(__FreeBSD__)
+	/* OpenPAM's pam_unix reads /etc/master.passwd itself, which only root
+	 * may: unprivileged, every password is refused (tested on 15.1). Linux-PAM
+	 * asks its setuid unix_chkpwd instead. */
+	return geteuid() == 0;
+#else
+	return true;
+#endif
+}
+
 static bool have_service(const char *name) {
 	const char *dirs[] = {"/etc/pam.d", "/usr/lib/pam.d", "/usr/local/etc/pam.d"};
 	for (size_t i = 0; i < sizeof(dirs) / sizeof(dirs[0]); i++) {
@@ -56,20 +70,48 @@ const char *auth_password_service(void) {
 	return have_service("twm-password") ? "twm-password" : auth_service();
 }
 
-const char *auth_fingerprint_service(void) {
-	if (!have_service("twm-fingerprint")) {
-		return NULL;
+/* Whether a PAM module, as a service file names it, is there: a path as
+ * it is, a bare name in the module directories of Linux-PAM and OpenPAM. */
+static bool module_exists(const char *name) {
+	if (name[0] == '/') {
+		return access(name, F_OK) == 0;
 	}
-	/* the service names pam_fprintd: only if the module is there */
-	const char *dirs[] = {"/lib/x86_64-linux-gnu/security", "/lib/aarch64-linux-gnu/security",
-		"/usr/lib/x86_64-linux-gnu/security", "/usr/lib/aarch64-linux-gnu/security",
-		"/usr/lib/security", "/usr/lib64/security", "/lib/security", "/lib64/security"};
+	const char *dirs[] = {"/usr/lib/security", "/usr/lib64/security", "/lib/security",
+		"/lib64/security", "/usr/lib/x86_64-linux-gnu/security", "/lib/x86_64-linux-gnu/security",
+		"/usr/lib/aarch64-linux-gnu/security", "/lib/aarch64-linux-gnu/security",
+		"/usr/lib", "/usr/local/lib"};
+	for (size_t i = 0; i < sizeof(dirs) / sizeof(dirs[0]); i++) {
+		char p[512];
+		snprintf(p, sizeof(p), "%s/%s", dirs[i], name);
+		if (access(p, F_OK) == 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
+const char *auth_fingerprint_service(void) {
+	/* GRT-11: only if the module twm-fingerprint names is installed — read
+	 * from the file itself, whatever the system */
+	const char *dirs[] = {"/etc/pam.d", "/usr/lib/pam.d", "/usr/local/etc/pam.d"};
 	for (size_t i = 0; i < sizeof(dirs) / sizeof(dirs[0]); i++) {
 		char p[256];
-		snprintf(p, sizeof(p), "%s/pam_fprintd.so", dirs[i]);
-		if (access(p, F_OK) == 0) {
-			return "twm-fingerprint";
+		snprintf(p, sizeof(p), "%s/twm-fingerprint", dirs[i]);
+		FILE *f = fopen(p, "r");
+		if (!f) {
+			continue;
 		}
+		char line[512];
+		bool found = false;
+		while (!found && fgets(line, sizeof(line), f)) {
+			char type[32], control[64], module[400];
+			if (line[0] != '#' && sscanf(line, "%31s %63s %399s", type, control, module) == 3 &&
+					strcmp(type, "auth") == 0 && strstr(module, "pam_fprintd")) {
+				found = module_exists(module);
+			}
+		}
+		fclose(f);
+		return found ? "twm-fingerprint" : NULL;
 	}
 	return NULL;
 }

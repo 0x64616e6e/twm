@@ -1006,6 +1006,12 @@ void lock_engage(struct twm_server *server, const char *why) {
 		rootline_post(server, ROOTLINE_ERROR, "lock", "twm was built without PAM: no lock");
 		return;
 	}
+	if (!test_pw && !lk->login && !auth_password_checkable()) {
+		/* GRT-12: a lock that can never take the password would lock you out */
+		rootline_post(server, ROOTLINE_ERROR, "lock",
+			"not locked: PAM can't check passwords for an unprivileged process here (OpenPAM)");
+		return;
+	}
 	lk->active = true;
 	server->locked = true;
 	snprintf(lk->why, sizeof(lk->why), "%s", why);
@@ -1269,6 +1275,13 @@ static void set_dark(struct twm_lock *lk, bool dark) {
 		return;
 	}
 	lk->dark = dark;
+	if (dark && lk->active && !lk->login && lk->fp) {
+		/* the reader holds the device the whole time (no timeout): let it
+		 * go while nobody can see the lock */
+		auth_cancel(lk->fp);
+		lk->fp = NULL;
+		lk->fp_paused = true;
+	}
 	if (!dark && lk->active && lk->fp_paused) {
 		/* GRT-11: the screens lit again: so does the reader */
 		lk->fp_paused = false;

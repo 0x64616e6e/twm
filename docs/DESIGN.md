@@ -934,6 +934,22 @@ accent can change:
   system stack, reader first): when the reader gives up and PAM asks for
   the password with nothing typed, it begins again, on the same terms;
   what is typed meanwhile goes the moment PAM asks for it.
+- **GRT-12** `[after M7]` *Systems differ, checked on each:* the PAM
+  services are written for the system they're built on: `@include
+  common-*` on Debian, `include system-auth` elsewhere on Linux, `include
+  system` with OpenPAM on FreeBSD, and `twm-fingerprint` names
+  `pam_fprintd` by the path found at build time (the FreeBSD port puts it
+  in `/usr/local/lib/security`, where OpenPAM finds nothing by bare name);
+  twm uses that service only if the module it names exists. *Found on
+  FreeBSD 15.1:* OpenPAM's `pam_unix` reads `/etc/master.passwd` itself,
+  so for an unprivileged process it refuses every password, right or
+  wrong (Linux-PAM asks its setuid `unix_chkpwd` instead). The lock then
+  can't take a password, so it refuses to lock there and says why on the
+  root line rather than lock the user out. *Open for the owner:* a small
+  setuid helper (as `unix_chkpwd`) to check the user's own password on
+  FreeBSD. The greeter is not affected: greetd runs PAM as root.
+  LockOnSleep needs logind (Linux); FreeBSD has no lock before sleep, and
+  `f.suspend`'s `zzz` needs root there.
 - **GRT-8** `[owner, after M7]` *Decided:* the boot greeter replaces
   Draftpaper's on the owner's machine; greetd's previous config is kept
   beside it, so going back is one line. The greeter runs without XWayland
@@ -1448,6 +1464,10 @@ Places where a board could be read more than one way, and the reading taken.
 - **License** — *decided:* MIT.
 - **Future dependencies** — *Decided:* sd-bus (libsystemd / basu) for M6;
   libpam for the lock and the greeter (D-12, 2026-10-24).
+- **The lock on FreeBSD** (GRT-12) — OpenPAM can't check a password for an
+  unprivileged process, so the lock refuses there. A setuid helper that
+  checks only the caller's own password would fix it; that's a security
+  decision for the owner.
   Still open: **PipeWire**, for twm's own ScreenCast backend (marking the app
   that shares, not xdpw; camera and microphone markers, CAP-5), and
   **libpolkit-agent**, for password prompts in the trusted frame (TRU-8).

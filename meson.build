@@ -124,10 +124,21 @@ if have_pam
     'twm': ['the lock and the greeter, on the system\'s own stack', stack + account],
     'twm-password': ['the lock\'s password check alone', password + account],
   }
-  if host_machine.system() == 'linux'
-    pam_files += {'twm-fingerprint': ['the lock\'s fingerprint reader alone',
-      'auth\t\trequired\tpam_fprintd.so max-tries=1 timeout=10\n' + account]}
-  endif
+  # The reader alone, on any system: wherever pam_fprintd is (Linux's PAM
+  # finds it by name; OpenPAM looks only in /usr/lib and /usr/local/lib,
+  # while the FreeBSD port puts it in /usr/local/lib/security), named by its
+  # path when it is found. twm uses this service only if its module exists.
+  fprintd_module = 'pam_fprintd.so'
+  foreach dir : ['/usr/local/lib/security', '/usr/lib/security', '/usr/lib64/security',
+      '/lib/security', '/lib64/security', '/usr/lib/x86_64-linux-gnu/security',
+      '/lib/x86_64-linux-gnu/security', '/usr/lib/aarch64-linux-gnu/security',
+      '/lib/aarch64-linux-gnu/security', '/usr/local/lib', '/usr/lib']
+    if fprintd_module == 'pam_fprintd.so' and import('fs').exists(dir / 'pam_fprintd.so')
+      fprintd_module = dir / 'pam_fprintd.so'
+    endif
+  endforeach
+  pam_files += {'twm-fingerprint': ['the lock\'s fingerprint reader alone',
+    'auth\t\trequired\t' + fprintd_module + ' max-tries=-1 timeout=-1\n' + account]}
   foreach name, what : pam_files
     f = configure_file(output: name + '.pam', input: 'data/twm.pam.in',
       configuration: {'WHAT': what[0], 'STACK': what[1]})

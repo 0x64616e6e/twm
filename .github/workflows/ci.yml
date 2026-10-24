@@ -8,7 +8,12 @@ jobs:
   # System wlroots 0.20 and friends from Arch packages.
   arch:
     runs-on: ubuntu-latest
-    container: archlinux:latest
+    container:
+      image: archlinux:latest
+      # The screenshot tests run in parallel and each screenshot is an 8 MB
+      # shared-memory buffer: Docker's default 64 MB /dev/shm runs out
+      # (SIGBUS in the test client).
+      options: --shm-size=1g
     steps:
       - name: Install packages
         run: |
@@ -33,7 +38,12 @@ jobs:
   # Debian 13 packages wlroots 0.18 only: exercises the pinned subprojects (D-2).
   debian:
     runs-on: ubuntu-latest
-    container: debian:trixie
+    container:
+      image: debian:trixie
+      # The screenshot tests run in parallel and each screenshot is an 8 MB
+      # shared-memory buffer: Docker's default 64 MB /dev/shm runs out
+      # (SIGBUS in the test client).
+      options: --shm-size=1g
     steps:
       - name: Install packages
         run: |

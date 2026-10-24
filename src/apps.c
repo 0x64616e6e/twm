@@ -229,7 +229,7 @@ static void scan_dir(struct app_list *l, size_t *cap, const char *dir, const cha
 		if (e->d_name[0] == '.') {
 			continue;
 		}
-		char path[4096], id[512];
+		char path[4096], id[1024];
 		snprintf(path, sizeof(path), "%s/%s", dir, e->d_name);
 		struct stat st;
 		if (stat(path, &st) != 0) {
@@ -237,7 +237,7 @@ static void scan_dir(struct app_list *l, size_t *cap, const char *dir, const cha
 		}
 		if (S_ISDIR(st.st_mode)) {
 			if (depth == 0) {
-				char sub[512];
+				char sub[1024];
 				snprintf(sub, sizeof(sub), "%s%s-", prefix, e->d_name);
 				scan_dir(l, cap, path, sub, desktop, depth + 1);
 			}

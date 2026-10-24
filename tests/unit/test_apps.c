@@ -10,9 +10,9 @@
 static char root[256];
 
 static void put(const char *rel, const char *text) {
-	char path[512];
+	char path[1024];
 	snprintf(path, sizeof(path), "%s/%s", root, rel);
-	char dir[512];
+	char dir[1024];
 	snprintf(dir, sizeof(dir), "%s", path);
 	for (char *p = dir + strlen(root) + 1; *p; p++) {
 		if (*p == '/') {
@@ -78,7 +78,7 @@ int main(void) {
 	put("sys/applications/kde/app.desktop",
 		"[Desktop Entry]\nType=Application\nName=Sub App\nExec=\"/opt/x y/run\" --flag\n");
 
-	char home[300], dirs[300];
+	char home[600], dirs[1200];
 	snprintf(home, sizeof(home), "%s/home", root);
 	snprintf(dirs, sizeof(dirs), "%s/sys:%s/none", root, root);
 	struct app_list l;
@@ -102,7 +102,7 @@ int main(void) {
 		str_is(l.apps[3].name, "Sub App"));
 	apps_free(&l);
 
-	char cmd[300];
+	char cmd[600];
 	snprintf(cmd, sizeof(cmd), "rm -rf '%s'", root);
 	if (system(cmd) != 0) {
 		fprintf(stderr, "could not remove %s\n", root);

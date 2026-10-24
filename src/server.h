@@ -26,6 +26,8 @@ struct twm_internal_view;
 struct twm_menu_ui;
 struct twm_hints;
 struct twm_prompt;
+struct wlr_input_device;
+struct wlr_touch;
 struct twm_func;
 
 /* Scene layers, back to front (D-4). */

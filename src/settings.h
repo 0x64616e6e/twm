@@ -112,6 +112,10 @@ struct twm_output_rule {
 
 enum twm_focus_policy { TWM_FOCUS_SLOPPY, TWM_FOCUS_CLICK };
 enum twm_placement { TWM_PLACE_INTERACTIVE, TWM_PLACE_CASCADE };
+/* INP-*: the touchpad, through libinput */
+enum twm_tp_scroll { TWM_TP_SCROLL_TWO_FINGER, TWM_TP_SCROLL_EDGE, TWM_TP_SCROLL_NONE };
+enum twm_tp_click { TWM_TP_CLICK_DEFAULT, TWM_TP_CLICK_AREAS, TWM_TP_CLICK_FINGERS };
+enum twm_tp_accel { TWM_TP_ACCEL_ADAPTIVE, TWM_TP_ACCEL_FLAT };
 enum twm_corner { TWM_TOP_LEFT, TWM_TOP_RIGHT, TWM_BOTTOM_LEFT, TWM_BOTTOM_RIGHT };
 enum twm_sort { TWM_SORT_NAME, TWM_SORT_STACK, TWM_SORT_AGE };
 
@@ -168,6 +172,14 @@ struct twm_config {
 	uint32_t quiet; /* bit n-1 = desktop n */
 	bool xwayland;
 	bool notifications; /* M6: serve org.freedesktop.Notifications if free */
+
+	/* INP-*: touchpad and touchscreen */
+	bool tp_tap, tp_tap_drag, tp_natural_scroll, tp_dwt;
+	enum twm_tp_scroll tp_scroll;
+	enum twm_tp_click tp_click;
+	double tp_speed; /* -1 … 1, libinput's pointer acceleration speed */
+	enum twm_tp_accel tp_accel;
+	bool touchscreen;
 };
 
 /*

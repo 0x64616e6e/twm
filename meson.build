@@ -50,6 +50,7 @@ wayland_server = dependency('wayland-server', version: '>=1.24')
 wayland_client = dependency('wayland-client', version: '>=1.24')
 wayland_protos = dependency('wayland-protocols', version: '>=1.41')
 xkbcommon = dependency('xkbcommon')
+libinput = dependency('libinput', version: '>=1.21')
 fcft = dependency('fcft', version: ['>=3.0.0', '<4.0.0'], include_type: 'system')
 math = cc.find_library('m', required: false)
 

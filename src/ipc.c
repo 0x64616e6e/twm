@@ -137,6 +137,8 @@ static bool handle_request(struct ipc_client *c, char *req) {
 		rc_reload(c->server, true, out, sizeof(out));
 	} else if (strncmp(req, "choose", 6) == 0 && (req[6] == '\t' || req[6] == '\n')) {
 		return start_choose(c, req);
+	} else if (strncmp(req, "touch ", 6) == 0) {
+		touch_test_request(c->server, req, out, sizeof(out)); /* --test only */
 	} else {
 		snprintf(out, sizeof(out), "unknown request \"%s\" (try: reload, choose)\n", req);
 	}
@@ -154,7 +156,8 @@ static bool request_complete(const char *buf) {
 
 static int handle_client(int fd, uint32_t mask, void *data) {
 	struct ipc_client *c = data;
-	if (mask & (WL_EVENT_HANGUP | WL_EVENT_ERROR)) {
+	/* A client may write its request and hang up at once: read it first. */
+	if ((mask & (WL_EVENT_HANGUP | WL_EVENT_ERROR)) && !(mask & WL_EVENT_READABLE)) {
 		client_close(c);
 		return 0;
 	}

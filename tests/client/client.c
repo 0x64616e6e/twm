@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
 #include <wayland-client.h>
@@ -26,6 +28,8 @@ struct tc {
 	struct wl_compositor *compositor;
 	struct wl_shm *shm;
 	struct wl_seat *seat;
+	struct wl_touch *touch;
+	struct tc_touch touched; /* what wl_touch reported */
 	struct wl_output *output;
 	struct xdg_wm_base *wm_base;
 	struct zwlr_screencopy_manager_v1 *screencopy;
@@ -183,6 +187,93 @@ static uint32_t min_u32(uint32_t a, uint32_t b) {
 	return a < b ? a : b;
 }
 
+/* --- touch: what twm sends, once its seat has a touchscreen --- */
+
+static void touch_down(void *data, struct wl_touch *t, uint32_t serial, uint32_t time,
+		struct wl_surface *surface, int32_t id, wl_fixed_t x, wl_fixed_t y) {
+	struct tc *tc = data;
+	tc->touched.downs++;
+	tc->touched.x = wl_fixed_to_double(x);
+	tc->touched.y = wl_fixed_to_double(y);
+	tc->touched.surface = surface;
+}
+static void touch_up(void *data, struct wl_touch *t, uint32_t serial, uint32_t time, int32_t id) {
+	((struct tc *)data)->touched.ups++;
+}
+static void touch_motion(void *data, struct wl_touch *t, uint32_t time, int32_t id,
+		wl_fixed_t x, wl_fixed_t y) {
+	struct tc *tc = data;
+	tc->touched.motions++;
+	tc->touched.x = wl_fixed_to_double(x);
+	tc->touched.y = wl_fixed_to_double(y);
+}
+static void touch_frame(void *data, struct wl_touch *t) {}
+static void touch_cancel(void *data, struct wl_touch *t) {}
+
+static const struct wl_touch_listener touch_listener = {
+	.down = touch_down, .up = touch_up, .motion = touch_motion,
+	.frame = touch_frame, .cancel = touch_cancel,
+};
+
+static void seat_capabilities(void *data, struct wl_seat *seat, uint32_t caps) {
+	struct tc *tc = data;
+	if ((caps & WL_SEAT_CAPABILITY_TOUCH) && !tc->touch) {
+		tc->touch = wl_seat_get_touch(seat);
+		wl_touch_add_listener(tc->touch, &touch_listener, tc);
+	}
+}
+
+static const struct wl_seat_listener seat_listener = {.capabilities = seat_capabilities};
+
+void tc_touch_state(struct tc *tc, struct tc_touch *out) {
+	*out = tc->touched;
+}
+
+bool tc_touched_window(struct tc *tc, struct tc_window *win) {
+	return tc->touched.surface && tc->touched.surface == win->surface;
+}
+
+int tc_twm_request(const char *request, char *reply, size_t len) {
+	char own[256];
+	if (!reply || !len) {
+		/* wait for the answer anyway: the request is done when it comes */
+		reply = own;
+		len = sizeof(own);
+	}
+	const char *path = getenv("TWM_SOCK");
+	if (reply && len) {
+		reply[0] = '\0';
+	}
+	if (!path) {
+		return -1;
+	}
+	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	struct sockaddr_un addr = {.sun_family = AF_UNIX};
+	snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
+	if (fd < 0 || connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+		if (fd >= 0) {
+			close(fd);
+		}
+		return -1;
+	}
+	char line[256];
+	snprintf(line, sizeof(line), "%s\n", request);
+	if (write(fd, line, strlen(line)) < 0) {
+		close(fd);
+		return -1;
+	}
+	size_t n = 0;
+	ssize_t r;
+	while (reply && n + 1 < len && (r = read(fd, reply + n, len - 1 - n)) > 0) {
+		n += (size_t)r;
+	}
+	if (reply && len) {
+		reply[n] = '\0';
+	}
+	close(fd);
+	return 0;
+}
+
 static void registry_global(void *data, struct wl_registry *reg, uint32_t name,
 		const char *iface, uint32_t version) {
 	struct tc *tc = data;
@@ -192,6 +283,7 @@ static void registry_global(void *data, struct wl_registry *reg, uint32_t name,
 		tc->shm = wl_registry_bind(reg, name, &wl_shm_interface, 1);
 	} else if (strcmp(iface, wl_seat_interface.name) == 0 && !tc->seat) {
 		tc->seat = wl_registry_bind(reg, name, &wl_seat_interface, 1);
+		wl_seat_add_listener(tc->seat, &seat_listener, tc);
 	} else if (strcmp(iface, wl_output_interface.name) == 0 && !tc->output) {
 		tc->output = wl_registry_bind(reg, name, &wl_output_interface, min_u32(version, 4));
 		wl_output_add_listener(tc->output, &output_listener, tc);

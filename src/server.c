@@ -109,6 +109,12 @@ static struct wlr_backend *create_backend(struct twm_server *server) {
 	return wlr_backend_autocreate(server->loop, &server->session);
 }
 
+uint64_t server_now_ms(void) {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
+}
+
 bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	server->opts = *opts;
 	/* Nested in another session (or headless), twm must not speak for the
@@ -117,6 +123,8 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 		!getenv("DISPLAY") && !getenv("WAYLAND_SOCKET");
 	theme_init_defaults(&server->theme);
 	wl_list_init(&server->views);
+	wl_list_init(&server->devices); /* before the config is applied (rc_init) */
+	server->touch_pointer = -1;
 	server->desktop = 1;
 	wl_list_init(&server->place_queue);
 	server->root_hit.kind = TWM_HIT_ROOT;
@@ -180,6 +188,7 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	layers_init(server);
 	decoration_init(server);
 	input_init(server);
+	touch_init(server);
 	focus_init(server);
 	capture_init(server);
 	outline_init(server);
@@ -252,6 +261,7 @@ void server_finish(struct twm_server *server) {
 	layers_finish(server);
 	decoration_finish(server);
 	focus_finish(server);
+	touch_finish(server);
 	input_finish(server);
 	output_finish(server);
 	outline_finish(server);

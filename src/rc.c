@@ -131,6 +131,7 @@ void rc_apply(struct twm_server *server, const struct twm_config *old) {
 	}
 	output_apply_config(server);
 	portal_config_changed(server); /* Notifications on/off */
+	input_configure_devices(server); /* INP-*: touchpad and touchscreen */
 
 	/* Roots: weave on/off; frames: colors, sizes, squeeze, NoTitle. */
 	struct twm_output *output;

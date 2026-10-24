@@ -76,6 +76,18 @@ struct tc_layer;
 struct tc_layer *tc_layer_bar(struct tc *tc, int height, int exclusive, uint32_t color);
 void tc_layer_destroy(struct tc_layer *layer);
 
+/* Touch, as this client's wl_touch saw it (INP-4). */
+struct tc_touch {
+	int downs, ups, motions;
+	double x, y; /* surface-local, the last down or motion */
+	struct wl_surface *surface; /* the last down's */
+};
+void tc_touch_state(struct tc *tc, struct tc_touch *out);
+bool tc_touched_window(struct tc *tc, struct tc_window *win);
+/* A request to twm's IPC socket ($TWM_SOCK); --test allows "touch down ID X Y",
+ * "touch move ID X Y", "touch up ID" on a touchscreen of twm's own. */
+int tc_twm_request(const char *request, char *reply, size_t len);
+
 /* Virtual pointer, layout coordinates of the single output. */
 void tc_pointer_move(struct tc *tc, double x, double y);
 void tc_pointer_button(struct tc *tc, uint32_t button, bool pressed);

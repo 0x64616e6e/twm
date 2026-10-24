@@ -2,6 +2,7 @@
  * M5 screenshot test: tab groups (GRP-1 … GRP-8) and hint mode
  * (HNT-1 … HNT-5), through real pointer and keyboard input.
  */
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -314,6 +315,47 @@ int main(int argc, char *argv[]) {
 	tc_expect("P-2", count_box(&img, 250, 770, 650, 1060, 0xFF00FF, 30) == 0,
 		"no client shadow drawn (%d magenta px)", count_box(&img, 250, 770, 650, 1060, 0xFF00FF, 30));
 	tc_window_destroy(sh);
+
+	/* --- INP-3 … INP-5: a touchscreen (twm's own, --test) --- */
+	struct tc_window *tw = place(tc, 1250, 220, (struct tc_window_opts){
+		.title = "touch", .app_id = "touch", .width = 300, .height = 200, .color = SURFACE});
+	char reply[64];
+	tc_twm_request("touch up 99", reply, sizeof(reply)); /* the device appears */
+	tc_wait(tc, 60);
+	tc_roundtrip(tc);
+	tc_expect("INP-4", strcmp(reply, "touch ok\n") == 0, "a touchscreen on the seat (%s)", reply);
+	/* INP-4: on an app that takes touch, touch goes to it, surface-local. */
+	tc_twm_request("touch down 1 1350 320", NULL, 0);
+	tc_twm_request("touch move 1 1360 330", NULL, 0);
+	tc_twm_request("touch up 1", NULL, 0);
+	tc_wait(tc, 60);
+	struct tc_touch t;
+	tc_touch_state(tc, &t);
+	int cx = 1250 + 1, cy = 220 + TH + 1; /* the client's corner on screen */
+	tc_expect("INP-4", t.downs == 1 && t.ups == 1 && t.motions == 1 && tc_touched_window(tc, tw),
+		"down, motion, up reached the window (%d %d %d)", t.downs, t.motions, t.ups);
+	tc_expect("INP-4", (int)lround(t.x) == 1360 - cx && (int)lround(t.y) == 330 - cy,
+		"at the finger, surface-local (%.0f,%.0f, want %d,%d)", t.x, t.y, 1360 - cx, 330 - cy);
+	tc_expect("FOC-5", tc_window_activated(tw), "the touch focused it");
+	/* INP-5: elsewhere a finger is the pointer: dragging the title moves it. */
+	tc_twm_request("touch down 2 1297 233", NULL, 0);
+	for (int i = 1; i <= 5; i++) {
+		char m[64];
+		snprintf(m, sizeof(m), "touch move 2 %d %d", 1297 + 20 * i, 233 + 10 * i);
+		tc_twm_request(m, NULL, 0);
+		tc_wait(tc, 10);
+	}
+	tc_twm_request("touch up 2", NULL, 0);
+	tc_wait(tc, 80);
+	shot(tc, &img);
+	snprintf(path, sizeof(path), "%.*s-touch.png", (int)strlen(out) - 4, out);
+	tc_image_write_png(&img, path);
+	tc_touch_state(tc, &t);
+	tc_expect("INP-5", near(tc_pixel(&img, 1250 + 100, 220 + TH + 50 + 100), ACCENT, 2) &&
+		!near(tc_pixel(&img, 1250, 220 + TH + 100), ACCENT, 2),
+		"a finger on the title dragged the window by (100,50)");
+	tc_expect("INP-5", t.downs == 1, "and the app got no touch for it (%d downs)", t.downs);
+	tc_window_destroy(tw);
 	tc_image_free(&img);
 
 	tc_window_destroy(d);

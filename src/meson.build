@@ -46,6 +46,7 @@ twm_src = twm_core_src + files(
   'server.c',
   'setwin.c',
   'text.c',
+  'touch.c',
   'ui.c',
   'view.c',
   'watch.c',
@@ -54,7 +55,7 @@ twm_src = twm_core_src + files(
 if have_xwayland
   twm_src += files('xwayland.c')
 endif
-twm_deps = [wlroots, wayland_server, server_protos, xkbcommon, pixman, fcft, math]
+twm_deps = [wlroots, wayland_server, server_protos, xkbcommon, pixman, fcft, libinput, math]
 if have_portal
   twm_src += files('portal.c')
   twm_deps += sdbus

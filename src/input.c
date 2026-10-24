@@ -1,5 +1,7 @@
 #include <stdlib.h>
+#include <libinput.h>
 #include <wlr/backend.h>
+#include <wlr/backend/libinput.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_cursor_shape_v1.h>
 #include <wlr/types/wlr_data_device.h>
@@ -172,6 +174,9 @@ static void update_capabilities(struct twm_server *server) {
 	if (!wl_list_empty(&server->keyboards)) {
 		caps |= WL_SEAT_CAPABILITY_KEYBOARD;
 	}
+	if (touch_present(server)) {
+		caps |= WL_SEAT_CAPABILITY_TOUCH; /* INP-4: clients may take touch */
+	}
 	wlr_seat_set_capabilities(server->seat, caps);
 }
 
@@ -210,6 +215,104 @@ static void add_keyboard(struct twm_server *server, struct wlr_keyboard *wlr_key
 	update_capabilities(server);
 }
 
+/* --- pointers and touchscreens: libinput's settings (INP-*) --- */
+
+static const char *onoff(bool on) {
+	return on ? "on" : "off";
+}
+
+/* The .twmrc's touchpad keys on a touchpad, Touchscreen on a touchscreen;
+ * other pointers (a mouse, a TrackPoint) keep libinput's defaults. */
+static void configure_device(struct twm_server *server, struct wlr_input_device *device) {
+	const struct twm_config *c = server->config;
+	if (!c || !wlr_input_device_is_libinput(device)) {
+		return;
+	}
+	struct libinput_device *ld = wlr_libinput_get_device_handle(device);
+	if (device->type == WLR_INPUT_DEVICE_TOUCH) {
+		libinput_device_config_send_events_set_mode(ld, c->touchscreen ?
+			LIBINPUT_CONFIG_SEND_EVENTS_ENABLED : LIBINPUT_CONFIG_SEND_EVENTS_DISABLED);
+		wlr_log(WLR_INFO, "touchscreen %s: %s", device->name, onoff(c->touchscreen));
+		return;
+	}
+	if (libinput_device_config_tap_get_finger_count(ld) == 0) {
+		return; /* not a touchpad */
+	}
+	libinput_device_config_tap_set_enabled(ld, c->tp_tap ?
+		LIBINPUT_CONFIG_TAP_ENABLED : LIBINPUT_CONFIG_TAP_DISABLED);
+	libinput_device_config_tap_set_drag_enabled(ld, c->tp_tap_drag ?
+		LIBINPUT_CONFIG_DRAG_ENABLED : LIBINPUT_CONFIG_DRAG_DISABLED);
+	if (libinput_device_config_scroll_has_natural_scroll(ld)) {
+		libinput_device_config_scroll_set_natural_scroll_enabled(ld, c->tp_natural_scroll);
+	}
+	if (libinput_device_config_dwt_is_available(ld)) {
+		libinput_device_config_dwt_set_enabled(ld, c->tp_dwt ?
+			LIBINPUT_CONFIG_DWT_ENABLED : LIBINPUT_CONFIG_DWT_DISABLED);
+	}
+	static const enum libinput_config_scroll_method scroll[] = {
+		LIBINPUT_CONFIG_SCROLL_2FG, LIBINPUT_CONFIG_SCROLL_EDGE, LIBINPUT_CONFIG_SCROLL_NO_SCROLL,
+	};
+	enum libinput_config_scroll_method sm = scroll[c->tp_scroll];
+	if (sm == LIBINPUT_CONFIG_SCROLL_NO_SCROLL ||
+			(libinput_device_config_scroll_get_methods(ld) & sm)) {
+		libinput_device_config_scroll_set_method(ld, sm);
+	}
+	enum libinput_config_click_method cm = libinput_device_config_click_get_default_method(ld);
+	if (c->tp_click == TWM_TP_CLICK_AREAS) {
+		cm = LIBINPUT_CONFIG_CLICK_METHOD_BUTTON_AREAS;
+	} else if (c->tp_click == TWM_TP_CLICK_FINGERS) {
+		cm = LIBINPUT_CONFIG_CLICK_METHOD_CLICKFINGER;
+	}
+	if (cm == LIBINPUT_CONFIG_CLICK_METHOD_NONE || (libinput_device_config_click_get_methods(ld) & cm)) {
+		libinput_device_config_click_set_method(ld, cm);
+	}
+	if (libinput_device_config_accel_is_available(ld)) {
+		libinput_device_config_accel_set_speed(ld, c->tp_speed);
+		libinput_device_config_accel_set_profile(ld, c->tp_accel == TWM_TP_ACCEL_FLAT ?
+			LIBINPUT_CONFIG_ACCEL_PROFILE_FLAT : LIBINPUT_CONFIG_ACCEL_PROFILE_ADAPTIVE);
+	}
+	static const char *const scroll_name[] = {"two-finger", "edge", "none"};
+	static const char *const click_name[] = {"default", "areas", "clickfinger"};
+	wlr_log(WLR_INFO, "touchpad %s: tap %s, drag %s, natural scroll %s, while typing %s, "
+		"scroll %s, click %s, speed %.2f, accel %s", device->name, onoff(c->tp_tap),
+		onoff(c->tp_tap_drag), onoff(c->tp_natural_scroll), c->tp_dwt ? "ignored" : "used",
+		scroll_name[c->tp_scroll], click_name[c->tp_click], c->tp_speed,
+		c->tp_accel == TWM_TP_ACCEL_FLAT ? "flat" : "adaptive");
+}
+
+void input_configure_devices(struct twm_server *server) {
+	struct twm_device *d;
+	wl_list_for_each(d, &server->devices, link) {
+		configure_device(server, d->device);
+	}
+}
+
+static void device_handle_destroy(struct wl_listener *listener, void *data) {
+	struct twm_device *d = wl_container_of(listener, d, destroy);
+	struct twm_server *server = d->server;
+	wl_list_remove(&d->destroy.link);
+	wl_list_remove(&d->link);
+	free(d);
+	update_capabilities(server);
+}
+
+static void add_device(struct twm_server *server, struct wlr_input_device *device) {
+	struct twm_device *d = calloc(1, sizeof(*d));
+	if (!d) {
+		return;
+	}
+	d->server = server;
+	d->device = device;
+	d->destroy.notify = device_handle_destroy;
+	wl_signal_add(&device->events.destroy, &d->destroy);
+	wl_list_insert(&server->devices, &d->link);
+	configure_device(server, device);
+	wlr_cursor_attach_input_device(server->cursor, device);
+	if (device->type == WLR_INPUT_DEVICE_TOUCH) {
+		touch_map(server); /* INP-3: onto its own screen */
+	}
+}
+
 static void handle_new_input(struct wl_listener *listener, void *data) {
 	struct twm_server *server = wl_container_of(listener, server, new_input);
 	struct wlr_input_device *device = data;
@@ -218,7 +321,8 @@ static void handle_new_input(struct wl_listener *listener, void *data) {
 		add_keyboard(server, wlr_keyboard_from_input_device(device), true, false);
 		break;
 	case WLR_INPUT_DEVICE_POINTER:
-		wlr_cursor_attach_input_device(server->cursor, device);
+	case WLR_INPUT_DEVICE_TOUCH:
+		add_device(server, device);
 		break;
 	default:
 		break;
@@ -272,7 +376,7 @@ void input_update_pointer_focus(struct twm_server *server, uint32_t time_msec) {
 	}
 }
 
-static void pointer_moved(struct twm_server *server, uint32_t time_msec) {
+void input_pointer_moved(struct twm_server *server, uint32_t time_msec) {
 	if (server->prompt) {
 		return; /* TRU-4: nothing under the pointer reacts */
 	}
@@ -298,7 +402,7 @@ static void handle_cursor_motion(struct wl_listener *listener, void *data) {
 		return; /* TRU-4 */
 	}
 	wlr_cursor_move(server->cursor, &event->pointer->base, event->delta_x, event->delta_y);
-	pointer_moved(server, event->time_msec);
+	input_pointer_moved(server, event->time_msec);
 }
 
 static void handle_cursor_motion_absolute(struct wl_listener *listener, void *data) {
@@ -308,7 +412,7 @@ static void handle_cursor_motion_absolute(struct wl_listener *listener, void *da
 		return; /* TRU-4 */
 	}
 	wlr_cursor_warp_absolute(server->cursor, &event->pointer->base, event->x, event->y);
-	pointer_moved(server, event->time_msec);
+	input_pointer_moved(server, event->time_msec);
 }
 
 static uint32_t button_bit(uint32_t button) {
@@ -394,10 +498,13 @@ static bool handle_press(struct twm_server *server, uint32_t button) {
 	return context != TWM_CTX_WINDOW;
 }
 
-static void handle_cursor_button(struct wl_listener *listener, void *data) {
-	struct twm_server *server = wl_container_of(listener, server, cursor_button);
-	struct wlr_pointer_button_event *event = data;
-	bool pressed = event->state == WL_POINTER_BUTTON_STATE_PRESSED;
+/* A button from a pointer, or from a finger acting as one (touch.c). */
+void input_button(struct twm_server *server, struct wlr_input_device *device,
+		uint32_t time_msec, uint32_t button, bool pressed) {
+	const struct { uint32_t button, time_msec; enum wl_pointer_button_state state; } ev = {
+		button, time_msec,
+		pressed ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED,
+	}, *event = &ev;
 	uint32_t bit = button_bit(event->button);
 
 	bool consumed;
@@ -408,7 +515,7 @@ static void handle_cursor_button(struct wl_listener *listener, void *data) {
 		} else {
 			server->consumed_buttons &= ~bit;
 		}
-		if (!synthetic_device(&event->pointer->base)) {
+		if (!synthetic_device(device)) {
 			prompt_pointer_button(server, event->button, pressed);
 		}
 		return;
@@ -458,6 +565,13 @@ static void handle_cursor_button(struct wl_listener *listener, void *data) {
 		wlr_seat_pointer_notify_button(server->seat, event->time_msec,
 			event->button, event->state);
 	}
+}
+
+static void handle_cursor_button(struct wl_listener *listener, void *data) {
+	struct twm_server *server = wl_container_of(listener, server, cursor_button);
+	struct wlr_pointer_button_event *event = data;
+	input_button(server, &event->pointer->base, event->time_msec, event->button,
+		event->state == WL_POINTER_BUTTON_STATE_PRESSED);
 }
 
 static void handle_cursor_axis(struct wl_listener *listener, void *data) {

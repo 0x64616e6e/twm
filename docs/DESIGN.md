@@ -188,6 +188,9 @@ accent can change:
   touches the border's top edge, its left edge lines up with the frame's
   outer left edge (for `SqueezeTitle left`). Frame outer size =
   client + 2·`BorderWidth` wide, client + 2·`BorderWidth` + `TitleHeight` tall.
+  *Decided (after M7):* a client's own shadow or rounded corners outside its
+  window geometry are cut off (P-2); its popups are not, so menus may reach
+  past its edge.
 - **FRM-3** `[M1 · B0]` Tab layout, left to right: iconify box, 1 px
   separator, 14 padding, title text, 14 padding, *(focused only: 72 hatch,
   8 gap)*, 1 px separator, resize box.
@@ -772,6 +775,42 @@ accent can change:
     libpolkit-agent (or reimplementing its helper protocol), a dependency
     question for the owner (§7). The trusted frame is ready for it.
 
+### INP — touchpad and touchscreen
+
+- **INP-1** `[owner, after M7]` The touchpad's settings are `.twmrc` keys,
+  applied through libinput to every touchpad (a device with tap fingers) at
+  once and again on each reload: `TouchpadTap`, `TouchpadTapDrag`,
+  `TouchpadNaturalScroll`, `TouchpadDisableWhileTyping`, `TouchpadScroll`
+  (two-finger/edge/none), `TouchpadClick` (default/areas/clickfinger),
+  `TouchpadSpeed` (−1 … 1), `TouchpadAccel` (adaptive/flat). Other pointers
+  (a mouse, a TrackPoint) keep libinput's own defaults. *Decided:* the
+  defaults are tap and tap-and-drag on, natural scrolling off, the touchpad
+  resting while typing, two-finger scrolling, the device's click method,
+  speed 0, adaptive — libinput's, except tap, which most laptops want and
+  libinput leaves off.
+- **INP-2** `[owner, after M7]` A setting a device doesn't have (natural
+  scrolling on a pad without it, an unsupported scroll or click method) is
+  left alone on that device, not an error. The log names each touchpad and
+  what it was given.
+- **INP-3** `[owner, after M7]` A touchscreen is mapped to its own output:
+  the one udev names for it (`WL_OUTPUT`), else the built-in panel (eDP,
+  LVDS, DSI), else the only output; again whenever outputs change.
+  `Touchscreen off` turns it off (libinput stops sending its events).
+- **INP-4** `[owner, after M7]` A finger on an app that takes touch is
+  touch, for that app, in its own coordinates; the touch focuses (and with
+  `RaiseOnClick`, raises) the window, as a press does (FOC-5). The seat
+  offers touch only while a touchscreen is present.
+- **INP-5** `[owner, after M7]` Everywhere else — twm's tabs, buttons and
+  windows, the root, the Icon Manager, an app that takes no touch — the
+  first finger is the pointer: the pointer goes there, touching is a B1
+  press and lifting the release, so a tap clicks and a drag moves. While a
+  grab, a menu, click-to-select, hint mode or a trusted prompt is up, every
+  finger is the pointer (a prompt still takes it, TRU-4: a touchscreen is a
+  real device). Only one finger at a time is the pointer.
+- **INP-6** `[owner, after M7]` *Decided — tests:* with `--test`, the IPC
+  socket takes `touch down|move|up …`, which twm turns into events of a
+  touchscreen of its own, through the same path a real one's take.
+
 ### SET — settings, as a file
 
 - **SET-1** `[M7 · B8]` A Settings window, `settings — ~/.twmrc`, edits the
@@ -779,6 +818,8 @@ accent can change:
 - **SET-2** `[M7 · B8]` Sections: Look, Frames, Focus, Keys & buttons,
   Desktops, Outputs, Privacy, Menus; a `filter keys…` field narrows the
   controls. The nav footer reads `Everything here is also man 5 twmrc.`
+  *After M7, at the owner's request:* a ninth section, "Touchpad & touch",
+  after Focus (INP-1, INP-3).
 - **SET-3** `[M7 · B8]` Each control row shows its label, the control, and the
   `.twmrc` key it writes (12 px `dim`, right-aligned); a changed key turns
   `accent` with ` ●`.
@@ -998,6 +1039,15 @@ each milestone; CFG-3 says an unlisted key is an error.
 | `Quiet` | `{ }` | desktop numbers | URG-3 |
 | `XWayland` | `on` | on/off (takes effect at the next start) | GEN-6 |
 | `Notifications` | `on` | on/off: serve `org.freedesktop.Notifications` as root lines, if no one else does | D-10 |
+| `TouchpadTap` | `on` | on/off | INP-1 |
+| `TouchpadTapDrag` | `on` | on/off | INP-1 |
+| `TouchpadNaturalScroll` | `off` | on/off | INP-1 |
+| `TouchpadDisableWhileTyping` | `on` | on/off | INP-1 |
+| `TouchpadScroll` | `two-finger` | two-finger/edge/none | INP-1 |
+| `TouchpadClick` | `default` | default/areas/clickfinger | INP-1 |
+| `TouchpadSpeed` | `0` | −1 … 1 | INP-1 |
+| `TouchpadAccel` | `adaptive` | adaptive/flat | INP-1 |
+| `Touchscreen` | `on` | on/off | INP-3 |
 | `NoDefaultBindings` | — | no value | CFG-14 |
 | `ButtonN = context : function` | see KEY | contexts: root, title, iconify, resize, window, icon, iconmgr | FRM-12 |
 | `"key" : function` | see KEY | | KEY |

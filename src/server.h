@@ -206,6 +206,13 @@ struct twm_server {
 	struct wl_listener request_set_primary_selection;
 	struct wl_listener pointer_focus_change;
 
+	/* INP-*: pointers and touchscreens (libinput's settings), the touchscreen */
+	struct wl_list devices; /* twm_device.link */
+	struct wl_listener cursor_touch_down, cursor_touch_up, cursor_touch_motion,
+		cursor_touch_cancel, cursor_touch_frame;
+	int32_t touch_pointer; /* the touch point acting as the pointer, or -1 */
+	struct wlr_touch *test_touch; /* --test: a touchscreen driven over IPC */
+
 	struct wlr_virtual_pointer_manager_v1 *virtual_pointer;
 	struct wl_listener new_virtual_pointer;
 	struct wlr_virtual_keyboard_manager_v1 *virtual_keyboard;
@@ -282,6 +289,32 @@ void decoration_finish(struct twm_server *server);
 void input_init(struct twm_server *server);
 void input_finish(struct twm_server *server);
 void input_update_pointer_focus(struct twm_server *server, uint32_t time_msec);
+/* The pointer moved (a device, or a finger acting as one): grabs, menus, focus. */
+void input_pointer_moved(struct twm_server *server, uint32_t time_msec);
+/* A button from a pointer, or from a finger acting as one (touch.c). */
+void input_button(struct twm_server *server, struct wlr_input_device *device,
+	uint32_t time_msec, uint32_t button, bool pressed);
+/* INP-*: apply the config's touchpad and touchscreen settings again. */
+void input_configure_devices(struct twm_server *server);
+
+/* A pointer or a touchscreen (input.c), with libinput's settings applied. */
+struct twm_device {
+	struct wl_list link; /* twm_server.devices */
+	struct twm_server *server;
+	struct wlr_input_device *device;
+	struct wl_listener destroy;
+};
+
+/* touch.c: the touchscreen (INP-3 … INP-5) */
+void touch_init(struct twm_server *server);
+void touch_finish(struct twm_server *server);
+bool touch_present(struct twm_server *server);
+/* Map each touchscreen onto its output (devices or outputs changed). */
+void touch_map(struct twm_server *server);
+/* `--test`: "touch down|move|up ..." from the IPC socket. */
+bool touch_test_request(struct twm_server *server, const char *req, char *reply, size_t len);
+/* Monotonic milliseconds. */
+uint64_t server_now_ms(void);
 
 /* xdg.c */
 void xdg_init(struct twm_server *server);

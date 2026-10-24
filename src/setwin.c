@@ -61,12 +61,13 @@
 #define MAX_HITS 256
 
 enum section {
-	SEC_LOOK, SEC_FRAMES, SEC_FOCUS, SEC_KEYS, SEC_DESKTOPS, SEC_OUTPUTS, SEC_PRIVACY,
-	SEC_MENUS, SEC_COUNT,
+	SEC_LOOK, SEC_FRAMES, SEC_FOCUS, SEC_INPUT, SEC_KEYS, SEC_DESKTOPS, SEC_OUTPUTS,
+	SEC_PRIVACY, SEC_MENUS, SEC_COUNT,
 };
 
 static const char *const section_names[SEC_COUNT] = {
-	"Look", "Frames", "Focus", "Keys & buttons", "Desktops", "Outputs", "Privacy", "Menus",
+	"Look", "Frames", "Focus", "Touchpad & touch", "Keys & buttons", "Desktops", "Outputs",
+	"Privacy", "Menus",
 };
 
 enum ctl_kind {
@@ -194,6 +195,16 @@ static int get_icons_root(const struct twm_config *c) { return c->icons_on_root;
 static int get_quiet(const struct twm_config *c) { return (int)c->quiet; }
 static int get_xwayland(const struct twm_config *c) { return c->xwayland; }
 static int get_notifications(const struct twm_config *c) { return c->notifications; }
+static int get_tp_tap(const struct twm_config *c) { return c->tp_tap; }
+static int get_tp_tap_drag(const struct twm_config *c) { return c->tp_tap_drag; }
+static int get_tp_natural(const struct twm_config *c) { return c->tp_natural_scroll; }
+static int get_tp_dwt(const struct twm_config *c) { return c->tp_dwt; }
+static int get_tp_scroll(const struct twm_config *c) { return c->tp_scroll; }
+static int get_tp_click(const struct twm_config *c) { return c->tp_click; }
+static int get_tp_accel(const struct twm_config *c) { return c->tp_accel; }
+static int get_touchscreen(const struct twm_config *c) { return c->touchscreen; }
+/* -1 … 1 as a percentage, for the slider */
+static int get_tp_speed(const struct twm_config *c) { return (int)lround(c->tp_speed * 100); }
 
 /* A string as .twmrc writes it: quoted, \" and \\ escaped. */
 static void quote(const char *s, char *out, size_t len) {
@@ -249,6 +260,10 @@ static void fmt_number(const struct twm_config *c, const struct ctl *ctl, int v,
 static void fmt_onoff(const struct twm_config *c, const struct ctl *ctl, int v,
 		const char *text, char *out, size_t len) {
 	snprintf(out, len, "%s", v ? "on" : "off");
+}
+static void fmt_speed(const struct twm_config *c, const struct ctl *ctl, int v,
+		const char *text, char *out, size_t len) {
+	snprintf(out, len, "%g", v / 100.0);
 }
 static void fmt_bits(const struct twm_config *c, const struct ctl *ctl, int v,
 		const char *text, char *out, size_t len) {
@@ -381,6 +396,27 @@ static const struct ctl ctls[] = {
 		.step = 1, .unit = "px", .get = get_snap_distance, .format = fmt_number},
 	{SEC_FOCUS, "Modifier", "Modifier", NULL, CK_SEG, {"logo", "alt"}, {"Mod4", "Alt"}, 2,
 		.get = get_modifier, .format = fmt_word},
+	/* Touchpad & touch (INP-*) */
+	{SEC_INPUT, "Tap to click", "TouchpadTap", NULL, CK_CHECK, {"a tap is a click"}, .nopts = 1,
+		.get = get_tp_tap, .format = fmt_onoff},
+	{SEC_INPUT, "Tap and drag", "TouchpadTapDrag", NULL, CK_CHECK, {"tap, then drag"},
+		.nopts = 1, .get = get_tp_tap_drag, .format = fmt_onoff},
+	{SEC_INPUT, "Natural scroll", "TouchpadNaturalScroll", NULL, CK_CHECK,
+		{"content follows the fingers"}, .nopts = 1, .get = get_tp_natural,
+		.format = fmt_onoff},
+	{SEC_INPUT, "While typing", "TouchpadDisableWhileTyping", NULL, CK_CHECK,
+		{"the touchpad rests"}, .nopts = 1, .get = get_tp_dwt, .format = fmt_onoff},
+	{SEC_INPUT, "Scroll with", "TouchpadScroll", NULL, CK_SEG, {"two fingers", "the edge", "off"},
+		{"two-finger", "edge", "none"}, 3, .get = get_tp_scroll, .format = fmt_word},
+	{SEC_INPUT, "Click with", "TouchpadClick", NULL, CK_SEG, {"default", "areas", "fingers"},
+		{"default", "areas", "clickfinger"}, 3, .get = get_tp_click, .format = fmt_word},
+	{SEC_INPUT, "Speed", "TouchpadSpeed", NULL, CK_SLIDER, .min = -100, .max = 100, .step = 10,
+		.unit = "%", .get = get_tp_speed, .format = fmt_speed},
+	{SEC_INPUT, "Acceleration", "TouchpadAccel", NULL, CK_SEG, {"adaptive", "flat"},
+		{"adaptive", "flat"}, 2, .get = get_tp_accel, .format = fmt_word},
+	{SEC_INPUT, "Touchscreen", "Touchscreen", NULL, CK_CHECK,
+		{"touch for apps, else the pointer"}, .nopts = 1,
+		.get = get_touchscreen, .format = fmt_onoff},
 	/* Keys & buttons */
 	{SEC_KEYS, "Terminal", "Terminal", NULL, CK_TEXT, .get_text = text_terminal,
 		.format = fmt_quoted},
@@ -1181,14 +1217,19 @@ static void draw_controls(struct setwin *sw, const struct cv *cv) {
 			c->kind == CK_LIST ? 12 + LIST_LINE : h;
 		text(cv, F_LABEL, TWM_WEIGHT_REGULAR, C(t->ink), x0, c->kind == CK_LIST ? y + 12 : ly,
 			c->kind == CK_LIST ? LIST_LINE : lh, c->label, COL_LABEL, 0);
-		double cx = x0 + COL_LABEL + COL_GAP, cw = x1 - COL_KEY - COL_GAP - cx;
-		draw_control(sw, cv, list[k], cx, y, cw, h);
+		char key[48] = "";
+		bool changed = key_changed(sw, c);
+		double kw = 0;
 		if (c->key || c->kind == CK_INFO) {
-			char key[48];
-			bool changed = key_changed(sw, c);
 			snprintf(key, sizeof(key), "%s%s", c->key ? c->key : "\xe2\x80\x94",
 				changed ? " \xe2\x97\x8f" : "");
-			double kw = text_w(cv, F_CTL, TWM_WEIGHT_REGULAR, key, 0);
+			kw = text_w(cv, F_CTL, TWM_WEIGHT_REGULAR, key, 0);
+		}
+		/* the control gives way to a long key (TouchpadDisableWhileTyping) */
+		double cx = x0 + COL_LABEL + COL_GAP;
+		double cw = x1 - (kw > COL_KEY ? kw : COL_KEY) - COL_GAP - cx;
+		draw_control(sw, cv, list[k], cx, y, cw, h);
+		if (key[0]) {
 			text(cv, F_CTL, TWM_WEIGHT_REGULAR, C(changed ? t->accent : t->dim), x1 - kw,
 				ly, lh, key, 0, 0);
 		}

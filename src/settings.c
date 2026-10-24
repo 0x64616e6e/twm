@@ -41,6 +41,16 @@ const char config_default_twmrc[] =
 	"XWayland         on\n"
 	"Notifications    on\n"
 	"\n"
+	"TouchpadTap                 on\n"
+	"TouchpadTapDrag             on\n"
+	"TouchpadNaturalScroll       off\n"
+	"TouchpadDisableWhileTyping  on\n"
+	"TouchpadScroll              two-finger\n"
+	"TouchpadClick               default\n"
+	"TouchpadSpeed               0\n"
+	"TouchpadAccel               adaptive\n"
+	"Touchscreen                 on\n"
+	"\n"
 	"Button1 = root    : f.menu \"main\"\n"
 	"Button1 = title   : f.raisemove\n"
 	"Button2 = title   : f.move\n"
@@ -589,6 +599,44 @@ static void k_remember(struct ctx *c) { set_bool(c, &c->cfg->remember_geometry);
 static void k_icons_on_root(struct ctx *c) { set_bool(c, &c->cfg->icons_on_root); }
 static void k_xwayland(struct ctx *c) { set_bool(c, &c->cfg->xwayland); }
 static void k_notifications(struct ctx *c) { set_bool(c, &c->cfg->notifications); }
+static void k_tp_tap(struct ctx *c) { set_bool(c, &c->cfg->tp_tap); }
+static void k_tp_tap_drag(struct ctx *c) { set_bool(c, &c->cfg->tp_tap_drag); }
+static void k_tp_natural(struct ctx *c) { set_bool(c, &c->cfg->tp_natural_scroll); }
+static void k_tp_dwt(struct ctx *c) { set_bool(c, &c->cfg->tp_dwt); }
+static void k_touchscreen(struct ctx *c) { set_bool(c, &c->cfg->touchscreen); }
+
+static void k_tp_scroll(struct ctx *c) {
+	static const char *const ch[] = {"two-finger", "edge", "none", NULL};
+	int v = (int)c->cfg->tp_scroll;
+	set_choice(c, &v, ch);
+	c->cfg->tp_scroll = (enum twm_tp_scroll)v;
+}
+
+static void k_tp_click(struct ctx *c) {
+	static const char *const ch[] = {"default", "areas", "clickfinger", NULL};
+	int v = (int)c->cfg->tp_click;
+	set_choice(c, &v, ch);
+	c->cfg->tp_click = (enum twm_tp_click)v;
+}
+
+static void k_tp_accel(struct ctx *c) {
+	static const char *const ch[] = {"adaptive", "flat", NULL};
+	int v = (int)c->cfg->tp_accel;
+	set_choice(c, &v, ch);
+	c->cfg->tp_accel = (enum twm_tp_accel)v;
+}
+
+static void k_tp_speed(struct ctx *c) {
+	if (!want_n(c, 1, "a number from -1 to 1")) {
+		return;
+	}
+	const struct twmrc_node *n = &values(c)->nodes[0];
+	if (n->kind != TWMRC_NUMBER || n->number < -1 || n->number > 1) {
+		ERR(c, "TouchpadSpeed wants a number from -1 (slow) to 1 (fast)");
+		return;
+	}
+	c->cfg->tp_speed = n->number;
+}
 static void k_focus_delay(struct ctx *c) { set_int(c, &c->cfg->focus_delay, 0, 1000); }
 static void k_snap_distance(struct ctx *c) { set_int(c, &c->cfg->snap_distance, 0, 64); }
 static void k_root_line_timeout(struct ctx *c) { set_int(c, &c->cfg->root_line_timeout, 1, 3600); }
@@ -945,6 +993,15 @@ static const struct {
 	{"TitleHighlight", k_title_highlight},
 	{"XWayland", k_xwayland},
 	{"Notifications", k_notifications},
+	{"TouchpadTap", k_tp_tap},
+	{"TouchpadTapDrag", k_tp_tap_drag},
+	{"TouchpadNaturalScroll", k_tp_natural},
+	{"TouchpadDisableWhileTyping", k_tp_dwt},
+	{"TouchpadScroll", k_tp_scroll},
+	{"TouchpadClick", k_tp_click},
+	{"TouchpadSpeed", k_tp_speed},
+	{"TouchpadAccel", k_tp_accel},
+	{"Touchscreen", k_touchscreen},
 };
 
 /* Keys that may appear more than once (they add rather than replace). */

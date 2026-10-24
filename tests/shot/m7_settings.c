@@ -273,6 +273,31 @@ int main(int argc, char *argv[]) {
 	tc_expect("SET-6", strcmp(disk, "# by hand\nTitleHeight 30\nFocusPolicy   click\n") == 0,
 		"keys only: FocusPolicy click, written with Ctrl-S");
 	free(disk);
+	/* INP-*: Touchpad & touch, by keys: natural scrolling on, the speed up. */
+	key(tc, TC_KEY_TAB);                     /* Focus -> Touchpad & touch */
+	for (int i = 0; i < 3; i++) {
+		key(tc, TC_KEY_DOWN);                /* Tap, Tap and drag, Natural scroll */
+	}
+	key(tc, 57);                             /* Space: ticks it */
+	for (int i = 0; i < 4; i++) {
+		key(tc, TC_KEY_DOWN);                /* to Speed */
+	}
+	key(tc, TC_KEY_RIGHT);
+	key(tc, TC_KEY_RIGHT);
+	tc_wait(tc, 40);
+	shot(tc, &img);
+	snprintf(path, sizeof(path), "%.*s-input.png", (int)strlen(out) - 4, out);
+	tc_image_write_png(&img, path);
+	tc_chord(tc, 2, KEY_LEFTCTRL, KEY_S);
+	tc_wait(tc, 150);
+	disk = read_file(rc_path);
+	tc_expect("INP-1", strcmp(disk, "# by hand\nTitleHeight 30\nFocusPolicy   click\n"
+		"TouchpadNaturalScroll on\nTouchpadSpeed 0.2\n") == 0,
+		"Touchpad & touch: natural scrolling, speed 0.2, written");
+	if (strncmp(disk, "# by hand", 9) == 0 && !strstr(disk, "TouchpadSpeed 0.2")) {
+		printf("---\n%s---\n", disk);
+	}
+	free(disk);
 	static const char *const names[] = {"keys", "desktops", "outputs", "privacy", "menus",
 		"look"};
 	for (int i = 0; i < 6; i++) {

@@ -78,6 +78,7 @@ FreeBSD; `-Dportal=disabled` to build without). The UI font is IBM Plex Mono.
 | `M-z`, `M-S-z` | undo / redo the focused window's last move, resize, iconify, squeeze, send |
 | `M-S-h` | the history view |
 | `M-,` | Settings: change `~/.twmrc` with the diff in view; Write applies it, `M-z` undoes |
+| a finger on the touchscreen | touch, for apps that take it; elsewhere the pointer: tap to click, drag to move |
 | hold `M` while dragging | move freely; otherwise outlines snap to edges and thirds |
 | B3 while placing | fit the new window into the empty space around the pointer |
 | `M-Return` | `foot` |
@@ -114,6 +115,16 @@ twm --reload
 ```
 
 Window positions are remembered per app id in `$XDG_STATE_HOME/twm/geometry`.
+
+The touchpad is set in the same file (or under Settings → Touchpad & touch):
+
+```
+TouchpadTap            on
+TouchpadNaturalScroll  on
+TouchpadSpeed          0.3
+TouchpadClick          clickfinger
+Touchscreen            on
+```
 
 ## Privacy and prompts
 

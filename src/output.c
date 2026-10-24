@@ -198,6 +198,7 @@ void output_arrange(struct twm_server *server) {
 	root_update_text(server);
 	rootline_update(server);
 	prompt_layout(server);
+	touch_map(server); /* INP-3: a touchscreen follows its output */
 	/* Frames are drawn at the largest output scale (GEN-3). */
 	float scale = output_max_scale(server);
 	if (scale != server->frame_scale) {

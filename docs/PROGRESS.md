@@ -2,6 +2,35 @@
 
 Newest milestone first. Requirement IDs refer to [DESIGN.md](DESIGN.md).
 
+## After M7 — on real hardware (2026-10-24)
+
+twm now runs as the desktop on a ThinkPad (Intel graphics, a 1920×1200 panel,
+an ELAN touchpad and touchscreen), started from Draftpaper's login screen.
+
+**Done**
+- A session: `twm-session` and a "Tom's WM" entry in `wayland-sessions`,
+  installed by meson; Draftpaper's greeter gained a session picker.
+- Apps that draw their own shadows (Firefox, Electron) sat up and to the left
+  of their frames: twm subtracted their window-geometry offset twice. Fixed,
+  and what a client draws outside its geometry is cut off (P-2).
+- A window that resizes itself (foot on a font change) keeps that size
+  (OUT-17); tabs in a group keep sharing one, changed only by a resize.
+- Touchpad settings (INP-1, INP-2): tap, tap-and-drag, natural scrolling,
+  resting while typing, scroll and click methods, speed, acceleration — keys
+  in `.twmrc`, applied through libinput on start and on every reload, and a
+  "Touchpad & touch" section in Settings.
+- The touchscreen (INP-3 … INP-6): touch for apps that take it, and
+  elsewhere a finger is the pointer; mapped to the built-in panel.
+- FreeBSD 15.1 tested in a VM; CI green on Arch, Debian and FreeBSD.
+
+**Tests**: a shadowed client fills its frame with no shadow showing; a touch
+reaches a window at the finger, and a finger drags a title like the pointer
+without the app seeing it (`--test`'s own touchscreen, INP-6); the Settings
+section is driven by keys.
+
+**Not verified**: the touchpad settings and the touchscreen on the real
+devices (the tests have neither); an app that takes touch on the real panel.
+
 ## M7 — Settings, as a file (2026-10-24)
 
 **Done**

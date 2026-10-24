@@ -54,8 +54,16 @@ static int handle_sigchld(int signo, void *data) {
 			continue;
 		}
 		server->startup_pid = 0;
-		int code = WIFEXITED(status) ? WEXITSTATUS(status) : 128;
-		wlr_log(WLR_INFO, "startup command exited with %d", code);
+		int code;
+		if (WIFSIGNALED(status)) {
+			/* as a shell reports it: 128 + the signal */
+			code = 128 + WTERMSIG(status);
+			wlr_log(WLR_INFO, "startup command killed by signal %d (%s)", WTERMSIG(status),
+				strsignal(WTERMSIG(status)));
+		} else {
+			code = WIFEXITED(status) ? WEXITSTATUS(status) : 128;
+			wlr_log(WLR_INFO, "startup command exited with %d", code);
+		}
 		if (server->opts.exit_with_startup) {
 			server->exit_code = code;
 			wl_display_terminate(server->display);

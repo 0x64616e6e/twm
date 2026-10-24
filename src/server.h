@@ -102,6 +102,7 @@ struct twm_server {
 	struct twm_config *config;
 	char *config_path;
 	char *config_text;
+	time_t config_applied; /* FET-3: when the running config was applied */
 	struct twm_watch *watch;
 	struct twm_rootline *rootline;
 	int ipc_fd;

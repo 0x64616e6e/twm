@@ -2,16 +2,19 @@
 twm_core_src = files(
   'apps.c',
   'draw.c',
+  'fetchfmt.c',
   'geomem.c',
   'geometry.c',
   'hintcode.c',
   'history.c',
+  'ipcclient.c',
   'intent.c',
   'levels.c',
   'rcedit.c',
   'squeeze.c',
   'settings.c',
   'snap.c',
+  'sysinfo.c',
   'theme.c',
   'twmrc.c',
 )
@@ -30,6 +33,7 @@ twm_src = twm_core_src + files(
   'histview.c',
   'icons.c',
   'imgr.c',
+  'info.c',
   'input.c',
   'internal.c',
   'ipc.c',
@@ -69,6 +73,15 @@ twm_exe = executable(
   'twm',
   twm_src,
   dependencies: twm_deps,
+  include_directories: config_inc,
+  install: true,
+)
+
+# FET-*: twmfetch, the machine's facts and Tom's WM's own.
+twmfetch_exe = executable(
+  'twmfetch',
+  files('fetch.c', 'fetchfmt.c', 'sysinfo.c', 'ipcclient.c', 'history.c', 'theme.c'),
+  dependencies: [math],
   include_directories: config_inc,
   install: true,
 )

@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include "ipcclient.h"
 
 struct twm_server;
 
@@ -14,8 +15,6 @@ struct twm_server;
 void ipc_init(struct twm_server *server);
 void ipc_finish(struct twm_server *server);
 
-/* Socket path for a Wayland display name; false if XDG_RUNTIME_DIR is unset. */
-bool ipc_socket_path(const char *display, char *buf, size_t len);
 
 /* Client side, for `twm --reload`: send `request`, print the answer to
  * stdout, return 0 if it starts with "config ok". */

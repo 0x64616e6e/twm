@@ -132,6 +132,13 @@ TouchpadClick          clickfinger
 Touchscreen            on
 ```
 
+## twmfetch
+
+`twmfetch` prints this machine's facts and the ones only Tom's WM knows
+(open frames, tab groups, desktops, outputs, whether your `.twmrc` passes
+its check) beside the logo, in your theme's colors. `--json` for scripts,
+`--short` for a prompt, `--logo off` for the facts alone.
+
 ## Privacy and prompts
 
 A window never takes the focus because it asked: it is marked, and `M-u`

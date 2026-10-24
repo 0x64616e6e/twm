@@ -9,6 +9,8 @@
 #include <unistd.h>
 #include <wlr/util/log.h>
 #include "ipc.h"
+#include "ipcclient.h"
+#include "info.h"
 #include "prompt.h"
 #include "rc.h"
 #include "server.h"
@@ -30,15 +32,6 @@ struct ipc_client {
 	char lines[PROMPT_MAX_CHOICES][CHOICE_MAX];
 };
 
-bool ipc_socket_path(const char *display, char *buf, size_t len) {
-	const char *dir = getenv("XDG_RUNTIME_DIR");
-	if (!dir || !*dir || !display || !*display) {
-		return false;
-	}
-	int n = snprintf(buf, len, "%s/twm.%s.sock", dir, display);
-	return n > 0 && (size_t)n < len && (size_t)n < sizeof(((struct sockaddr_un *)0)->sun_path);
-}
-
 static void client_close(struct ipc_client *c) {
 	if (c->prompt) {
 		/* The chooser went away: withdraw its prompt (counts as denied). */
@@ -50,26 +43,12 @@ static void client_close(struct ipc_client *c) {
 	free(c);
 }
 
-static void write_all(int fd, const char *s, size_t n) {
-	while (n > 0) {
-		ssize_t w = write(fd, s, n);
-		if (w < 0 && errno == EINTR) {
-			continue;
-		}
-		if (w <= 0) {
-			return;
-		}
-		s += w;
-		n -= (size_t)w;
-	}
-}
-
 static void reply(struct ipc_client *c, const char *text) {
 	/* The socket is non-blocking; the reply is small, so flip it back for
 	 * the one write. */
 	int flags = fcntl(c->fd, F_GETFL);
 	fcntl(c->fd, F_SETFL, flags & ~O_NONBLOCK);
-	write_all(c->fd, text, strlen(text));
+	ipcc_write_all(c->fd, text, strlen(text));
 }
 
 static void choose_done(void *data, bool granted, int choice, bool checked) {
@@ -137,10 +116,12 @@ static bool handle_request(struct ipc_client *c, char *req) {
 		rc_reload(c->server, true, out, sizeof(out));
 	} else if (strncmp(req, "choose", 6) == 0 && (req[6] == '\t' || req[6] == '\n')) {
 		return start_choose(c, req);
+	} else if (strcmp(req, "info") == 0) {
+		info_write(c->server, out, sizeof(out)); /* FET-3 */
 	} else if (strncmp(req, "touch ", 6) == 0) {
 		touch_test_request(c->server, req, out, sizeof(out)); /* --test only */
 	} else {
-		snprintf(out, sizeof(out), "unknown request \"%s\" (try: reload, choose)\n", req);
+		snprintf(out, sizeof(out), "unknown request \"%s\" (try: reload, info, choose)\n", req);
 	}
 	reply(c, out);
 	return false;
@@ -259,53 +240,16 @@ void ipc_finish(struct twm_server *server) {
 	server->ipc_path = NULL;
 }
 
-static int ipc_connect(void) {
-	char path[108];
-	const char *sock = getenv("TWM_SOCK");
-	if (sock && *sock) {
-		snprintf(path, sizeof(path), "%s", sock);
-	} else if (!ipc_socket_path(getenv("WAYLAND_DISPLAY"), path, sizeof(path))) {
-		fprintf(stderr, "twm: can't find a running twm (set WAYLAND_DISPLAY or TWM_SOCK)\n");
-		return -1;
-	}
-	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-	struct sockaddr_un addr = {.sun_family = AF_UNIX};
-	snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
-	if (fd < 0 || connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-		fprintf(stderr, "twm: can't reach %s: %s\n", path, strerror(errno));
-		if (fd >= 0) {
-			close(fd);
-		}
-		return -1;
-	}
-	return fd;
-}
-
-static void read_reply(int fd, char *buf, size_t len) {
-	size_t n = 0;
-	ssize_t r;
-	while (n < len - 1 && (r = read(fd, buf + n, len - 1 - n)) != 0) {
-		if (r < 0) {
-			if (errno == EINTR) {
-				continue;
-			}
-			break;
-		}
-		n += (size_t)r;
-	}
-	buf[n] = '\0';
-}
-
 int ipc_request(const char *request) {
-	int fd = ipc_connect();
+	int fd = ipcc_connect(false);
 	if (fd < 0) {
 		return 2;
 	}
 	char line[REQUEST_MAX];
 	snprintf(line, sizeof(line), "%s\n", request);
-	write_all(fd, line, strlen(line));
+	ipcc_write_all(fd, line, strlen(line));
 	char reply[REPLY_MAX];
-	read_reply(fd, reply, sizeof(reply));
+	ipcc_read_reply(fd, reply, sizeof(reply));
 	close(fd);
 	fputs(reply, stdout);
 	return strstr(reply, "config ok") != NULL ? 0 : 1;
@@ -342,13 +286,13 @@ int ipc_choose(const char *who) {
 		return 1;
 	}
 	snprintf(req + n, sizeof(req) - n, "\n");
-	int fd = ipc_connect();
+	int fd = ipcc_connect(false);
 	if (fd < 0) {
 		return 2;
 	}
-	write_all(fd, req, strlen(req));
+	ipcc_write_all(fd, req, strlen(req));
 	char reply[REPLY_MAX];
-	read_reply(fd, reply, sizeof(reply));
+	ipcc_read_reply(fd, reply, sizeof(reply));
 	close(fd);
 	if (strncmp(reply, "chose ", 6) == 0) {
 		fputs(reply + 6, stdout);

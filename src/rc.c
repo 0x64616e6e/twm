@@ -241,6 +241,7 @@ static bool reload(struct twm_server *server, bool force, char *reply, size_t re
 	server->config = cfg;
 	free(server->config_text);
 	server->config_text = missing ? NULL : src;
+	server->config_applied = time(NULL);
 	if (missing) {
 		free(src);
 	}
@@ -289,6 +290,7 @@ void rc_init(struct twm_server *server, const char *path_override) {
 	twmrc_free(doc);
 	server->config = cfg;
 	server->config_text = src;
+	server->config_applied = time(NULL);
 	rc_apply(server, NULL);
 	watch_init(server, server->config_path);
 }

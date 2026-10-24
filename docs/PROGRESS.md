@@ -65,6 +65,10 @@ an ELAN touchpad and touchscreen), started from Draftpaper's login screen.
   sign-in panel in the trusted frame: accounts, PAM's questions relayed
   from greetd, sessions from `wayland-sessions`, the last choices
   remembered; it starts the session through greetd and exits.
+- Fingerprint first, the password any time (GRT-11): the lock runs the
+  reader and the password check side by side, the reader trying again
+  up to 20 times; the greeter begins greetd's conversation again whenever
+  the reader times out with nothing typed.
 - Drag and drop between clients works now (it was never answered before),
   with the drag icon on a layer hit testing skips.
 - FreeBSD 15.1 tested in a VM; CI green on Arch, Debian and FreeBSD.

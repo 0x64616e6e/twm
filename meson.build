@@ -104,16 +104,35 @@ install_data('data/twm.desktop', install_dir: get_option('datadir') / 'wayland-s
 # GRT-6: the `twm` PAM service, on the system's own auth stack. PAM reads
 # /etc/pam.d whatever the prefix.
 if have_pam
+  # twm: the system's whole stack (the fallback); twm-password: the password
+  # alone; twm-fingerprint: the reader alone (GRT-11: the lock runs the two
+  # side by side, so the password works at any time).
   if host_machine.system() == 'freebsd'
-    pam_stack = 'auth\t\tinclude\t\tsystem\naccount\t\tinclude\t\tsystem\n'
+    stack = 'auth\t\tinclude\t\tsystem\n'
+    account = 'account\t\tinclude\t\tsystem\n'
+    password = 'auth\t\trequired\tpam_unix.so\tno_warn try_first_pass\n'
   elif import('fs').exists('/etc/pam.d/common-auth')
-    pam_stack = '@include common-auth\n@include common-account\n'
+    stack = '@include common-auth\n'
+    account = '@include common-account\n'
+    password = 'auth\t[success=1 default=ignore]\tpam_unix.so nullok\nauth\trequisite\tpam_deny.so\nauth\trequired\tpam_permit.so\n'
   else
-    pam_stack = 'auth\t\tinclude\t\tsystem-auth\naccount\t\tinclude\t\tsystem-auth\n'
+    stack = 'auth\t\tinclude\t\tsystem-auth\n'
+    account = 'account\t\tinclude\t\tsystem-auth\n'
+    password = 'auth\t\trequired\tpam_unix.so nullok\n'
   endif
-  pam_file = configure_file(output: 'twm.pam', configuration: {'STACK': pam_stack},
-    input: 'data/twm.pam.in')
-  install_data(pam_file, install_dir: '/etc/pam.d', rename: 'twm', install_tag: 'pam')
+  pam_files = {
+    'twm': ['the lock and the greeter, on the system\'s own stack', stack + account],
+    'twm-password': ['the lock\'s password check alone', password + account],
+  }
+  if host_machine.system() == 'linux'
+    pam_files += {'twm-fingerprint': ['the lock\'s fingerprint reader alone',
+      'auth\t\trequired\tpam_fprintd.so max-tries=1 timeout=10\n' + account]}
+  endif
+  foreach name, what : pam_files
+    f = configure_file(output: name + '.pam', input: 'data/twm.pam.in',
+      configuration: {'WHAT': what[0], 'STACK': what[1]})
+    install_data(f, install_dir: '/etc/pam.d', rename: name, install_tag: 'pam')
+  endforeach
 endif
 
 # Portal files: xdg-desktop-portal finds twm's backend and the per-desktop

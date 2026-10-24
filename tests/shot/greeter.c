@@ -168,14 +168,26 @@ int main(int argc, char *argv[]) {
 	key(tc, TC_KEY_ENTER);
 	tc_expect("GRT-6", expect_msg(tc, "\"create_session\"", msg, sizeof(msg)) &&
 		strstr(msg, "\"username\":\"tom\""), "create_session for tom: %.80s", msg);
+	/* GRT-11: pam_fprintd first; it times out and PAM asks for the password
+	 * with nothing typed: the greeter begins again, so the reader listens */
+	reply("{\"type\":\"auth_message\",\"auth_message_type\":\"info\","
+		"\"auth_message\":\"Place your right index finger on the fingerprint reader\"}");
+	next_msg(tc, msg, sizeof(msg), 500); /* the empty answer to the info */
 	reply("{\"type\":\"auth_message\",\"auth_message_type\":\"secret\",\"auth_message\":\"Password:\"}");
-	tc_wait(tc, 200);
+	tc_expect("GRT-11", expect_msg(tc, "\"create_session\"", msg, sizeof(msg)),
+		"the reader timed out, nothing typed: a new conversation, the reader again");
+	reply("{\"type\":\"auth_message\",\"auth_message_type\":\"info\","
+		"\"auth_message\":\"Place your right index finger on the fingerprint reader\"}");
+	next_msg(tc, msg, sizeof(msg), 500);
 
-	/* --- GRT-5: a wrong one --- */
+	/* --- GRT-11, GRT-5: typed while the reader listens, sent when PAM asks --- */
 	type(tc, "wrong");
 	key(tc, TC_KEY_ENTER);
+	next_msg(tc, msg, sizeof(msg), 300);
+	tc_expect("GRT-11", msg[0] == '\0', "nothing goes while the reader still listens (%.40s)", msg);
+	reply("{\"type\":\"auth_message\",\"auth_message_type\":\"secret\",\"auth_message\":\"Password:\"}");
 	tc_expect("GRT-6", expect_msg(tc, "post_auth_message_response", msg, sizeof(msg)) &&
-		strstr(msg, "\"response\":\"wrong\""), "the answer goes to greetd");
+		strstr(msg, "\"response\":\"wrong\""), "the moment PAM asks, the typed answer goes");
 	reply("{\"type\":\"error\",\"error_type\":\"auth_error\",\"description\":\"Authentication failed\"}");
 	tc_expect("GRT-5", expect_msg(tc, "\"create_session\"", msg, sizeof(msg)),
 		"and after the failure, a new conversation");

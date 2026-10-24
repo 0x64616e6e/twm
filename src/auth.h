@@ -32,6 +32,11 @@ void auth_respond(struct auth *a, char *response);
 void auth_cancel(struct auth *a);
 /* The PAM service to use: "twm" if installed, else "login". */
 const char *auth_service(void);
+/* GRT-11: the password alone ("twm-password", else the above), and the
+ * fingerprint reader alone ("twm-fingerprint" when pam_fprintd is
+ * installed, else NULL). */
+const char *auth_password_service(void);
+const char *auth_fingerprint_service(void);
 /* Whether PAM was built in. */
 bool auth_available(void);
 

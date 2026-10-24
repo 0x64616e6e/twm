@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <time.h>
 #include <unistd.h>
 #include "auth.h"
 #include "config.h"
@@ -35,12 +36,42 @@ bool auth_available(void) {
 	return HAVE_PAM;
 }
 
-const char *auth_service(void) {
-	if (access("/etc/pam.d/twm", F_OK) == 0 || access("/usr/lib/pam.d/twm", F_OK) == 0 ||
-			access("/usr/local/etc/pam.d/twm", F_OK) == 0) {
-		return "twm";
+static bool have_service(const char *name) {
+	const char *dirs[] = {"/etc/pam.d", "/usr/lib/pam.d", "/usr/local/etc/pam.d"};
+	for (size_t i = 0; i < sizeof(dirs) / sizeof(dirs[0]); i++) {
+		char p[256];
+		snprintf(p, sizeof(p), "%s/%s", dirs[i], name);
+		if (access(p, F_OK) == 0) {
+			return true;
+		}
 	}
-	return "login";
+	return false;
+}
+
+const char *auth_service(void) {
+	return have_service("twm") ? "twm" : "login";
+}
+
+const char *auth_password_service(void) {
+	return have_service("twm-password") ? "twm-password" : auth_service();
+}
+
+const char *auth_fingerprint_service(void) {
+	if (!have_service("twm-fingerprint")) {
+		return NULL;
+	}
+	/* the service names pam_fprintd: only if the module is there */
+	const char *dirs[] = {"/lib/x86_64-linux-gnu/security", "/lib/aarch64-linux-gnu/security",
+		"/usr/lib/x86_64-linux-gnu/security", "/usr/lib/aarch64-linux-gnu/security",
+		"/usr/lib/security", "/usr/lib64/security", "/lib/security", "/lib64/security"};
+	for (size_t i = 0; i < sizeof(dirs) / sizeof(dirs[0]); i++) {
+		char p[256];
+		snprintf(p, sizeof(p), "%s/pam_fprintd.so", dirs[i]);
+		if (access(p, F_OK) == 0) {
+			return "twm-fingerprint";
+		}
+	}
+	return NULL;
 }
 
 /* --- the child --- */
@@ -106,6 +137,29 @@ static int conv(int num, const struct pam_message **msg, struct pam_response **r
 #endif
 
 static void child_main(const char *service, const char *user, const char *test_password) {
+	if (test_password && strncmp(test_password, "@finger:", 8) == 0) {
+		/* GRT-11, --test: a stand-in reader. Each try leaves a line in
+		 * <path>.tries; a finger is the file <path> existing. */
+		const char *path = test_password + 8;
+		char log[512];
+		snprintf(log, sizeof(log), "%s.tries", path);
+		FILE *f = fopen(log, "a");
+		if (f) {
+			fputs("try\n", f);
+			fclose(f);
+		}
+		child_send("I", "Place your right index finger on the fingerprint reader");
+		for (int i = 0; i < 6; i++) {
+			struct timespec ts = {0, 50 * 1000 * 1000};
+			nanosleep(&ts, NULL);
+			if (access(path, F_OK) == 0) {
+				child_send("OK", "");
+				_exit(0);
+			}
+		}
+		child_send("NO", "Verification timed out");
+		_exit(0);
+	}
 	if (test_password) {
 		/* GRT-9: --test's stand-in for PAM */
 		child_send("P0", "Password: ");

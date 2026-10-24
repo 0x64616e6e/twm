@@ -47,6 +47,7 @@
 #define LK_INSET 80
 #define TRIES 5
 #define COOLDOWN_MS 60000
+#define FP_TRIES 20      /* GRT-11: the reader listens again this many times */
 
 struct twm_lock {
 	struct twm_server *server;
@@ -77,9 +78,19 @@ struct twm_lock {
 	uint64_t restore_focus;
 
 	/* the PAM conversation */
-	struct auth *auth;
-	struct auth *spent; /* finished; freed outside its callback */
+	struct auth *auth; /* the password (the lock: started when Return asks) */
+	struct auth *spent[4]; /* finished; freed outside their callbacks */
+	int nspent;
 	struct wl_event_source *reap;
+	/* GRT-11: the fingerprint, tried again and again; the password any time */
+	struct auth *fp; /* the lock: the reader's own conversation */
+	int fp_tries;
+	uint64_t fp_started;
+	bool fp_off;      /* no reader, or its tries ran out */
+	bool fp_spoke;    /* the reader said something this try: it's there */
+	char fpinfo[200]; /* what the reader last said */
+	bool fp_seen;     /* the greeter: this conversation began with the reader */
+	bool rearm;       /* the greeter: begin again once the old one is freed */
 	char question[128]; /* "PASSWORD" */
 	bool echo, asking, busy;
 	bool submit; /* Return came before PAM asked (a fingerprint first) */
@@ -256,8 +267,8 @@ static void render_login(struct twm_internal_view *iv, float scale, struct twm_p
 	y += 14 + 10;
 	char typed[600];
 	snprintf(typed, sizeof(typed), "%.*s", (int)lk->ilen, lk->input);
-	bool live = lk->asking && !lk->busy;
-	field_draw(img, t, scale, x, y, w, typed, !lk->echo, live, lk->asking ? "" : "password");
+	bool live = !lk->busy && !lk->launching && lk->cooldown_until <= server_now_ms();
+	field_draw(img, t, scale, x, y, w, typed, !lk->echo, live, "password");
 	y += LK_FIELD_H + 10;
 
 	char hint[256];
@@ -271,9 +282,13 @@ static void render_login(struct twm_internal_view *iv, float scale, struct twm_p
 		snprintf(hint, sizeof(hint), "starting %s\xe2\x80\xa6", lk->nsessions ? lk->sessions[lk->sess].name : "");
 	} else if (lk->busy) {
 		snprintf(hint, sizeof(hint), "checking\xe2\x80\xa6");
+	} else if (lk->submit) {
+		snprintf(hint, sizeof(hint), "the password goes when the reader lets go\xe2\x80\xa6");
 	} else if (lk->msg[0]) {
 		snprintf(hint, sizeof(hint), "%s", lk->msg);
 		hc = t->alert;
+	} else if (lk->fpinfo[0]) {
+		snprintf(hint, sizeof(hint), "%s", lk->fpinfo); /* GRT-11: the reader */
 	} else if (lk->info[0]) {
 		snprintf(hint, sizeof(hint), "%s", lk->info);
 	} else {
@@ -350,7 +365,7 @@ static void render(struct twm_internal_view *iv, float scale, struct twm_pixbuf 
 	y += 14 + 10;
 
 	/* the field: % on the left, what was typed, the caret block on the right */
-	bool live = lk->asking && !lk->busy;
+	bool live = !lk->busy && lk->cooldown_until <= server_now_ms(); /* GRT-11: type any time */
 	draw_fill(img, C(t->ground), S(x), S(y), S(w), S(LK_FIELD_H));
 	draw_box(img, C(live ? t->accent : t->hairline_strong), S(x), S(y), S(w), S(LK_FIELD_H), stroke);
 	int fb = text_baseline_centered(mono, S(y), S(LK_FIELD_H));
@@ -385,11 +400,13 @@ static void render(struct twm_internal_view *iv, float scale, struct twm_pixbuf 
 		snprintf(hint, sizeof(hint), "pam: %d failed tries \xc2\xb7 wait %d s", TRIES,
 			(int)((lk->cooldown_until - now + 999) / 1000));
 		hc = t->alert;
-	} else if (lk->busy) {
+	} else if (lk->busy || lk->submit) {
 		snprintf(hint, sizeof(hint), "checking\xe2\x80\xa6");
 	} else if (lk->msg[0]) {
 		snprintf(hint, sizeof(hint), "%s", lk->msg);
 		hc = t->alert;
+	} else if (lk->fpinfo[0]) {
+		snprintf(hint, sizeof(hint), "%s", lk->fpinfo); /* GRT-11: the reader */
 	} else if (lk->info[0]) {
 		snprintf(hint, sizeof(hint), "%s", lk->info);
 	} else {
@@ -617,26 +634,50 @@ static void restart_login(struct twm_lock *lk);
 static void reap_spent(void *data) {
 	struct twm_lock *lk = data;
 	lk->reap = NULL;
-	auth_cancel(lk->spent);
-	lk->spent = NULL;
+	for (int i = 0; i < lk->nspent; i++) {
+		auth_cancel(lk->spent[i]);
+	}
+	lk->nspent = 0;
 	greetd_cancel(lk->gd_spent);
 	lk->gd_spent = NULL;
+	if (lk->rearm && lk->active) {
+		/* GRT-11: the reader timed out with nothing typed: listen again */
+		lk->rearm = false;
+		start_auth(lk);
+		redraw(lk);
+	}
+}
+
+static void later(struct twm_lock *lk) {
+	if (!lk->reap) {
+		lk->reap = wl_event_loop_add_idle(lk->server->loop, reap_spent, lk);
+	}
+}
+
+static void spend_auth(struct twm_lock *lk, struct auth **slot) {
+	if (!*slot) {
+		return;
+	}
+	if (lk->nspent == (int)(sizeof(lk->spent) / sizeof(lk->spent[0]))) {
+		auth_cancel(lk->spent[0]); /* the oldest is long out of its callback */
+		memmove(lk->spent, lk->spent + 1, sizeof(lk->spent) - sizeof(lk->spent[0]));
+		lk->nspent--;
+	}
+	lk->spent[lk->nspent++] = *slot;
+	*slot = NULL;
+	later(lk);
 }
 
 /* The conversation is over; it is freed once its callback has returned. */
 static void spend(struct twm_lock *lk) {
-	if (lk->spent) {
-		auth_cancel(lk->spent);
-	}
-	lk->spent = lk->auth;
-	lk->auth = NULL;
-	if (lk->gd_spent) {
-		greetd_cancel(lk->gd_spent);
-	}
-	lk->gd_spent = lk->gd;
-	lk->gd = NULL;
-	if (!lk->reap) {
-		lk->reap = wl_event_loop_add_idle(lk->server->loop, reap_spent, lk);
+	spend_auth(lk, &lk->auth);
+	if (lk->gd) {
+		if (lk->gd_spent) {
+			greetd_cancel(lk->gd_spent);
+		}
+		lk->gd_spent = lk->gd;
+		lk->gd = NULL;
+		later(lk);
 	}
 }
 
@@ -714,14 +755,33 @@ static void on_auth(void *data, enum auth_event ev, const char *text, bool echo)
 			lk->busy = true;
 			lk->asking = false;
 			respond(lk);
+		} else if (lk->login && lk->fp_seen && lk->ilen == 0 && lk->fp_tries < FP_TRIES) {
+			/* GRT-11: the reader gave up and nothing is typed: begin again so it
+			 * listens again (the password still goes the moment it's typed) */
+			lk->fp_tries++;
+			lk->asking = false;
+			lk->rearm = true;
+			spend(lk);
+		} else if (lk->login && lk->fp_seen && lk->fp_tries >= FP_TRIES) {
+			snprintf(lk->fpinfo, sizeof(lk->fpinfo),
+				"fingerprint: %d tries \xc2\xb7 type the password, or \xe2\x8f\x8e to listen again", FP_TRIES);
 		}
 		break;
 	}
 	case AUTH_INFO:
-		snprintf(lk->info, sizeof(lk->info), "%s", text);
+		if (strstr(text, "finger") || strstr(text, "Finger")) {
+			lk->fp_seen = true; /* pam_fprintd: "Place your … finger …" */
+			snprintf(lk->fpinfo, sizeof(lk->fpinfo), "%s", text);
+		} else {
+			snprintf(lk->info, sizeof(lk->info), "%s", text);
+		}
 		break;
 	case AUTH_ERROR:
-		snprintf(lk->msg, sizeof(lk->msg), "pam: %s", text);
+		if (lk->fp_seen && !lk->asking) {
+			snprintf(lk->fpinfo, sizeof(lk->fpinfo), "%s", text); /* the reader's, not a failure */
+		} else {
+			snprintf(lk->msg, sizeof(lk->msg), "pam: %s", text);
+		}
 		break;
 	case AUTH_OK:
 		lk->busy = false;
@@ -753,18 +813,87 @@ static void on_auth(void *data, enum auth_event ev, const char *text, bool echo)
 				lk->tries + 1, TRIES);
 		}
 		spend(lk);
-		if (lk->cooldown_until <= server_now_ms()) {
-			start_auth(lk); /* a new conversation for the next try */
+		if (lk->login && lk->cooldown_until <= server_now_ms()) {
+			start_auth(lk); /* greetd: a new conversation for the next try */
 		}
+		/* the lock: the next Return starts the next password check */
 		break;
 	}
 	redraw(lk);
+}
+
+/* --- GRT-11: the lock's fingerprint reader, its own conversation --- */
+
+static void start_fp(struct twm_lock *lk);
+
+static void on_fp(void *data, enum auth_event ev, const char *text, bool echo) {
+	struct twm_lock *lk = data;
+	switch (ev) {
+	case AUTH_PROMPT: {
+		char none[1] = "";
+		auth_respond(lk->fp, none); /* the reader asks nothing to be typed */
+		break;
+	}
+	case AUTH_INFO:
+	case AUTH_ERROR:
+		lk->fp_spoke = true;
+		snprintf(lk->fpinfo, sizeof(lk->fpinfo), "%s", text);
+		break;
+	case AUTH_OK:
+		spend_auth(lk, &lk->fp);
+		lock_engage(lk->server, NULL); /* the finger: unlock */
+		return;
+	case AUTH_FAIL: {
+		spend_auth(lk, &lk->fp);
+		if (!lk->fp_spoke) {
+			/* it failed without a word: no reader, or no finger enrolled */
+			lk->fp_off = true;
+			lk->fpinfo[0] = '\0';
+		} else if (lk->fp_tries < FP_TRIES) {
+			start_fp(lk); /* timed out or no match: listen again */
+		} else {
+			lk->fp_off = true;
+			snprintf(lk->fpinfo, sizeof(lk->fpinfo),
+				"fingerprint: %d tries \xc2\xb7 type the password, or \xe2\x8f\x8e to listen again", FP_TRIES);
+		}
+		break;
+	}
+	}
+	redraw(lk);
+}
+
+static void start_fp(struct twm_lock *lk) {
+	const char *service = auth_fingerprint_service();
+	/* GRT-9, GRT-11: under --test, a stand-in reader when asked for, else none */
+	const char *test_finger = lk->server->opts.test_mode ? getenv("TWM_TEST_FINGER") : NULL;
+	char stand_in[600] = "";
+	if (lk->server->opts.test_mode) {
+		service = test_finger ? "test" : NULL;
+		if (test_finger) {
+			snprintf(stand_in, sizeof(stand_in), "@finger:%s", test_finger);
+		}
+	}
+	if (lk->login || lk->fp || !service) {
+		if (!service) {
+			lk->fp_off = true;
+		}
+		return;
+	}
+	lk->fp_off = false;
+	lk->fp_tries++;
+	lk->fp_started = server_now_ms();
+	lk->fp_spoke = false;
+	lk->fp = auth_start(lk->server->loop, service, lk->user, stand_in[0] ? stand_in : NULL, on_fp, lk);
+	if (!lk->fp) {
+		lk->fp_off = true;
+	}
 }
 
 static void start_auth(struct twm_lock *lk) {
 	struct twm_server *server = lk->server;
 	if (lk->login) {
 		lk->asking = false;
+		lk->fp_seen = false;
 		lk->question[0] = '\0';
 		if (!who(lk)[0]) {
 			return; /* the name first */
@@ -781,7 +910,7 @@ static void start_auth(struct twm_lock *lk) {
 		return;
 	}
 	lk->asking = false;
-	lk->auth = auth_start(server->loop, auth_service(), lk->user, test_pw, on_auth, lk);
+	lk->auth = auth_start(server->loop, auth_password_service(), lk->user, test_pw, on_auth, lk);
 	if (!lk->auth) {
 		snprintf(lk->msg, sizeof(lk->msg), "pam: couldn't start");
 	}
@@ -797,6 +926,11 @@ static void unlock(struct twm_lock *lk) {
 		auth_cancel(lk->auth);
 		lk->auth = NULL;
 	}
+	if (lk->fp) {
+		auth_cancel(lk->fp);
+		lk->fp = NULL;
+	}
+	lk->fpinfo[0] = '\0';
 	for (size_t i = 0; i < sizeof(lk->input); i++) {
 		((volatile char *)lk->input)[i] = 0;
 	}
@@ -860,10 +994,12 @@ void lock_engage(struct twm_server *server, const char *why) {
 	snprintf(lk->why, sizeof(lk->why), "%s", why);
 	lk->at = time(NULL);
 	lk->restore_focus = server->focused ? server->focused->id : 0;
-	lk->msg[0] = lk->info[0] = lk->question[0] = '\0';
+	lk->msg[0] = lk->info[0] = lk->question[0] = lk->fpinfo[0] = '\0';
 	lk->tries = 0;
 	lk->ilen = 0;
 	lk->submit = false;
+	lk->fp_tries = 0;
+	lk->rearm = false;
 	/* nothing else holds the input (TRU-4) */
 	grab_cancel(server);
 	menu_close_all(server);
@@ -888,7 +1024,7 @@ void lock_engage(struct twm_server *server, const char *why) {
 	if (lk->login) {
 		restart_login(lk);
 	} else {
-		start_auth(lk);
+		start_fp(lk); /* GRT-11: the reader listens; the password starts on Return */
 	}
 	redraw(lk);
 	wl_event_source_timer_update(lk->tick, 1000);
@@ -908,7 +1044,9 @@ static void restart_login(struct twm_lock *lk) {
 	}
 	lk->ilen = 0;
 	lk->msg[0] = lk->info[0] = '\0';
-	lk->busy = lk->asking = lk->submit = false;
+	lk->busy = lk->asking = lk->submit = lk->rearm = false;
+	lk->fp_tries = 0;
+	lk->fpinfo[0] = '\0';
 	/* the session this user chose last, else Tom's WM, else the first */
 	char last[64];
 	greeter_state_load(lk->status_path, NULL, 0, who(lk), last, sizeof(last));
@@ -1005,16 +1143,36 @@ void lock_key(struct twm_server *server, xkb_keysym_t sym, const char *utf8, uin
 			return;
 		}
 	}
-	if (sym == XKB_KEY_Return || sym == XKB_KEY_KP_Enter) {
+	if ((sym == XKB_KEY_Return || sym == XKB_KEY_KP_Enter) && lk->ilen == 0) {
+		/* GRT-11: nothing typed: the reader listens again */
+		lk->fp_tries = 0;
+		if (lk->login) {
+			if (lk->rearm) {
+				/* already beginning again */
+			} else if (!conv) {
+				start_auth(lk);
+			} else if (lk->asking) {
+				lk->asking = false;
+				lk->rearm = true;
+				spend(lk);
+			}
+		} else if (!lk->fp) {
+			lk->fpinfo[0] = '\0';
+			start_fp(lk);
+		}
+	} else if (sym == XKB_KEY_Return || sym == XKB_KEY_KP_Enter) {
+		lk->msg[0] = '\0';
 		if (conv && lk->asking) {
 			lk->busy = true;
 			lk->asking = false;
-			lk->msg[0] = '\0';
 			respond(lk); /* wiped there */
-		} else if (!conv) {
-			start_auth(lk);
-		} else if (lk->ilen > 0) {
-			lk->submit = true; /* sent when PAM asks */
+		} else {
+			/* sent the moment PAM asks: the lock starts its password check
+			 * now; the greeter's conversation is still on the reader */
+			lk->submit = true;
+			if (!conv && !lk->rearm) {
+				start_auth(lk);
+			}
 		}
 	} else {
 		size_t before = lk->ilen;
@@ -1146,7 +1304,7 @@ static int tick(void *data) {
 	if (lk->cooldown_until && lk->cooldown_until <= server_now_ms()) {
 		lk->cooldown_until = 0;
 		lk->msg[0] = '\0';
-		if (lk->login ? !lk->gd : !lk->auth) {
+		if (lk->login && !lk->gd && !lk->rearm) {
 			start_auth(lk);
 		}
 	}
@@ -1231,7 +1389,10 @@ void lock_finish(struct twm_server *server) {
 	if (lk->reap) {
 		wl_event_source_remove(lk->reap);
 	}
-	auth_cancel(lk->spent);
+	for (int i = 0; i < lk->nspent; i++) {
+		auth_cancel(lk->spent[i]);
+	}
+	auth_cancel(lk->fp);
 	greetd_cancel(lk->gd);
 	greetd_cancel(lk->gd_spent);
 	wl_list_remove(&lk->new_inhibitor.link);

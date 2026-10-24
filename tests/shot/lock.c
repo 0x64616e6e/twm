@@ -100,6 +100,28 @@ static int twm(const char *args) {
 	return WEXITSTATUS(system(cmd));
 }
 
+
+static int finger_tries(void) {
+	char p[4200];
+	snprintf(p, sizeof(p), "%s.tries", getenv("TWM_TEST_FINGER"));
+	FILE *f = fopen(p, "r");
+	int n = 0, c;
+	while (f && (c = fgetc(f)) != EOF) {
+		n += c == '\n';
+	}
+	if (f) {
+		fclose(f);
+	}
+	return n;
+}
+
+static void finger_reset(void) {
+	char p[4200];
+	snprintf(p, sizeof(p), "%s.tries", getenv("TWM_TEST_FINGER"));
+	unlink(p);
+	unlink(getenv("TWM_TEST_FINGER"));
+}
+
 int main(int argc, char *argv[]) {
 	const char *out = argc > 1 ? argv[1] : "lock.png";
 	struct tc *tc = tc_connect();
@@ -211,6 +233,47 @@ int main(int argc, char *argv[]) {
 	fputs("IdleLock 0\n", f);
 	fclose(f);
 	twm("--reload");
+
+	/* --- GRT-11: the reader listens again and again; a finger unlocks --- */
+	finger_reset();
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, 38 /* KEY_L */);
+	tc_wait(tc, 1500);
+	int tries = finger_tries();
+	tc_expect("GRT-11", tries >= 3, "the reader timed out and listened again (%d tries)", tries);
+	shot(tc, &img, out, "finger-wait");
+	tc_expect("GRT-11", locked(tc, &img, out, "finger-wait"), "still locked meanwhile");
+	FILE *finger = fopen(getenv("TWM_TEST_FINGER"), "w");
+	if (finger) {
+		fclose(finger);
+	}
+	tc_wait(tc, 900);
+	shot(tc, &img, out, "finger-ok");
+	tc_expect("GRT-11", count_box(&img, 0, 0, W, H, BLUE, 8) > 100000, "a finger unlocks");
+
+	/* --- GRT-11: the password any time, while the reader listens --- */
+	finger_reset();
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, 38);
+	tc_wait(tc, 700);
+	tc_expect("GRT-11", finger_tries() >= 1, "the reader is listening");
+	type(tc, pw);
+	tc_wait(tc, 200);
+	shot(tc, &img, out, "pw-anytime");
+	tc_expect("GRT-11", count_box(&img, 0, 0, W, H, BLUE, 8) > 100000, "the password unlocks at once");
+
+	/* --- GRT-11: twenty tries, then it rests until Return on an empty field --- */
+	finger_reset();
+	tc_chord(tc, 2, TC_KEY_LEFTMETA, 38);
+	tc_wait(tc, 7500);
+	tries = finger_tries();
+	tc_wait(tc, 800);
+	tc_expect("GRT-11", tries == 20 && finger_tries() == 20, "twenty tries, then it rests (%d)", tries);
+	tc_key(tc, TC_KEY_ENTER, true);
+	tc_key(tc, TC_KEY_ENTER, false);
+	tc_wait(tc, 600);
+	tc_expect("GRT-11", finger_tries() > 20, "⏎ on an empty field: it listens again (%d)", finger_tries());
+	type(tc, pw);
+	tc_wait(tc, 200);
+	finger_reset();
 
 	tc_window_destroy(a);
 	tc_window_destroy(b);

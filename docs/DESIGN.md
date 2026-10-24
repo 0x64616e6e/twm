@@ -918,6 +918,18 @@ accent can change:
   badge and the bottom line shows the keys. The greeter watches no file
   and serves no portal. `--test` takes `TWM_TEST_GREETER_USERS` and does
   not exit once the session starts, so the test can read its results.
+- **GRT-11** `[owner, after M7]` The fingerprint first, tried again and
+  again, and the password any time. The lock runs two PAM conversations
+  side by side: `twm-fingerprint` (the reader alone, a 10 s try) starts
+  over after each timeout or mismatch, up to 20 tries, and `twm-password`
+  (the password alone) starts when Return is pressed with something typed;
+  either one unlocks. A reader that fails without a word (none there, no
+  finger enrolled) is left alone. After 20 tries it rests; Return on an
+  empty field starts it again. The greeter has greetd's one conversation
+  (the system stack, reader first): when the reader gives up and PAM asks
+  for the password with nothing typed, it begins again, up to 20 times;
+  what is typed meanwhile goes the moment PAM asks for it. The field takes
+  typing all the while, and the reader's words show under it.
 - **GRT-8** `[owner, after M7]` *Decided:* the boot greeter replaces
   Draftpaper's on the owner's machine; greetd's previous config is kept
   beside it, so going back is one line. The greeter runs without XWayland

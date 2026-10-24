@@ -65,15 +65,24 @@ static struct tc_window *place(struct tc *tc, int x, int y, struct tc_window_opt
 
 /* Is xterm's (focused, accent) frame exactly at (x, y)? Its tab's corner
  * pixel is accent and the pixels just outside it are not. */
+/* The focused xterm's frame has its top-left at (x, y). A loaded CI runner
+ * may not have drawn the last change yet, so look again for up to a second
+ * before failing; a window in the wrong place still fails. */
 static void expect_at(struct tc *tc, const char *req, int x, int y, const char *what) {
-	struct tc_image img = {0};
-	tc_screenshot(tc, &img);
-	int ok = near(tc_pixel(&img, x, y), ACCENT, 2) &&
-		!near(tc_pixel(&img, x - 1, y), ACCENT, 2) &&
-		!near(tc_pixel(&img, x, y - 1), ACCENT, 2) &&
-		near(tc_pixel(&img, x + 2, y + TH + 1), SURFACE, 0);
+	int ok = 0;
+	for (int tries = 0; tries < 20 && !ok; tries++) {
+		if (tries) {
+			tc_wait(tc, 50);
+		}
+		struct tc_image img = {0};
+		tc_screenshot(tc, &img);
+		ok = near(tc_pixel(&img, x, y), ACCENT, 2) &&
+			!near(tc_pixel(&img, x - 1, y), ACCENT, 2) &&
+			!near(tc_pixel(&img, x, y - 1), ACCENT, 2) &&
+			near(tc_pixel(&img, x + 2, y + TH + 1), SURFACE, 0);
+		tc_image_free(&img);
+	}
 	tc_expect(req, ok, "%s: xterm at (%d,%d)", what, x, y);
-	tc_image_free(&img);
 }
 
 static void drag(struct tc *tc, uint32_t button, int x0, int y0, int x1, int y1, bool release) {

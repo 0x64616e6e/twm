@@ -26,6 +26,7 @@ struct twm_internal_view;
 struct twm_menu_ui;
 struct twm_hints;
 struct twm_prompt;
+struct twm_card;
 struct wlr_input_device;
 struct wlr_touch;
 struct twm_func;
@@ -65,6 +66,7 @@ enum twm_hit_kind {
 	TWM_HIT_BORDER,
 	TWM_HIT_ICON, /* a root icon (ROOT-9) */
 	TWM_HIT_LAYER, /* a layer-shell surface (GEN-2) */
+	TWM_HIT_CARD,  /* the root card (CARD-3) */
 };
 
 struct twm_hit {
@@ -195,6 +197,7 @@ struct twm_server {
 	/* ROOT-2, ROOT-3 on the primary output */
 	struct wlr_scene_buffer *wordmark;
 	struct wlr_scene_buffer *status_line;
+	struct twm_card *card; /* CARD-*: the root card */
 
 	struct wlr_cursor *cursor;
 	struct wlr_xcursor_manager *cursor_mgr;

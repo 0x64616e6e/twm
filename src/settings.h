@@ -127,6 +127,17 @@ enum twm_tp_scroll { TWM_TP_SCROLL_TWO_FINGER, TWM_TP_SCROLL_EDGE, TWM_TP_SCROLL
 enum twm_tp_click { TWM_TP_CLICK_DEFAULT, TWM_TP_CLICK_AREAS, TWM_TP_CLICK_FINGERS };
 enum twm_tp_accel { TWM_TP_ACCEL_ADAPTIVE, TWM_TP_ACCEL_FLAT };
 enum twm_corner { TWM_TOP_LEFT, TWM_TOP_RIGHT, TWM_BOTTOM_LEFT, TWM_BOTTOM_RIGHT };
+
+/* CARD-1: what the root card shows. */
+enum {
+	TWM_CARD_HOST = 1u << 0,
+	TWM_CARD_UPTIME = 1u << 1,
+	TWM_CARD_LOAD = 1u << 2,
+	TWM_CARD_POOL = 1u << 3,
+	TWM_CARD_MEM = 1u << 4,
+	TWM_CARD_FRAMES = 1u << 5,
+	TWM_CARD_ALL = (1u << 6) - 1,
+};
 enum twm_sort { TWM_SORT_NAME, TWM_SORT_STACK, TWM_SORT_AGE };
 
 #define TWM_SNAP_EDGES 1u
@@ -175,6 +186,10 @@ struct twm_config {
 	/* Desktops and the rest */
 	int root_line_timeout;
 	enum twm_corner iconmgr_corner;
+	/* CARD-1: the root card */
+	bool root_card;
+	enum twm_corner card_corner;
+	unsigned card_fields; /* TWM_CARD_* bits */
 	enum twm_sort iconmgr_sort;
 	bool icons_on_root;
 	int desktops;

@@ -17,6 +17,7 @@
 #include <xkbcommon/xkbcommon.h>
 #include <wayland-server-core.h>
 #include "actions.h"
+#include "card.h"
 #include "capture.h"
 #include "frame.h"
 #include "grab.h"
@@ -448,6 +449,13 @@ static bool handle_press(struct twm_server *server, uint32_t button) {
 	struct twm_view *view = hit.view;
 	if (hit.kind == TWM_HIT_TITLE && view && view->frame) {
 		hit.kind = frame_part_at(view->frame, lx, ly);
+	}
+	if (hit.kind == TWM_HIT_CARD) {
+		if (button_number(button) == 1) {
+			card_open_fetch(server); /* CARD-3 */
+			return true;
+		}
+		hit.kind = TWM_HIT_ROOT; /* otherwise it is the root */
 	}
 	enum twm_context context;
 	switch (hit.kind) {

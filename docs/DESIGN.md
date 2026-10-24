@@ -1318,6 +1318,7 @@ each milestone; CFG-3 says an unlisted key is an error.
 | `RootLineTimeout` | `60` | seconds | ROOT-6 |
 | `IconManager` | `{ at top-right sort name }` | corner, sort | IMG-1 |
 | `IconsOnRoot` | `on` | on/off | ROOT-9 |
+| `RootCard` | `off` | on/off, or `{ at <corner> fields host uptime load pool mem frames }` | CARD-1 |
 | `Panner` | `{ desktops 4 }` | `{ desktops N }`, `{ desktops N off }` (keep N, hide the Panner), on/off | DSK-1 |
 | `Quiet` | `{ }` | desktop numbers | URG-3 |
 | `XWayland` | `on` | on/off (takes effect at the next start) | GEN-6 |

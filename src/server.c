@@ -42,6 +42,7 @@
 #include "remember.h"
 #include "rootline.h"
 #include "server.h"
+#include "card.h"
 #include "settings.h"
 #include "text.h"
 #include "view.h"
@@ -207,6 +208,7 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	panner_init(server);
 	logview_init(server);
 	setwin_init(server);
+	card_init(server);
 #if HAVE_XWAYLAND
 	if (opts->xwayland && server->config->xwayland) {
 		xwayland_init(server);
@@ -244,6 +246,7 @@ void server_finish(struct twm_server *server) {
 	server->shutting_down = true;
 	prompt_finish(server);
 	media_finish(server);
+	card_finish(server);
 	portal_finish(server);
 	if (server->startup_pid > 0) {
 		kill(server->startup_pid, SIGTERM);

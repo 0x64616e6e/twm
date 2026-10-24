@@ -42,6 +42,11 @@ an ELAN touchpad and touchscreen), started from Draftpaper's login screen.
   remembered geometry never stores a zoomed one. A fullscreen window that
   captures the screen carries an alert line along the top and the SCREEN
   marker at the top-right corner (ZOM-6, CAP-2).
+- twmfetch (FET-1 … FET-5): B9's logo and facts in the theme's colors,
+  `--json`, `--short`, `--logo off`; the WM facts from a read-only `info`
+  request (counts and outputs, never titles).
+- The root card (CARD-1 … CARD-3): `RootCard { at <corner> fields … }`,
+  drawn on the root under every window, once a second; B1 opens twmfetch.
 - FreeBSD 15.1 tested in a VM; CI green on Arch, Debian and FreeBSD.
 
 **Tests**: `shot-apps_close` runs an app found by name and checks the close

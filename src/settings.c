@@ -37,6 +37,7 @@ const char config_default_twmrc[] =
 	"RootLineTimeout  60\n"
 	"IconManager      { at top-right sort name }\n"
 	"IconsOnRoot      on\n"
+	"RootCard         off\n"
 	"Panner           { desktops 4 }\n"
 	"XWayland         on\n"
 	"Notifications    on\n"
@@ -904,6 +905,60 @@ static void k_iconmgr(struct ctx *c) {
 	free(list);
 }
 
+/* CARD-1: RootCard on|off, or { at <corner> fields <field>… } (on) */
+static void k_rootcard(struct ctx *c) {
+	if (values(c)->n == 1 && values(c)->nodes[0].kind == TWMRC_WORD) {
+		bool on;
+		if (parse_bool(&values(c)->nodes[0], &on)) {
+			c->cfg->root_card = on;
+			return;
+		}
+	}
+	const struct twmrc_node *blk = the_block(c, "at <corner> fields host uptime load pool mem frames");
+	if (!blk) {
+		return;
+	}
+	const struct twmrc_node **list;
+	size_t n = block_nodes(blk, &list);
+	static const char *const names[] = {"host", "uptime", "load", "pool", "mem", "frames"};
+	bool ok = true;
+	for (size_t i = 0; i < n && ok;) {
+		if (node_word(list[i], "at") && i + 1 < n) {
+			ok = corner_of(list[i + 1], &c->cfg->card_corner);
+			if (!ok) {
+				ERR(c, "RootCard at wants top-left, top-right, bottom-left or bottom-right");
+			}
+			i += 2;
+		} else if (node_word(list[i], "fields")) {
+			unsigned fields = 0;
+			for (i++; i < n && !node_word(list[i], "at"); i++) {
+				bool known = false;
+				for (int k = 0; k < 6; k++) {
+					if (node_word(list[i], names[k])) {
+						fields |= 1u << k;
+						known = true;
+					}
+				}
+				if (!known) {
+					ERR(c, "RootCard fields are host, uptime, load, pool, mem and frames");
+					ok = false;
+					break;
+				}
+			}
+			if (ok && fields) {
+				c->cfg->card_fields = fields;
+			}
+		} else {
+			ERR(c, "RootCard wants { at <corner> fields <field>… }, or on or off");
+			ok = false;
+		}
+	}
+	if (ok) {
+		c->cfg->root_card = true;
+	}
+	free(list);
+}
+
 static void k_panner(struct ctx *c) {
 	if (values(c)->n == 1 && values(c)->nodes[0].kind == TWMRC_WORD) {
 		bool on;
@@ -1019,6 +1074,7 @@ static const struct {
 	{"Font", k_font},
 	{"HintKeys", k_hint_keys},
 	{"IconManager", k_iconmgr},
+	{"RootCard", k_rootcard},
 	{"IconsOnRoot", k_icons_on_root},
 	{"Menu", k_menu},
 	{"Modifier", k_modifier},
@@ -1129,6 +1185,8 @@ struct twm_config *config_build(const char *src, size_t len, struct twmrc_doc **
 	if (!cfg) {
 		abort();
 	}
+	cfg->card_corner = TWM_BOTTOM_LEFT; /* CARD-1: what a bare `RootCard on` shows */
+	cfg->card_fields = TWM_CARD_ALL;
 	struct twmrc_doc *defaults = twmrc_parse(config_default_twmrc, strlen(config_default_twmrc));
 	apply_doc(cfg, defaults, true);
 	if (defaults->ndiags) {

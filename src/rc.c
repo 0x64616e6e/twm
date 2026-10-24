@@ -11,6 +11,7 @@
 #include "setwin.h"
 #include "rootline.h"
 #include "server.h"
+#include "card.h"
 #include "settings.h"
 #include "view.h"
 #include "watch.h"
@@ -139,6 +140,7 @@ void rc_apply(struct twm_server *server, const struct twm_config *old) {
 		root_update(output);
 	}
 	root_update_text(server);
+	card_configure(server);
 	desktops_reconfigure(server);
 	struct twm_view *view;
 	wl_list_for_each(view, &server->views, link) {

@@ -141,7 +141,10 @@ struct greetd *greetd_start(struct wl_event_loop *loop, const char *user, auth_f
 	if (!path || !*path) {
 		return NULL;
 	}
-	int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (fd >= 0) {
+		fcntl(fd, F_SETFD, FD_CLOEXEC); /* not SOCK_CLOEXEC: FreeBSD hides it under POSIX */
+	}
 	struct sockaddr_un addr = {.sun_family = AF_UNIX};
 	snprintf(addr.sun_path, sizeof(addr.sun_path), "%s", path);
 	if (fd < 0 || connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {

@@ -47,7 +47,6 @@
 #define LK_INSET 80
 #define TRIES 5
 #define COOLDOWN_MS 60000
-#define FP_TRIES 20      /* GRT-11: the reader listens again this many times */
 
 struct twm_lock {
 	struct twm_server *server;
@@ -85,6 +84,7 @@ struct twm_lock {
 	/* GRT-11: the fingerprint, tried again and again; the password any time */
 	struct auth *fp; /* the lock: the reader's own conversation */
 	int fp_tries;
+	bool fp_paused; /* the screens went dark: the reader waits for them */
 	uint64_t fp_started;
 	bool fp_off;      /* no reader, or its tries ran out */
 	bool fp_spoke;    /* the reader said something this try: it's there */
@@ -731,6 +731,18 @@ static void launch(struct twm_lock *lk) {
 	greetd_launch(lk->gd, cmd, env);
 }
 
+/* GRT-11: a try that ran out of time is the reader's business, not news:
+ * it is listening again the next moment. */
+static bool reader_noise(const char *text) {
+	return strstr(text, "timed out") || strstr(text, "Timed out") || strstr(text, "timeout");
+}
+
+/* What the line under the field says while the reader listens. */
+static void reader_listening(struct twm_lock *lk, const char *said) {
+	(void)said;
+	snprintf(lk->fpinfo, sizeof(lk->fpinfo), "touch the fingerprint reader \xc2\xb7 or type the password");
+}
+
 static void on_auth(void *data, enum auth_event ev, const char *text, bool echo) {
 	struct twm_lock *lk = data;
 	switch (ev) {
@@ -755,30 +767,33 @@ static void on_auth(void *data, enum auth_event ev, const char *text, bool echo)
 			lk->busy = true;
 			lk->asking = false;
 			respond(lk);
-		} else if (lk->login && lk->fp_seen && lk->ilen == 0 && lk->fp_tries < FP_TRIES) {
+		} else if (lk->login && lk->fp_seen && lk->ilen == 0 && !lk->dark) {
 			/* GRT-11: the reader gave up and nothing is typed: begin again so it
 			 * listens again (the password still goes the moment it's typed) */
 			lk->fp_tries++;
 			lk->asking = false;
 			lk->rearm = true;
 			spend(lk);
-		} else if (lk->login && lk->fp_seen && lk->fp_tries >= FP_TRIES) {
-			snprintf(lk->fpinfo, sizeof(lk->fpinfo),
-				"fingerprint: %d tries \xc2\xb7 type the password, or \xe2\x8f\x8e to listen again", FP_TRIES);
+		} else if (lk->login && lk->fp_seen && lk->dark) {
+			lk->fp_paused = true; /* dark screens: it listens again when they light */
 		}
 		break;
 	}
 	case AUTH_INFO:
 		if (strstr(text, "finger") || strstr(text, "Finger")) {
 			lk->fp_seen = true; /* pam_fprintd: "Place your … finger …" */
-			snprintf(lk->fpinfo, sizeof(lk->fpinfo), "%s", text);
+			reader_listening(lk, text);
+		} else if (lk->fp_seen && reader_noise(text)) {
+			/* the reader's try ran out: not news */
 		} else {
 			snprintf(lk->info, sizeof(lk->info), "%s", text);
 		}
 		break;
 	case AUTH_ERROR:
 		if (lk->fp_seen && !lk->asking) {
-			snprintf(lk->fpinfo, sizeof(lk->fpinfo), "%s", text); /* the reader's, not a failure */
+			if (!reader_noise(text)) {
+				snprintf(lk->fpinfo, sizeof(lk->fpinfo), "%s", text); /* "no match": the reader's */
+			}
 		} else {
 			snprintf(lk->msg, sizeof(lk->msg), "pam: %s", text);
 		}
@@ -837,7 +852,11 @@ static void on_fp(void *data, enum auth_event ev, const char *text, bool echo) {
 	case AUTH_INFO:
 	case AUTH_ERROR:
 		lk->fp_spoke = true;
-		snprintf(lk->fpinfo, sizeof(lk->fpinfo), "%s", text);
+		if (strstr(text, "finger") || strstr(text, "Finger")) {
+			reader_listening(lk, text);
+		} else if (!reader_noise(text)) {
+			snprintf(lk->fpinfo, sizeof(lk->fpinfo), "%s", text); /* "Failed to match": say it */
+		}
 		break;
 	case AUTH_OK:
 		spend_auth(lk, &lk->fp);
@@ -849,12 +868,10 @@ static void on_fp(void *data, enum auth_event ev, const char *text, bool echo) {
 			/* it failed without a word: no reader, or no finger enrolled */
 			lk->fp_off = true;
 			lk->fpinfo[0] = '\0';
-		} else if (lk->fp_tries < FP_TRIES) {
-			start_fp(lk); /* timed out or no match: listen again */
+		} else if (lk->dark) {
+			lk->fp_paused = true; /* dark screens: it listens again when they light */
 		} else {
-			lk->fp_off = true;
-			snprintf(lk->fpinfo, sizeof(lk->fpinfo),
-				"fingerprint: %d tries \xc2\xb7 type the password, or \xe2\x8f\x8e to listen again", FP_TRIES);
+			start_fp(lk); /* timed out or no match: listen again, as long as it takes */
 		}
 		break;
 	}
@@ -999,6 +1016,7 @@ void lock_engage(struct twm_server *server, const char *why) {
 	lk->ilen = 0;
 	lk->submit = false;
 	lk->fp_tries = 0;
+	lk->fp_paused = false;
 	lk->rearm = false;
 	/* nothing else holds the input (TRU-4) */
 	grab_cancel(server);
@@ -1251,6 +1269,19 @@ static void set_dark(struct twm_lock *lk, bool dark) {
 		return;
 	}
 	lk->dark = dark;
+	if (!dark && lk->active && lk->fp_paused) {
+		/* GRT-11: the screens lit again: so does the reader */
+		lk->fp_paused = false;
+		if (lk->login) {
+			if (lk->asking && lk->ilen == 0 && !lk->rearm) {
+				lk->asking = false;
+				lk->rearm = true;
+				spend(lk);
+			}
+		} else if (!lk->fp) {
+			start_fp(lk);
+		}
+	}
 	struct twm_output *o;
 	wl_list_for_each(o, &lk->server->outputs, link) {
 		struct wlr_output_state st;

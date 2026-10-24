@@ -18,6 +18,7 @@
 #endif
 #include "sysinfo.h"
 
+#ifndef __FreeBSD__ /* Linux: /proc and os-release */
 static char *read_text(const char *path) {
 	FILE *f = fopen(path, "r");
 	if (!f) {
@@ -43,6 +44,7 @@ static char *read_text(const char *path) {
 	}
 	return buf;
 }
+#endif
 
 bool sys_parse_os_release(const char *text, char *out, size_t len) {
 	for (const char *l = text; l && *l; l = strchr(l, '\n') ? strchr(l, '\n') + 1 : NULL) {

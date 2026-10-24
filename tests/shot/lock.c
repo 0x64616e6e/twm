@@ -260,17 +260,15 @@ int main(int argc, char *argv[]) {
 	shot(tc, &img, out, "pw-anytime");
 	tc_expect("GRT-11", count_box(&img, 0, 0, W, H, BLUE, 8) > 100000, "the password unlocks at once");
 
-	/* --- GRT-11: twenty tries, then it rests until Return on an empty field --- */
+	/* --- GRT-11: no giving up while the screen is lit; no "timed out" shown --- */
 	finger_reset();
 	tc_chord(tc, 2, TC_KEY_LEFTMETA, 38);
 	tc_wait(tc, 7500);
 	tries = finger_tries();
-	tc_wait(tc, 800);
-	tc_expect("GRT-11", tries == 20 && finger_tries() == 20, "twenty tries, then it rests (%d)", tries);
-	tc_key(tc, TC_KEY_ENTER, true);
-	tc_key(tc, TC_KEY_ENTER, false);
-	tc_wait(tc, 600);
-	tc_expect("GRT-11", finger_tries() > 20, "⏎ on an empty field: it listens again (%d)", finger_tries());
+	tc_expect("GRT-11", tries > 20, "it keeps listening, try after try (%d)", tries);
+	shot(tc, &img, out, "finger-long");
+	tc_expect("GRT-11", count_box(&img, 600, 300, 1320, 800, ALERT, 30) == 0,
+		"and never says it timed out or failed");
 	type(tc, pw);
 	tc_wait(tc, 200);
 	finger_reset();

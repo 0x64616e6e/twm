@@ -921,15 +921,19 @@ accent can change:
 - **GRT-11** `[owner, after M7]` The fingerprint first, tried again and
   again, and the password any time. The lock runs two PAM conversations
   side by side: `twm-fingerprint` (the reader alone, a 10 s try) starts
-  over after each timeout or mismatch, up to 20 tries, and `twm-password`
-  (the password alone) starts when Return is pressed with something typed;
-  either one unlocks. A reader that fails without a word (none there, no
-  finger enrolled) is left alone. After 20 tries it rests; Return on an
-  empty field starts it again. The greeter has greetd's one conversation
-  (the system stack, reader first): when the reader gives up and PAM asks
-  for the password with nothing typed, it begins again, up to 20 times;
-  what is typed meanwhile goes the moment PAM asks for it. The field takes
-  typing all the while, and the reader's words show under it.
+  over after each timeout or mismatch, and `twm-password` (the password
+  alone) starts when Return is pressed with something typed; either one
+  unlocks. *Decided, at the owner's word:* the reader never gives up while
+  the screens are lit, and a try running out of time is not news: the line
+  under the field says `touch the fingerprint reader · or type the
+  password` the whole time, never "timed out" (a mismatch still says so).
+  When the screens go dark (IdleScreen) the reader rests, and the first
+  input that lights them starts it again. A reader that fails without a
+  word (none there, no finger enrolled) is left alone; Return on an empty
+  field starts it again. The greeter has greetd's one conversation (the
+  system stack, reader first): when the reader gives up and PAM asks for
+  the password with nothing typed, it begins again, on the same terms;
+  what is typed meanwhile goes the moment PAM asks for it.
 - **GRT-8** `[owner, after M7]` *Decided:* the boot greeter replaces
   Draftpaper's on the owner's machine; greetd's previous config is kept
   beside it, so going back is one line. The greeter runs without XWayland

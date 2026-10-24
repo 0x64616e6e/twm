@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
 	CHECK("OUT-9", b && b->func.kind == TWM_F_RESIZE);
 	CHECK("FOC-5", config_match_button(cfg, 1, 0, TWM_CTX_WINDOW) == NULL);
 	const struct twm_menu *menu = config_menu(cfg, "main");
-	CHECK("MNU-4", menu && menu->nitems == 19 && strcmp(menu->items[3].label, "run…") == 0 && strcmp(menu->items[8].label, "zoom") == 0 && strcmp(menu->items[9].label, "fullscreen") == 0 && strcmp(menu->items[12].label, "close") == 0 && strcmp(menu->items[13].label, "kill") == 0 && strcmp(menu->items[18].label, "exit") == 0);
+	CHECK("MNU-4", menu && menu->nitems == 21 && strcmp(menu->items[3].label, "run…") == 0 && strcmp(menu->items[8].label, "zoom") == 0 && strcmp(menu->items[9].label, "fullscreen") == 0 && strcmp(menu->items[12].label, "close") == 0 && strcmp(menu->items[13].label, "kill") == 0 && strcmp(menu->items[20].label, "exit") == 0 && strcmp(menu->items[18].label, "lock") == 0);
 	struct twm_func term = {.kind = TWM_F_TERMINAL};
 	k = config_key_for(cfg, &term);
 	CHECK("MNU-3", k && strcmp(k->spec, "M-Return") == 0);

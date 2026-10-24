@@ -230,8 +230,15 @@ static void finish(struct twm_server *server, struct twm_prompt *p, bool granted
 	show_next(server);
 }
 
+void prompt_resume(struct twm_server *server) {
+	if (server->prompt && server->prompt->iv) {
+		view_focus(&server->prompt->iv->view); /* it waited behind the lock */
+	}
+	show_next(server);
+}
+
 static void show_next(struct twm_server *server) {
-	if (server->prompt || wl_list_empty(&server->prompt_queue)) {
+	if (server->prompt || server->locked || wl_list_empty(&server->prompt_queue)) {
 		return;
 	}
 	struct twm_prompt *p = wl_container_of(server->prompt_queue.prev, p, link);

@@ -13,6 +13,7 @@
 #include "info.h"
 #include "shot.h"
 #include "share.h"
+#include "lock.h"
 #include "prompt.h"
 #include "rc.h"
 #include "server.h"
@@ -124,6 +125,9 @@ static bool handle_request(struct ipc_client *c, char *req) {
 		snprintf(out, sizeof(out), "%s%s\n", ok ? "" : "error: ", path);
 	} else if (strncmp(req, "absorb\t", 7) == 0) {
 		share_absorb(c->server, req + 7, out, sizeof(out)); /* SHR-1 */
+	} else if (strcmp(req, "lock") == 0) {
+		lock_engage(c->server, "by twm --lock"); /* GRT-7 */
+		snprintf(out, sizeof(out), "%s\n", lock_active(c->server) ? "locked" : "error: no lock (PAM?)");
 	} else if (strcmp(req, "info") == 0) {
 		info_write(c->server, out, sizeof(out)); /* FET-3 */
 	} else if (strncmp(req, "touch ", 6) == 0) {
@@ -193,6 +197,9 @@ static int handle_client(int fd, uint32_t mask, void *data) {
 static int handle_listen(int fd, uint32_t mask, void *data) {
 	struct twm_server *server = data;
 	int cfd = accept(fd, NULL, NULL);
+	if (cfd >= 0) {
+		fcntl(cfd, F_SETFD, FD_CLOEXEC); /* not into launched apps */
+	}
 	if (cfd < 0) {
 		return 0;
 	}

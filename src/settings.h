@@ -59,6 +59,8 @@ enum twm_func_kind {
 	TWM_F_FULLSCREEN, /* the client alone over its output (ZOM-3) */
 	TWM_F_SCREENSHOT, /* SHOT-1 */
 	TWM_F_FETCHSHOT,  /* SHOT-2 */
+	TWM_F_LOCK,       /* GRT-7 */
+	TWM_F_SUSPEND,
 	TWM_F_DESKTOP, /* num */
 	TWM_F_SEND,    /* num */
 	TWM_F_SEPARATOR,
@@ -200,6 +202,8 @@ struct twm_config {
 	bool xwayland;
 	bool notifications; /* M6: serve org.freedesktop.Notifications if free */
 	bool close_box;     /* FRM-19 */
+	int idle_lock, idle_screen; /* GRT-7: seconds, 0 = never */
+	bool lock_on_sleep;
 	int volume_step, brightness_step; /* LVL-1: percent a key press moves */
 
 	/* INP-*: touchpad and touchscreen */

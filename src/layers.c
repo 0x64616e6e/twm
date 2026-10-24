@@ -72,7 +72,7 @@ static struct twm_output *output_of(struct twm_layer_surface *s) {
 }
 
 static void give_keyboard(struct twm_server *server, struct wlr_surface *surface) {
-	if (server->prompt) {
+	if (server->prompt || server->locked) {
 		return; /* TRU-4 */
 	}
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(server->seat);

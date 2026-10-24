@@ -82,6 +82,7 @@ struct twm_view {
 	bool notitle; /* NoTitle: border only (FRM-15) */
 	bool utility; /* FRM-18: title-only tab, no buttons */
 	bool trusted; /* TRU-1: a twm prompt; only prompt.c sets it */
+	bool alarm;   /* GRT-5: a trusted frame after a failed try: dashed */
 	int desktop;    /* DSK-1, 1-based */
 	bool sticky;    /* on every desktop (twm's own windows) */
 	bool iconified; /* FRM-13 */

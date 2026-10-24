@@ -12,6 +12,9 @@
 #include "rootline.h"
 #include "server.h"
 #include "card.h"
+#include "lock.h"
+#include "sleep.h"
+#include "config.h"
 #include "settings.h"
 #include "view.h"
 #include "watch.h"
@@ -141,6 +144,10 @@ void rc_apply(struct twm_server *server, const struct twm_config *old) {
 	}
 	root_update_text(server);
 	card_configure(server);
+	lock_configure(server);
+#if HAVE_PORTAL
+	sleep_configure(server);
+#endif
 	desktops_reconfigure(server);
 	struct twm_view *view;
 	wl_list_for_each(view, &server->views, link) {

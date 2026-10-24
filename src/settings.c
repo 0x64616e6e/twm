@@ -44,6 +44,9 @@ const char config_default_twmrc[] =
 	"CloseBox         on\n"
 	"VolumeStep       5\n"
 	"BrightnessStep   5\n"
+	"IdleLock         600\n"
+	"IdleScreen       900\n"
+	"LockOnSleep      on\n"
 	"\n"
 	"TouchpadTap                 on\n"
 	"TouchpadTapDrag             on\n"
@@ -95,6 +98,7 @@ const char config_default_twmrc[] =
 	"\"M-S-f\"    : f.fullscreen\n"
 	"\"Print\"    : f.screenshot\n"
 	"\"M-Print\"  : f.fetchshot\n"
+	"\"M-l\"      : f.lock\n"
 	"\"XF86AudioRaiseVolume\"  : f.volume up\n"
 	"\"XF86AudioLowerVolume\"  : f.volume down\n"
 	"\"XF86AudioMute\"         : f.volume mute\n"
@@ -127,6 +131,8 @@ const char config_default_twmrc[] =
 	"  \"desktops\"       f.menu \"desktops\"\n"
 	"  \"settings\"       f.settings\n"
 	"  \"reload .twmrc\"  f.reload\n"
+	"  \"lock\"           f.lock\n"
+	"  \"suspend\"        f.suspend\n"
 	"  \"exit\"           f.quit\n"
 	"}\n"
 	"Menu \"desktops\" {\n"
@@ -321,6 +327,8 @@ static const struct {
 	{"f.fullscreen", TWM_F_FULLSCREEN, 0},
 	{"f.screenshot", TWM_F_SCREENSHOT, 0},
 	{"f.fetchshot", TWM_F_FETCHSHOT, 0},
+	{"f.lock", TWM_F_LOCK, 0},
+	{"f.suspend", TWM_F_SUSPEND, 0},
 	{"f.desktop", TWM_F_DESKTOP, 'n'},
 	{"f.send", TWM_F_SEND, 'n'},
 	{"f.separator", TWM_F_SEPARATOR, 0},
@@ -655,6 +663,9 @@ static void k_notifications(struct ctx *c) { set_bool(c, &c->cfg->notifications)
 static void k_close_box(struct ctx *c) { set_bool(c, &c->cfg->close_box); }
 static void k_volume_step(struct ctx *c) { set_int(c, &c->cfg->volume_step, 1, 50); }
 static void k_brightness_step(struct ctx *c) { set_int(c, &c->cfg->brightness_step, 1, 50); }
+static void k_idle_lock(struct ctx *c) { set_int(c, &c->cfg->idle_lock, 0, 86400); }
+static void k_idle_screen(struct ctx *c) { set_int(c, &c->cfg->idle_screen, 0, 86400); }
+static void k_lock_on_sleep(struct ctx *c) { set_bool(c, &c->cfg->lock_on_sleep); }
 static void k_tp_tap(struct ctx *c) { set_bool(c, &c->cfg->tp_tap); }
 static void k_tp_tap_drag(struct ctx *c) { set_bool(c, &c->cfg->tp_tap_drag); }
 static void k_tp_natural(struct ctx *c) { set_bool(c, &c->cfg->tp_natural_scroll); }
@@ -1080,6 +1091,9 @@ static const struct {
 	{"IconManager", k_iconmgr},
 	{"RootCard", k_rootcard},
 	{"IconsOnRoot", k_icons_on_root},
+	{"IdleLock", k_idle_lock},
+	{"IdleScreen", k_idle_screen},
+	{"LockOnSleep", k_lock_on_sleep},
 	{"Menu", k_menu},
 	{"Modifier", k_modifier},
 	{"NoDefaultBindings", k_no_default_bindings},

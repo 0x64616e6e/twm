@@ -18,6 +18,7 @@ static const char usage[] =
 	"  -f, --config <file>      Use <file> instead of $TWMRC or ~/.twmrc.\n"
 	"      --check [file]       Check a config and exit (0: ok, 1: errors).\n"
 	"      --reload             Ask the running twm to reload its config.\n"
+	"      --lock               Lock the running twm's session.\n"
 	"      --choose [who]       Pick one stdin line in a trusted prompt (portal\n"
 	"                           chooser); print it. [who]: who is asking.\n"
 	"  -s, --startup <cmd>      Run <cmd> with /bin/sh once twm is up.\n"
@@ -37,6 +38,7 @@ enum {
 	OPT_TEST,
 	OPT_RELOAD,
 	OPT_CHOOSE,
+	OPT_LOCK,
 };
 
 static bool parse_size(const char *s, int *w, int *h) {
@@ -68,11 +70,12 @@ int main(int argc, char *argv[]) {
 		{"test", no_argument, NULL, OPT_TEST},
 		{"reload", no_argument, NULL, OPT_RELOAD},
 		{"choose", no_argument, NULL, OPT_CHOOSE},
+		{"lock", no_argument, NULL, OPT_LOCK},
 		{0},
 	};
 
 	struct twm_options opts = {.xwayland = true};
-	bool debug = false, check = false, reload = false, choose = false;
+	bool debug = false, check = false, reload = false, choose = false, lock = false;
 	int c;
 	while ((c = getopt_long(argc, argv, "hvs:df:", long_options, NULL)) != -1) {
 		switch (c) {
@@ -115,10 +118,22 @@ int main(int argc, char *argv[]) {
 		case OPT_CHOOSE:
 			choose = true;
 			break;
+		case OPT_LOCK:
+			lock = true;
+			break;
 		default:
 			fputs(usage, stderr);
 			return 2;
 		}
+	}
+	if (lock) {
+		/* GRT-7: twm --lock */
+		char reply[256];
+		if (!ipcc_request("lock", reply, sizeof(reply), false)) {
+			return 2;
+		}
+		fputs(reply, stdout);
+		return strncmp(reply, "locked", 6) == 0 ? 0 : 1;
 	}
 	if (check) {
 		/* CFG-4: twm --check [file] */

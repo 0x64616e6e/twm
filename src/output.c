@@ -12,6 +12,7 @@
 #include "rootline.h"
 #include "server.h"
 #include "card.h"
+#include "lock.h"
 #include "settings.h"
 #include "view.h"
 
@@ -198,6 +199,7 @@ void output_arrange(struct twm_server *server) {
 	}
 	root_update_text(server);
 	card_configure(server);
+	lock_configure(server);
 	rootline_update(server);
 	prompt_layout(server);
 	touch_map(server); /* INP-3: a touchscreen follows its output */

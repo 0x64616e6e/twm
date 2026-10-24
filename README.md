@@ -39,7 +39,8 @@ ninja -C build
 ```
 
 Dependencies: wlroots 0.20, wayland, wayland-protocols, xkbcommon, pixman,
-fcft (fontconfig, freetype, harfbuzz), libinput; Xwayland for X11 clients;
+fcft (fontconfig, freetype, harfbuzz), libinput, PAM (the lock and the
+greeter; `-Dlock=disabled` to build without); Xwayland for X11 clients;
 sd-bus for the portal backend and notifications (libsystemd on Linux, basu on
 FreeBSD; `-Dportal=disabled` to build without). The UI font is IBM Plex Mono.
 
@@ -70,6 +71,7 @@ FreeBSD; `-Dportal=disabled` to build without). The UI font is IBM Plex Mono.
 | `M-Up` | zoom: fill the screen, frame kept (`f.zoom`, `f.horizoom` for height or width only); again to go back |
 | `M-S-f` | fullscreen, and back; apps' own maximize and fullscreen buttons do the same |
 | `Print`, `M-Print` | a screenshot to `~/Pictures/Screenshots`; a fetch shot to `/tmp`, with the root card drawn in and your `.twmrc` inside |
+| `M-l` | lock: twm's own lock screen, PAM underneath; idle locks after 10 minutes (`IdleLock`), and so does sleep |
 | `M-space` | raise or lower |
 | B1 on the bare desktop, `M-m` | the root menu |
 | type at the Icon Manager | find a window (or a command); Return goes there, `M-Return` brings it here |

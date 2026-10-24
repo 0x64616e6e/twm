@@ -54,6 +54,13 @@ an ELAN touchpad and touchscreen), started from Draftpaper's login screen.
 - Sharing a look (SHR-1 … SHR-3): `twmfetch <image>` or a PNG dropped on
   the root; appearance keys only, merged with comments kept, checked, and
   shown as pending edits in the Settings window.
+- The lock (GRT-1 … GRT-9): `M-l`, `twm --lock`, `IdleLock`, before sleep
+  through a logind delay inhibitor. B11's screen in the trusted frame: the
+  name, PAM's own question, a field, the badge, clock, card and bottom
+  line; a failed try dashes the frame; five, a minute's wait. PAM runs in
+  a child; while locked windows are hidden, input goes to the lock alone,
+  urgency waits, prompts queue, no shots. `IdleScreen` turns outputs off;
+  idle-inhibit and ext-idle-notify for clients. Ctrl-Alt-Fn switches VT.
 - Drag and drop between clients works now (it was never answered before),
   with the drag icon on a layer hit testing skips.
 - FreeBSD 15.1 tested in a VM; CI green on Arch, Debian and FreeBSD.

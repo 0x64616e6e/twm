@@ -290,7 +290,7 @@ bool grab_place_enqueue(struct twm_server *server, struct twm_view *view) {
 
 static void start_next_placement(struct twm_server *server) {
 	/* TRU-4: placement waits while a trusted prompt holds the input. */
-	if (grab_active(server) || server->prompt || wl_list_empty(&server->place_queue)) {
+	if (grab_active(server) || server->prompt || server->locked || wl_list_empty(&server->place_queue)) {
 		return;
 	}
 	struct twm_view *view = wl_container_of(server->place_queue.next, view, place_link);

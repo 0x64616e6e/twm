@@ -894,6 +894,14 @@ accent can change:
   unlock (URG-3) and the root line says how many; no shots (SHOT-3).
   `IdleScreen` seconds (default 900) turns the outputs off until the next
   input. A client's idle inhibitor (a video playing) holds both off.
+- **GRT-9** `[owner, after M7]` *Decided — tests:* with `--test`, an
+  environment variable (`TWM_TEST_LOCK_PASSWORD`) stands in for PAM, so
+  the screenshot test can unlock; the startup command is trusted already
+  (CAP-6), and without `--test` the variable is ignored. `f.suspend`
+  (root menu "suspend") locks first when `LockOnSleep` is on, then asks
+  logind (or `zzz`). The menu also gets "lock". `twm --lock` locks the
+  running session. Ctrl-Alt-Fn switches virtual terminal, locked or not:
+  the lock is twm's state, so it holds on every VT.
 - **GRT-8** `[owner, after M7]` *Decided:* the boot greeter replaces
   Draftpaper's on the owner's machine; greetd's previous config is kept
   beside it, so going back is one line. The greeter runs without XWayland
@@ -1318,6 +1326,9 @@ each milestone; CFG-3 says an unlisted key is an error.
 | `RootLineTimeout` | `60` | seconds | ROOT-6 |
 | `IconManager` | `{ at top-right sort name }` | corner, sort | IMG-1 |
 | `IconsOnRoot` | `on` | on/off | ROOT-9 |
+| `IdleLock` | `600` | seconds, `0` never | GRT-7 |
+| `IdleScreen` | `900` | seconds, `0` never | GRT-7 |
+| `LockOnSleep` | `on` | on/off | GRT-7 |
 | `RootCard` | `off` | on/off, or `{ at <corner> fields host uptime load pool mem frames }` | CARD-1 |
 | `Panner` | `{ desktops 4 }` | `{ desktops N }`, `{ desktops N off }` (keep N, hide the Panner), on/off | DSK-1 |
 | `Quiet` | `{ }` | desktop numbers | URG-3 |
@@ -1368,7 +1379,7 @@ One file, read top to bottom. Blank lines and comments are free.
   `f.hints`, `f.undo`, `f.redo`, `f.urgent`, `f.log`, `f.nexttab`,
   `f.history`, `f.desktop N`, `f.send N`, `f.separator`, `f.zoom`,
   `f.horizoom`, `f.fullzoom`, `f.fullscreen` (ZOM-1, ZOM-3),
-  `f.screenshot`, `f.fetchshot` (SHOT), `f.lock` (GRT-7). Functions whose
+  `f.screenshot`, `f.fetchshot` (SHOT), `f.lock`, `f.suspend` (GRT-7, GRT-9). Functions whose
   machinery belongs to a later milestone say so on the root line.
 
 The built-in defaults are themselves written in this syntax

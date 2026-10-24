@@ -18,6 +18,7 @@
 #include "view.h"
 #include "zoom.h"
 #include "shot.h"
+#include "lock.h"
 
 void action_run_in_terminal(struct twm_server *server, const char *cmd) {
 	const char *term = server->config->terminal;
@@ -173,6 +174,15 @@ void action_run(struct twm_server *server, const struct twm_func *func,
 		shot_take(server, func->kind == TWM_F_FETCHSHOT, path, sizeof(path));
 		return;
 	}
+	case TWM_F_LOCK: /* GRT-7 */
+		lock_engage(server, "by M-l");
+		return;
+	case TWM_F_SUSPEND: /* the lock comes first (LockOnSleep), then logind or zzz */
+		if (server->config->lock_on_sleep) {
+			lock_engage(server, "before sleep");
+		}
+		server_spawn(server, "systemctl suspend 2>/dev/null || loginctl suspend 2>/dev/null || zzz");
+		return;
 	case TWM_F_FOLD: /* GRP-6: the tabs into the one in front, and out */
 		if (view && view->group) {
 			group_set_folded(view->group, !view->group->folded);

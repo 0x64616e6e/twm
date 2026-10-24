@@ -27,6 +27,7 @@ struct twm_menu_ui;
 struct twm_hints;
 struct twm_prompt;
 struct twm_card;
+struct twm_lock;
 struct wlr_input_device;
 struct wlr_touch;
 struct twm_func;
@@ -47,6 +48,7 @@ enum twm_layer {
 	TWM_LAYER_TRUSTED,
 	TWM_LAYER_OVERLAY, /* outlines, readouts, snap guides */
 	TWM_LAYER_MENU,
+	TWM_LAYER_LOCK, /* GRT-7: the lock, above everything it hides */
 	TWM_LAYER_DRAG, /* a drag's icon: never hit-tested */
 	TWM_LAYER_COUNT,
 };
@@ -199,6 +201,8 @@ struct twm_server {
 	struct wlr_scene_buffer *wordmark;
 	struct wlr_scene_buffer *status_line;
 	struct twm_card *card; /* CARD-*: the root card */
+	struct twm_lock *lock; /* GRT-*: the lock and idle */
+	bool locked;
 
 	struct wlr_cursor *cursor;
 	struct wlr_xcursor_manager *cursor_mgr;

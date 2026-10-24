@@ -76,7 +76,10 @@ static struct tab_colors colors_for(const struct twm_theme *t, enum frame_state 
 }
 
 enum frame_state frame_state_of(struct twm_view *view) {
-	if (view->server->focused == view || view->trusted) { /* TRU-1: accent, always */
+	if (view->trusted) { /* TRU-1: accent, always; GRT-5: dashed after a failure */
+		return view->alarm ? FRAME_URGENT : FRAME_FOCUSED;
+	}
+	if (view->server->focused == view) {
 		return FRAME_FOCUSED;
 	}
 	return view->urgent ? FRAME_URGENT : FRAME_UNFOCUSED;

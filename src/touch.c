@@ -118,7 +118,7 @@ static bool for_twm(struct twm_server *server, double lx, double ly,
 		struct wlr_surface **surface, double *sx, double *sy, struct twm_hit *hit) {
 	*surface = NULL;
 	*hit = server_hit_at(server, lx, ly, surface, sx, sy);
-	if (server->prompt || grab_active(server) || menu_active(server) || server->selecting ||
+	if (server->prompt || server->locked || grab_active(server) || menu_active(server) || server->selecting ||
 			hints_active(server)) {
 		return true;
 	}

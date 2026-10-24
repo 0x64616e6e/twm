@@ -44,6 +44,8 @@
 #include "server.h"
 #include "card.h"
 #include "dnd.h"
+#include "lock.h"
+#include "sleep.h"
 #include "settings.h"
 #include "text.h"
 #include "view.h"
@@ -211,6 +213,10 @@ bool server_init(struct twm_server *server, const struct twm_options *opts) {
 	setwin_init(server);
 	card_init(server);
 	dnd_init(server);
+	lock_init(server);
+#if HAVE_PORTAL
+	sleep_init(server);
+#endif
 #if HAVE_XWAYLAND
 	if (opts->xwayland && server->config->xwayland) {
 		xwayland_init(server);
@@ -250,6 +256,10 @@ void server_finish(struct twm_server *server) {
 	media_finish(server);
 	card_finish(server);
 	dnd_finish(server);
+#if HAVE_PORTAL
+	sleep_finish(server);
+#endif
+	lock_finish(server);
 	portal_finish(server);
 	if (server->startup_pid > 0) {
 		kill(server->startup_pid, SIGTERM);

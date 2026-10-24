@@ -136,6 +136,10 @@ static uint32_t *render_output(struct twm_server *server, struct twm_output *out
 }
 
 bool shot_take(struct twm_server *server, bool fetch, char *path, size_t len) {
+	if (server->locked) {
+		snprintf(path, len, "the session is locked"); /* SHOT-3 */
+		return false;
+	}
 	if (server->prompt) {
 		snprintf(path, len, "a trusted prompt is open"); /* SHOT-3 */
 		rootline_post(server, ROOTLINE_INFO, "screenshot", "not while a prompt is open");
@@ -191,6 +195,12 @@ bool shot_take(struct twm_server *server, bool fetch, char *path, size_t len) {
 		sigset_t set;
 		sigemptyset(&set);
 		sigprocmask(SIG_SETMASK, &set, NULL);
+		/* No exec: let go of twm's descriptors (the twmfetch asking for this
+		 * shot waits for its socket to close) */
+		long max = sysconf(_SC_OPEN_MAX);
+		for (int fd = 3; fd < (max > 0 && max < 65536 ? max : 4096); fd++) {
+			close(fd);
+		}
 		struct png_text texts[] = {
 			{"twm:twmrc", server->config_text ? server->config_text : ""},
 			{"twm:version", TWM_VERSION},

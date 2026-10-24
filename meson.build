@@ -72,7 +72,18 @@ if get_option('portal').enabled() and not sdbus.found()
   error('portal was requested but neither libsystemd nor basu was found')
 endif
 
+# GRT-6, D-12: PAM for twm's own lock and greeter (Linux-PAM or OpenPAM).
+pam = dependency('pam', required: false)
+if not pam.found() and cc.has_header('security/pam_appl.h')
+  pam = cc.find_library('pam', required: false)
+endif
+have_pam = pam.found() and not get_option('lock').disabled()
+if get_option('lock').enabled() and not pam.found()
+  error('lock was requested but PAM (security/pam_appl.h, libpam) was not found')
+endif
+
 conf = configuration_data()
+conf.set10('HAVE_PAM', have_pam)
 conf.set_quoted('TWM_VERSION', meson.project_version())
 conf.set10('HAVE_XWAYLAND', have_xwayland)
 conf.set10('HAVE_PORTAL', have_portal)
@@ -89,6 +100,21 @@ subdir('src')
 # managers list (wayland-sessions).
 install_data('data/twm-session', install_dir: get_option('bindir'), install_mode: 'rwxr-xr-x')
 install_data('data/twm.desktop', install_dir: get_option('datadir') / 'wayland-sessions')
+
+# GRT-6: the `twm` PAM service, on the system's own auth stack. PAM reads
+# /etc/pam.d whatever the prefix.
+if have_pam
+  if host_machine.system() == 'freebsd'
+    pam_stack = 'auth\t\tinclude\t\tsystem\naccount\t\tinclude\t\tsystem\n'
+  elif import('fs').exists('/etc/pam.d/common-auth')
+    pam_stack = '@include common-auth\n@include common-account\n'
+  else
+    pam_stack = 'auth\t\tinclude\t\tsystem-auth\naccount\t\tinclude\t\tsystem-auth\n'
+  endif
+  configure_file(output: 'twm.pam', configuration: {'STACK': pam_stack},
+    input: 'data/twm.pam.in', install: true, install_dir: '/etc/pam.d',
+    install_tag: 'pam')
+endif
 
 # Portal files: xdg-desktop-portal finds twm's backend and the per-desktop
 # preferences here; the xdpw chooser config is an example to copy.

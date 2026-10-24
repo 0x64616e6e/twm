@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_keyboard.h>
@@ -330,8 +331,11 @@ void view_focus(struct twm_view *view) {
 	}
 	struct twm_server *server = view->server;
 	struct twm_view *prev = server->focused;
-	if (server->prompt && !view->trusted) {
-		return; /* TRU-4: the prompt keeps the focus until it closes */
+	if ((server->prompt || server->locked) && !view->trusted) {
+		return; /* TRU-4, GRT-7: the prompt or the lock keeps the focus */
+	}
+	if (server->locked && internal_view_of(view) && strcmp(internal_view_of(view)->app_id, "twm-lock") != 0) {
+		return; /* a prompt waits behind the lock */
 	}
 	view->focus_seq = ++server->focus_counter;
 	if (prev == view) {
@@ -386,8 +390,8 @@ void view_set_urgent(struct twm_view *view, bool urgent) {
 	}
 	view->urgent_seq = ++server->urgent_counter;
 	/* URG-3: a quiet desktop holds its windows' urgency until visited. */
-	if (!view->sticky && view->desktop != server->desktop &&
-			(server->quiet & (1u << (view->desktop - 1)))) {
+	if (server->locked || (!view->sticky && view->desktop != server->desktop &&
+			(server->quiet & (1u << (view->desktop - 1))))) { /* GRT-7: it waits for the unlock */
 		view->urgent_held = true;
 	} else {
 		view->urgent = true;

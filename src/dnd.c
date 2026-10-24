@@ -26,7 +26,7 @@ static void handle_request_start_drag(struct wl_listener *listener, void *data) 
 	struct wlr_seat_request_start_drag_event *ev = data;
 	/* Only a drag that starts from a press the client really got, and never
 	 * while a trusted prompt holds the input (TRU-4). */
-	if (!server->prompt && wlr_seat_validate_pointer_grab_serial(server->seat, ev->origin, ev->serial)) {
+	if (!server->prompt && !server->locked && wlr_seat_validate_pointer_grab_serial(server->seat, ev->origin, ev->serial)) {
 		wlr_seat_start_pointer_drag(server->seat, ev->drag, ev->serial);
 		return;
 	}

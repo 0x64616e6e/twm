@@ -46,6 +46,8 @@ bool prompt_active(struct twm_server *server);
 void prompt_key(struct twm_server *server, xkb_keysym_t sym);
 /* A button press or release at the cursor. */
 void prompt_pointer_button(struct twm_server *server, uint32_t button, bool pressed);
+/* GRT-7: the lock went: a prompt that waited shows. */
+void prompt_resume(struct twm_server *server);
 /* Recompute the dim overlay (outputs changed). */
 void prompt_layout(struct twm_server *server);
 

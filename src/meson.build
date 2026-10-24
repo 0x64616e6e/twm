@@ -23,6 +23,7 @@ twm_core_src = files(
 
 twm_src = twm_core_src + files(
   'actions.c',
+  'auth.c',
   'capture.c',
   'card.c',
   'prompt.c',
@@ -42,6 +43,7 @@ twm_src = twm_core_src + files(
   'internal.c',
   'ipc.c',
   'layers.c',
+  'lock.c',
   'logview.c',
   'main.c',
   'media.c',
@@ -70,8 +72,11 @@ if have_xwayland
   twm_src += files('xwayland.c')
 endif
 twm_deps = [wlroots, wayland_server, server_protos, xkbcommon, pixman, fcft, libinput, math]
+if have_pam
+  twm_deps += pam
+endif
 if have_portal
-  twm_src += files('portal.c')
+  twm_src += files('portal.c', 'sleep.c')
   twm_deps += sdbus
 endif
 

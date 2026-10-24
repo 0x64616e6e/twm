@@ -26,6 +26,8 @@ fi
 export WLR_RENDERER=pixman
 # The test program finds twm itself here (for `twm --reload`, configs).
 export TWM_BIN="$twm" TWM_TEST_HOME="$HOME"
+# GRT-9: --test stands this in for PAM, so the lock can be tested.
+export TWM_TEST_LOCK_PASSWORD=hunter2
 # Stand-ins for system tools (a fake wpctl, LVL-*) go here, first on twm's PATH.
 mkdir -p "$rt/bin"
 export TWM_TEST_BIN="$rt/bin" PATH="$rt/bin:$PATH"

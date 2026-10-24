@@ -111,9 +111,9 @@ if have_pam
   else
     pam_stack = 'auth\t\tinclude\t\tsystem-auth\naccount\t\tinclude\t\tsystem-auth\n'
   endif
-  configure_file(output: 'twm.pam', configuration: {'STACK': pam_stack},
-    input: 'data/twm.pam.in', install: true, install_dir: '/etc/pam.d',
-    install_tag: 'pam')
+  pam_file = configure_file(output: 'twm.pam', configuration: {'STACK': pam_stack},
+    input: 'data/twm.pam.in')
+  install_data(pam_file, install_dir: '/etc/pam.d', rename: 'twm', install_tag: 'pam')
 endif
 
 # Portal files: xdg-desktop-portal finds twm's backend and the per-desktop

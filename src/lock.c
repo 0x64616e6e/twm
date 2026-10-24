@@ -66,6 +66,7 @@ struct twm_lock {
 	struct wl_event_source *reap;
 	char question[128]; /* "PASSWORD" */
 	bool echo, asking, busy;
+	bool submit; /* Return came before PAM asked (a fingerprint first) */
 	char input[512];
 	size_t ilen;
 	char msg[200]; /* a failure, in alert */
@@ -445,6 +446,15 @@ static void on_auth(void *data, enum auth_event ev, const char *text, bool echo)
 		lk->echo = echo;
 		lk->asking = true;
 		lk->busy = false;
+		if (lk->submit && lk->ilen > 0) {
+			/* typed and sent while PAM was still on the fingerprint */
+			lk->submit = false;
+			lk->input[lk->ilen] = '\0';
+			lk->busy = true;
+			lk->asking = false;
+			auth_respond(lk->auth, lk->input);
+			lk->ilen = 0;
+		}
 		break;
 	}
 	case AUTH_INFO:
@@ -569,6 +579,7 @@ void lock_engage(struct twm_server *server, const char *why) {
 	lk->msg[0] = lk->info[0] = lk->question[0] = '\0';
 	lk->tries = 0;
 	lk->ilen = 0;
+	lk->submit = false;
 	/* nothing else holds the input (TRU-4) */
 	grab_cancel(server);
 	menu_close_all(server);
@@ -616,6 +627,8 @@ void lock_key(struct twm_server *server, xkb_keysym_t sym, const char *utf8, uin
 			lk->ilen = 0;
 		} else if (!lk->auth) {
 			start_auth(lk);
+		} else if (lk->ilen > 0) {
+			lk->submit = true; /* sent when PAM asks */
 		}
 	} else if (sym == XKB_KEY_BackSpace) {
 		while (lk->ilen > 0) {

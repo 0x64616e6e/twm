@@ -28,6 +28,14 @@ The design canvas: <https://claude.ai/artifact/JTyZNmdsY6JT3kGf68Sqcz>
 | B6 | 05 The trusted frame | 1440×900 | ≈1.15× |
 | B7 | 06 Calm by default | 1440×900 | ≈1.15× |
 | B8 | 07 Settings, as a file | 1440×900 | ≈1.15× |
+| B9 | 08 twmfetch | 1440×900 | ≈1.15× (28 px tab) |
+| B10 | 09 The mark | 1440×900 | — |
+| B11 | 10 The greeter | 1920×1080 | **1:1** (30 px tab) |
+| B12 | 11 Greeter — states | 1440×1080 | ≈1.15× |
+| B13 | 12 A real mark | 1440×900 | — |
+
+B9–B13 come with the owner's design document *twmfetch — Design Document*
+(2026-10-24), read with them: §3 FET, CARD, SHOT, SHR, MRK and GRT.
 
 **Measurement rule.** B0 is drawn at real size and wins every conflict, then
 B1. B2–B8 draw tabs at 30 px where B0 uses 26 px; sizes read from them are
@@ -733,6 +741,165 @@ accent can change:
   `M-S-f` → `f.fullscreen`. The root menu gets "zoom" and "fullscreen".
   `f.zoom` and `f.horizoom` have no default key (twm had none either).
 
+### FET — twmfetch
+
+- **FET-1** `[owner, after M7 · B9]` `twmfetch` prints a logo beside a
+  column of facts, in the running theme's colors (24-bit escapes when the
+  output is a terminal; none with `NO_COLOR` or into a pipe). The facts, in
+  B9's order, labels in `accent`: `os`, `uptime`, `wm`, `frames`,
+  `desktops`, `outputs`, `focus`, `font`, `pool`, `memory`, `.twmrc`; then
+  a blank line and a strip of eight swatches from the theme's tokens
+  (`ground` with a `hairline` edge, `surface`, `graphite`, `muted`, `ink`,
+  `accent`, `ok`, `alert`). `user@host` heads the column, `host` bold,
+  `user` in `accent`, a `rule`-coloured underline. `ONLINE` and `check ok`
+  are in `ok`.
+- **FET-2** `[owner, after M7 · B9]` *Decided:* the logo is B9's, not the
+  design document's matrix: a squeezed tab (` ■ tom's wm ░░░░ `, `accent`
+  ground) over a box-drawn frame holding `twm` in box-drawing letters and
+  `since 1987` in `muted`. A terminal has no pixels for the mark (MRK).
+  `--logo off` prints the facts alone.
+- **FET-3** `[owner, after M7]` *Decided:* the `wm`, `frames`, `desktops`,
+  `outputs`, `focus`, `font` and `.twmrc` facts come from twm over its
+  socket: a read-only `info` request answering counts, output names, modes
+  and scales, and the config's state — never a window's title or app id.
+  Outside twm those rows say `not running`. `os`, `uptime` and `memory` come
+  from the kernel; `pool` from `zpool list` when ZFS is there, else the row
+  is left out.
+- **FET-4** `[owner, after M7 · B9]` `--json` prints every fact as one JSON
+  object (for scripts); `--short` one line for a prompt
+  (`tom@kestrel · twm 0.1 · 7 frames · desk 1/4 · up 12d 4h`); `--no-shot`
+  writes nothing.
+- **FET-5** `[owner, after M7]` A plain `twmfetch` under twm also asks twm
+  for a fetch shot (SHOT-2) and prints its path last, in `muted`.
+  `twmfetch <image>` applies a shared look (SHR).
+
+### CARD — the root card
+
+- **CARD-1** `[owner, after M7 · B9]` `RootCard { at bottom-left fields host
+  uptime load pool mem frames }` draws the same facts on the root, like the
+  wordmark and the root line: no frame, never in the Icon Manager, under
+  every window. *Decided:* off by default (P-4 keeps the bare desktop calm);
+  `at` takes the four corners; a field it doesn't know is a config error.
+- **CARD-2** `[owner, after M7 · B9]` From B9: the host name in the
+  wordmark's serif italic, 44, `ink` at 55 %; then 13 px lines:
+  `up 12d 4h  ·  load ▂▃▅▃▂▁▂▃ 0.42` (eight samples, `accent`),
+  `tank ▮▮▮▮▮▮▮▮▮▮  4.1T free` and `mem ▮▮▮▮▮▮▮▮▮▮  9.8 / 32G` (ten cells, the
+  used share in `accent`, the rest `#3A3D34`, labels `muted`), and
+  `7 frames · 2 groups · desk 1/4` in `muted`. Its corner is 80 px in from
+  the output's usable edges, like the greeter's (B11).
+- **CARD-3** `[owner, after M7]` It updates once a second; the pool, which
+  costs a process, every 30 s, in the background. B1 on it opens
+  `twmfetch` in the `Terminal`, kept open afterwards.
+
+### SHOT — screenshots
+
+- **SHOT-1** `[owner, after M7]` `Print` (`f.screenshot`) saves the output
+  under the pointer, as it is, to `$XDG_PICTURES_DIR/Screenshots/
+  twm-YYYYMMDD-HHMMSS.png` (else `~/Pictures/Screenshots`), and a root line
+  says where. The compositor takes it (no client captures), so no capture
+  marker; the root line is the record (CAP-3).
+- **SHOT-2** `[owner, after M7 · B9]` `M-Print` (`f.fetchshot`) is the fetch
+  shot: the same capture with the root card drawn in for that frame (where
+  `RootCard` puts it, bottom-left if it's off), written to
+  `/tmp/twmfetch-YYYYMMDD-HHMMSS.png` with the `.twmrc` in a PNG `tEXt` chunk
+  (`twm:twmrc`, and `twm:version`). *Decided — the design document:* `/tmp`
+  is the point: kept only if moved out.
+- **SHOT-3** `[owner, after M7]` *Decided:* a shot is the whole output as
+  you see it — it is your own key press. While a trusted prompt or the lock
+  is up, no shot is taken (TRU-4, GRT-7); the root line says so.
+- **SHOT-4** *Decided:* the PNG is compressed by twm's own small deflate
+  (D-11): no zlib.
+
+### SHR — sharing a look
+
+- **SHR-1** `[owner, after M7]` `twmfetch <image>`, or a PNG dropped on the
+  bare root, reads the image's `twm:twmrc` chunk. None: a root line says
+  the image carries no look.
+- **SHR-2** `[owner, after M7]` *Decided — appearance only:* a `.twmrc`
+  also holds bindings and menus that run commands, so taking it whole would
+  make a screenshot executable. Only appearance keys are taken — `Theme`,
+  `Accent`, `Font`, `TitleHeight`, `BorderWidth`, `TitleHighlight`,
+  `SqueezeTitle`, `CloseBox`, `RootWeave`, `RootWordmark`, `RootCard`,
+  `IconManager`, `IconsOnRoot`, `Effects` — and every other key, binding and
+  menu stays the recipient's own.
+- **SHR-3** `[owner, after M7]` Reconcile, check, diff, apply: the taken
+  keys are merged into the recipient's file (comments and order kept,
+  SET-7), the result must pass `twm --check`, and the Settings window opens
+  with them as pending edits, so the diff is in view (SET-4); Write applies
+  it and `M-z` undoes it (HIS-1). A root line says what was taken, what
+  stayed and why (`look from twmfetch-….png · 6 keys taken · 41 lines
+  kept`).
+- **SHR-4** `[owner, after M7]` *Not yet:* dropping on a Panner cell for one
+  desktop's look (twm has no per-desktop settings); photo wallpapers (twm
+  has the weave, and layer-shell for the rest).
+
+### MRK — the mark
+
+- **MRK-1** `[owner, after M7 · B10]` The project's mark: `twm` in IBM Plex
+  Mono 700 as a mask over a field of modules (four shades, three sizes), a
+  sparse scatter shed past the glyphs; coarser as it shrinks, solid
+  `accent` at favicon size. For the README and the session's icon.
+- **MRK-2** `[owner, after M7 · B13]` *Not yet — the design document's own
+  open question:* the mark as a carrier in the pixels, for paths that strip
+  metadata. B13's scheme (3 bits a module, read row by row) has no error
+  correction or framing; a spike decides the real encoding and its byte
+  budget before any shot carries it. Until then the chunk is the only
+  carrier.
+
+### GRT — the greeter and the lock
+
+- **GRT-1** `[owner, after M7 · B11 B12]` One surface, two modes:
+  `twm --greeter`, the greeter greetd runs at boot (twm as the compositor,
+  the greeter its only window), and the lock over a running session. Same
+  chrome, the same trusted frame (TRU-1 … TRU-3): the weave is twm's, so a
+  prompt that wears it is the real one.
+- **GRT-2** `[owner, after M7 · B11]` The screen, 1:1 from B11: the root
+  dimmed one step (TRU-4); the frame 560 wide, centred, its tab
+  `system · sign in` or `system · locked` with the lock glyph; an 11 px
+  weave band; inside on `surface`: the user's name in serif italic 44 with
+  `@ host` in `muted`, `PASSWORD` (12, tracked 1), a 46 px field with a `%`
+  and an `accent` caret block, and `caps off · us · ⏎ unlock` under it. A
+  `graphite` badge above the frame: the lock glyph and `LOCKED · IDLE 9 MIN`
+  (`accent`, tracked 2). The time top-right (40 px) over the date (12,
+  `muted`). *Decided:* B11's round clock face is left out — the capture dot
+  stays the only round shape (CAP-4). The root line runs along the bottom
+  as usual.
+- **GRT-3** `[owner, after M7 · B12]` Login: a USER list (selected: an
+  `accent` square, a 10 % `accent` row and a 3 px `accent` left edge;
+  others hollow squares), the password field, and SESSION with a button
+  that opens a session menu drawn as a root menu (name, then `wayland` or
+  `X11` in `muted`). Users are the accounts with a uid in the normal range
+  and a login shell. Sessions are `wayland-sessions` and `xsessions`
+  entries. The last session is remembered per user in the greeter's own
+  state.
+- **GRT-4** `[owner, after M7 · B12]` Lock: the session's user only, no
+  session list, `session kept · N frames held` under the field.
+- **GRT-5** `[owner, after M7 · B12]` A failed try: the frame goes dashed,
+  the tab `graphite` with an `accent` outline, the error prints like a root
+  line in `alert` (`pam: authentication failed · try 2 of 5`), the field
+  clears. Nothing else moves. *Decided:* after five, a minute's wait, said
+  on the same line.
+- **GRT-6** `[owner, after M7]` PAM underneath (D-12): the prompt is the PAM
+  conversation, shown as it comes — a hidden prompt is the password field,
+  a visible one a text field, info and errors are lines. PAM runs in a
+  child process, so twm never waits on it. The `twm` PAM service is
+  installed with the distribution's own auth stack (Linux `common-auth` or
+  `system-auth`, FreeBSD `system`). At boot greetd does the PAM part and
+  the greeter relays its conversation.
+- **GRT-7** `[owner, after M7]` Locking: `f.lock` (`M-l`), `twm --lock`,
+  after `IdleLock` seconds without input (default 600, `0` never), and
+  before sleep (`LockOnSleep on`, through logind on Linux). While locked
+  every window is hidden, not dimmed (B12: "frames held"); input goes to the
+  lock alone and synthetic input nowhere (TRU-4); urgency is held until
+  unlock (URG-3) and the root line says how many; no shots (SHOT-3).
+  `IdleScreen` seconds (default 900) turns the outputs off until the next
+  input. A client's idle inhibitor (a video playing) holds both off.
+- **GRT-8** `[owner, after M7]` *Decided:* the boot greeter replaces
+  Draftpaper's on the owner's machine; greetd's previous config is kept
+  beside it, so going back is one line. The greeter runs without XWayland
+  and without any user's `.twmrc`, in the default theme; it exits once
+  greetd starts the session.
+
 ### HNT — hint mode
 
 - **HNT-1** `[M5 · B4]` `M-;` enters hint mode: every visible tab on the
@@ -1039,6 +1206,8 @@ Pointer (FRM-12, OUT-8, OUT-9, ROOT-4): see those requirements.
 | `M-d` | `f.run` | decided (IMG-13) |
 | `M-w`, `M-S-w` | `f.delete`, `f.destroy` | decided (FRM-19) |
 | `M-Up`, `M-S-f` | `f.fullzoom`, `f.fullscreen` | decided (ZOM-9) |
+| `Print`, `M-Print` | `f.screenshot`, `f.fetchshot` | owner (SHOT-1, SHOT-2) |
+| `M-l` | `f.lock` | decided (GRT-7) |
 | volume, mute, mic and brightness keys | `f.volume …`, `f.brightness …` | decided (LVL-1) |
 | `M-1`…`M-9`, `M-S-1`…`M-S-9` | desktop switch / send | decided |
 
@@ -1105,6 +1274,11 @@ Pointer (FRM-12, OUT-8, OUT-9, ROOT-4): see those requirements.
   started on demand find this display. Nested, it leaves the outer session's
   environment alone. `data/twm-portals.conf` routes Access to twm and
   ScreenCast/Screenshot to xdpw; screenshot tests run on a private bus.
+- **D-11 PNG.** Screenshots are written by twm's own deflate (fixed
+  Huffman codes over LZ77 matches), enough for flat chrome to compress well;
+  reading a shared image needs only its chunks. No zlib (SHOT-4).
+- **D-12 PAM** `[owner, 2026-10-24]`. The lock and the greeter link libpam
+  (Linux-PAM, FreeBSD's OpenPAM: one API), for GRT-6. Approved by the owner.
 - **D-9 Config file watching.** Watch the containing directory (inotify /
   kqueue) and re-read when the file's identity or mtime changes.
 
@@ -1192,7 +1366,8 @@ One file, read top to bottom. Blank lines and comments are free.
   `f.lower`, `f.raiselower`, `f.focus`, `f.delete`, `f.reload`, `f.quit`,
   `f.hints`, `f.undo`, `f.redo`, `f.urgent`, `f.log`, `f.nexttab`,
   `f.history`, `f.desktop N`, `f.send N`, `f.separator`, `f.zoom`,
-  `f.horizoom`, `f.fullzoom`, `f.fullscreen` (ZOM-1, ZOM-3). Functions whose
+  `f.horizoom`, `f.fullzoom`, `f.fullscreen` (ZOM-1, ZOM-3),
+  `f.screenshot`, `f.fetchshot` (SHOT), `f.lock` (GRT-7). Functions whose
   machinery belongs to a later milestone say so on the root line.
 
 The built-in defaults are themselves written in this syntax
@@ -1227,7 +1402,8 @@ Places where a board could be read more than one way, and the reading taken.
 ## 7. Open questions for the owner
 
 - **License** — *decided:* MIT.
-- **Future dependencies** — *Decided:* sd-bus (libsystemd / basu) for M6.
+- **Future dependencies** — *Decided:* sd-bus (libsystemd / basu) for M6;
+  libpam for the lock and the greeter (D-12, 2026-10-24).
   Still open: **PipeWire**, for twm's own ScreenCast backend (marking the app
   that shares, not xdpw; camera and microphone markers, CAP-5), and
   **libpolkit-agent**, for password prompts in the trusted frame (TRU-8).
